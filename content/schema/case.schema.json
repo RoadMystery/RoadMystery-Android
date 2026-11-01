@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "case.schema.json",
+  "title": "사건(Case)",
+  "description": "시나리오 하나의 공개 사실, 등장인물, 단서, 정답. 단서 ID는 StoryEngine의 pendingClues/획득 단서와 같은 값을 쓴다.",
+  "type": "object",
+  "required": ["id", "title", "theme", "setting", "publicFacts", "cast", "clues", "solution", "spoilerGuard"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+    "title": { "type": "string", "minLength": 1 },
+    "placeholder": { "type": "boolean", "description": "true면 시연 원고가 확정되기 전 테스트용 임시 사건" },
+    "placeholderNote": { "type": "string" },
+    "theme": { "enum": ["family", "general"], "description": "family면 폭력 묘사를 제한한다" },
+    "setting": { "type": "string", "minLength": 1 },
+    "publicFacts": {
+      "description": "게임 시작부터 모두가 아는 사실. 모든 용의자 프롬프트에 들어간다.",
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "minItems": 1
+    },
+    "cast": { "type": "array", "items": { "$ref": "#/$defs/castMember" }, "minItems": 1 },
+    "clues": { "type": "array", "items": { "$ref": "#/$defs/clue" } },
+    "solution": {
+      "description": "정답. 용의자 프롬프트에는 넣지 않고(진실 포함 변형 제외) 채점에만 쓴다.",
+      "type": "object",
+      "required": ["culprit", "method", "motive", "hidingPlace"],
+      "additionalProperties": false,
+      "properties": {
+        "culprit": { "type": "string", "description": "cast의 id" },
+        "method": { "type": "string" },
+        "motive": { "type": "string" },
+        "hidingPlace": { "type": "string" }
+      }
+    },
+    "spoilerGuard": {
+      "type": "object",
+      "required": ["forbiddenPhrases"],
+      "additionalProperties": false,
+      "properties": {
+        "forbiddenPhrases": {
+          "description": "결말 전 어떤 답변에도 나오면 안 되는 표현. 공백을 무시하고 부분 일치로 검사한다.",
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "castMember": {
+      "type": "object",
+      "required": ["id", "name", "role", "isSuspect", "aliases", "publicDescription"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+        "name": { "type": "string", "minLength": 1 },
+        "role": { "type": "string", "minLength": 1 },
+        "isSuspect": { "type": "boolean" },
+        "aliases": {
+          "description": "음성 질문에서 이 인물을 가리키는 말. 용의자 판별에 쓴다.",
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "minItems": 1
+        },
+        "publicDescription": { "type": "string" }
+      }
+    },
+    "clue": {
+      "type": "object",
+      "required": ["id", "title", "summary", "chapter", "keywords"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "pattern": "^clue-[a-z0-9-]+$" },
+        "title": { "type": "string", "minLength": 1 },
+        "summary": { "type": "string", "minLength": 1 },
+        "chapter": { "type": "integer", "minimum": 1 },
+        "keywords": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

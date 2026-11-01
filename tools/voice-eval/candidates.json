@@ -1,0 +1,36 @@
+[
+  {
+    "id": "haiku-5-5-low",
+    "model": "claude-haiku-5-5",
+    "effort": "low",
+    "note": "가장 빠르고 저렴한 후보. 생각(thinking)은 모델이 필요할 때만"
+  },
+  {
+    "id": "haiku-5-5-nothink",
+    "model": "claude-haiku-5-5",
+    "effort": "low",
+    "thinking": { "type": "disabled" },
+    "note": "생각을 끈 Haiku. 첫 소리까지 시간이 가장 짧을 것으로 예상"
+  },
+  {
+    "id": "sonnet-5-5-low",
+    "model": "claude-sonnet-5-5",
+    "effort": "low",
+    "fallbacks": "default",
+    "note": "중간 가격대. 거절 시 서버가 다른 모델로 대신 답함(served_by로 기록)"
+  },
+  {
+    "id": "sonnet-5-5-nothink",
+    "model": "claude-sonnet-5-5",
+    "effort": "low",
+    "thinking": { "type": "between_tools" },
+    "note": "생각을 끈 Sonnet(between_tools). fallbacks는 between_tools와 함께 보내지 않음"
+  },
+  {
+    "id": "opus-5-5-low",
+    "model": "claude-opus-5-5",
+    "effort": "low",
+    "fallbacks": "default",
+    "note": "품질 상한 확인용. 생각을 끌 수 없는 모델이라 effort low로 최소화"
+  }
+]
