@@ -143,6 +143,54 @@ class VoiceAgentTest {
     }
 
     @Test
+    fun `a question about a clue not found yet keeps the suspect to its own facts`() = runTest {
+        val llm = ScriptedLlm(answer("열쇠 말씀이십니까."), answer("열쇠는 제가 챙깁니다."))
+        val agent = agent(llm, speech())
+
+        agent.ask("집사한테 지하실 열쇠 누가 갖고 있는지 물어봐")
+        agent.unlockClue("clue-cellar-key")
+        agent.ask("지하실 열쇠 누가 갖고 있어요?")
+
+        val template = scenario.suspectTemplate
+        val noted = SuspectPrompt.render(scenario.case, butler, emptySet(), PromptVariant.COVER, template, listOf("열쇠"))
+        assertTrue("'열쇠' 이야기는" in noted)
+        assertEquals(noted, llm.requests[0].system)
+        // Once the key is found it is part of the suspect's own facts, so no rule is added.
+        val found = SuspectPrompt.render(scenario.case, butler, setOf("clue-cellar-key"), PromptVariant.COVER, template)
+        assertEquals(found, llm.requests[1].system)
+    }
+
+    @Test
+    fun `a clue the player has not found or brought up is cut before it is spoken`() = runTest {
+        val llm = ScriptedLlm(
+            listOf(100L to delta("저는 저장고에 있었습니다. "), 100L to delta("손목시계는 아가씨가 맡겼습니다. "), 100L to delta("끝입니다."), 10L to done()),
+            answer("영수증은 처음 봅니다. 전당포도 모릅니다."),
+        )
+        val agent = agent(llm, speech())
+
+        val volunteered = agent.ask("집사한테 어젯밤 일 물어봐")
+        val asked = agent.ask("전당포 영수증 본 적 있어요?")
+
+        assertEquals(listOf("저는 저장고에 있었습니다."), volunteered.sentences)
+        assertEquals(1, llm.cancelled)
+        // The player raised these words, so saying them answers the question instead of leaking.
+        assertEquals(listOf("영수증은 처음 봅니다.", "전당포도 모릅니다."), asked.sentences)
+    }
+
+    @Test
+    fun `a clue word the player used in an earlier turn may come up again`() = runTest {
+        val llm = ScriptedLlm(answer("열쇠는 잘 모릅니다."), answer("저장고에 있었습니다. 열쇠 일은 아까 말씀드린 대로입니다."))
+        val agent = agent(llm, speech())
+
+        agent.ask("집사한테 열쇠 얘기 물어봐")
+        val later = agent.ask("정전 때 어디 있었어요?")
+
+        // The topic rule looks at the new question only, but the earlier exchange is still sent.
+        assertTrue("지금 꺼낸" !in llm.requests[1].system)
+        assertEquals(listOf("저장고에 있었습니다.", "열쇠 일은 아까 말씀드린 대로입니다."), later.sentences)
+    }
+
+    @Test
     fun `answers stop after three sentences`() = runTest {
         val llm = ScriptedLlm(listOf(100L to delta("하나입니다. 둘입니다. 셋입니다. 넷입니다. "), 100L to done()))
 

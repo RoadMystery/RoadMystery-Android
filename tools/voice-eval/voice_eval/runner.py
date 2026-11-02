@@ -10,7 +10,7 @@ from typing import Any
 from voice_eval.content import Case, Probe, Suspect
 from voice_eval.judge import Judge, JudgeError, JudgeVerdict
 from voice_eval.metrics import AnswerChecks, check_answer
-from voice_eval.prompt import build_messages, render_system_prompt
+from voice_eval.prompt import build_messages, raised_topics, render_system_prompt
 from voice_eval.providers import AnswerProvider, Candidate, StreamResult
 
 logger = logging.getLogger(__name__)
@@ -88,9 +88,15 @@ def run_matrix(
 
     Every prompt and message list is built before the first (paid) call, so bad content fails fast.
     """
+    # Per probe, because a question that raises a clue not found yet adds a topic rule.
     systems = {
-        (variant, probe.unlocked): render_system_prompt(
-            case, suspect, frozenset(probe.unlocked), variant, template
+        (variant, probe.id): render_system_prompt(
+            case,
+            suspect,
+            frozenset(probe.unlocked),
+            variant,
+            template,
+            topics=raised_topics(case, frozenset(probe.unlocked), probe.question),
         )
         for variant in variants
         for probe in probes
@@ -102,7 +108,7 @@ def run_matrix(
         for probe in probes:
             messages = conversations[probe.id]
             for variant in variants:
-                system = systems[(variant, probe.unlocked)]
+                system = systems[(variant, probe.id)]
                 for candidate in candidates:
                     result = provider.stream_answer(candidate, system, messages)
                     checks, verdict, judge_error = _score(case, suspect, probe, result, judge)

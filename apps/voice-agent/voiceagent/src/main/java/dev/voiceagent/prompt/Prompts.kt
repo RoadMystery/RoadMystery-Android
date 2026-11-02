@@ -3,6 +3,7 @@ package dev.voiceagent.prompt
 import dev.voiceagent.content.Case
 import dev.voiceagent.content.Suspect
 import dev.voiceagent.content.UnlockableFact
+import dev.voiceagent.text.phraseHits
 import dev.voiceagent.text.pythonStrip
 
 // Port of tools/voice-eval/voice_eval/prompt.py and the prompt half of summary.py. The app must
@@ -90,7 +91,23 @@ object SuspectPrompt {
     fun unlockedFacts(suspect: Suspect, unlocked: Set<String>): List<UnlockableFact> =
         suspect.unlockable.filter { unlocked.containsAll(it.unlockedBy) }
 
-    fun render(case: Case, suspect: Suspect, unlocked: Set<String>, variant: PromptVariant, template: String): String {
+    /** Keywords of the clues not found yet, in clue order. */
+    fun lockedKeywords(case: Case, unlocked: Set<String>): List<String> =
+        case.clues.filter { it.id !in unlocked }.flatMap { it.keywords }
+
+    /** Keywords of clues not found yet that [question] brings up, matched like the spoiler guard. */
+    fun raisedTopics(case: Case, unlocked: Set<String>, question: String): List<String> =
+        phraseHits(question, lockedKeywords(case, unlocked))
+
+    /** [topics]: from [raisedTopics] for the question being answered; none leaves the prompt unchanged. */
+    fun render(
+        case: Case,
+        suspect: Suspect,
+        unlocked: Set<String>,
+        variant: PromptVariant,
+        template: String,
+        topics: List<String> = emptyList(),
+    ): String {
         PromptText.requireKnownClues(case, unlocked)
         val values = mapOf(
             "case_title" to case.title,
@@ -100,6 +117,7 @@ object SuspectPrompt {
             "role" to suspect.role,
             "not_understood" to suspect.fallbackNotUnderstood,
             "theme_rule" to PromptText.themeRule(case),
+            "topic_rule" to topicRule(suspect, topics),
             "public_facts" to PromptText.caseOverview(case),
             "profile" to PromptText.bullets(listOf("${suspect.age}세. ${suspect.background}") + suspect.personality),
             "speech_style" to speechSection(suspect),
@@ -137,6 +155,15 @@ object SuspectPrompt {
             "${member.name}(${member.role}): ${relationship.attitude}"
         },
     )
+
+    /** Keeps the answer about a raised topic to the listed facts; adds nothing when none is raised. */
+    private fun topicRule(suspect: Suspect, topics: List<String>): String {
+        if (topics.isEmpty()) return ""
+        val quoted = topics.joinToString(", ") { "'$it'" }
+        return "\n- 플레이어가 지금 꺼낸 $quoted 이야기는 '네가 말할 수 있는 사실'과 '플레이어가 찾은 단서'에 있는 " +
+            "만큼만 말하라. 누가 무엇을 가졌는지, 언제 어디서 무엇을 했는지 새로 보태지 말고, 나머지는 '인물'에 " +
+            "적힌 ${suspect.name}의 성격대로 짧게 받아넘겨라."
+    }
 
     private fun secretSection(suspect: Suspect, variant: PromptVariant): String {
         if (variant != PromptVariant.TRUTH) return ""

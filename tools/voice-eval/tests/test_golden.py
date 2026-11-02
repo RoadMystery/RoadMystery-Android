@@ -32,3 +32,6 @@ def test_golden_covers_every_suspect_variant_and_routing_case() -> None:
     assert any(0.85 <= ratio < 1 for ratio in ratios) and any(0 < ratio < 0.85 for ratio in ratios)
     hits = [entry["hits"] for entry in golden["guard"]]
     assert all(hits[:-1]) and hits[-1] == []
+    topics = golden["topics"]
+    assert any(entry["topics"] for entry in topics) and any(not entry["topics"] for entry in topics)
+    assert all(("지금 꺼낸" in entry["prompt"]) == bool(entry["topics"]) for entry in topics)

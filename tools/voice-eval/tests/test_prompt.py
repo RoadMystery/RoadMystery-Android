@@ -6,7 +6,7 @@ from conftest import CASE_DIR
 
 from voice_eval.content import Case, Probe, Suspect, UnlockableFact, load_suspect
 from voice_eval.metrics import normalize_for_match
-from voice_eval.prompt import build_messages, render_system_prompt, unlocked_facts
+from voice_eval.prompt import build_messages, raised_topics, render_system_prompt, unlocked_facts
 
 ALL_CLUES = ("clue-fusebox", "clue-wet-gloves", "clue-cellar-key", "clue-pawn-ticket")
 
@@ -128,3 +128,31 @@ def test_build_messages_rejects_history_ending_on_user(probes: tuple[Probe, ...]
     )
     with pytest.raises(ValueError, match="assistant"):
         build_messages(probe)
+
+
+def test_raised_topics_are_keywords_of_clues_not_found_yet(case: Case) -> None:
+    nothing: frozenset[str] = frozenset()
+    question = "지하실 문 열쇠는 누가 갖고 있어요?"
+
+    assert raised_topics(case, nothing, question) == ("열쇠",)
+    assert raised_topics(case, frozenset({"clue-cellar-key"}), question) == ()
+    assert raised_topics(case, nothing, "정전 때 어디 있었어요?") == ()
+    # Matched like the spoiler guard: spacing is ignored and a keyword counts inside a longer word.
+    assert raised_topics(case, nothing, "영수증은요? 고무장갑은 쓰세요?") == ("장갑", "영수증")
+    assert raised_topics(case, nothing, "지하실 열 쇠, 누가 가졌죠?") == ("열쇠",)
+
+
+def test_topic_rule_follows_the_unfound_evidence_rule_only_for_raised_topics(
+    case: Case, butler: Suspect, template: str
+) -> None:
+    plain = _render(case, butler, template)
+    noted = render_system_prompt(case, butler, frozenset(), "cover", template, topics=("열쇠", "장갑"))
+
+    assert "지금 꺼낸" not in plain
+    rule = next(line for line in noted.splitlines() if line.startswith("- 플레이어가 지금 꺼낸"))
+    assert "'열쇠', '장갑' 이야기는" in rule
+    assert butler.name in rule
+    assert f"먼저 꺼내지 마라.\n{rule}\n" in noted
+    # Without a raised topic the prompt is exactly what it was before topic rules existed.
+    assert noted.replace(f"\n{rule}", "", 1) == plain
+    assert "{{" not in noted

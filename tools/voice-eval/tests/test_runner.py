@@ -3,6 +3,7 @@ from pathlib import Path
 
 from voice_eval.content import Case, Probe, Suspect
 from voice_eval.judge import JudgeError, JudgeVerdict
+from voice_eval.prompt import render_system_prompt
 from voice_eval.providers import Candidate, ScriptedProvider, StreamResult
 from voice_eval.report import render_markdown, summarize
 from voice_eval.runner import RunRecord, run_matrix
@@ -38,6 +39,33 @@ def _leaky_for_slow(candidate: Candidate, system: str, messages: list[dict]) -> 
     if candidate.id == "slow":
         return "제가 훔쳤습니다."
     return "저장고에 있었습니다. 아무것도 못 봤습니다."
+
+
+def test_a_question_raising_an_unfound_clue_gets_the_topic_rule(
+    case: Case, butler: Suspect, template: str, probes: tuple[Probe, ...]
+) -> None:
+    systems: dict[str, str] = {}
+
+    def remember(candidate: Candidate, system: str, messages: list[dict]) -> str:
+        systems[messages[-1]["content"]] = system
+        return "저장고에 있었습니다."
+
+    by_id = {probe.id: probe for probe in probes}
+    key, alibi = by_id["locked-key"], by_id["alibi-basic"]
+    run_matrix(
+        case=case,
+        suspect=butler,
+        probes=(key, alibi),
+        candidates=CANDIDATES[:1],
+        variants=("cover",),
+        repeats=1,
+        template=template,
+        provider=ScriptedProvider(remember),
+    )
+
+    assert "'열쇠' 이야기는" in systems[key.question]
+    # A question without such a topic gets exactly the prompt it got before topic rules existed.
+    assert systems[alibi.question] == render_system_prompt(case, butler, frozenset(), "cover", template)
 
 
 def test_run_matrix_covers_every_combination_and_writes_jsonl(

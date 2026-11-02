@@ -16,7 +16,7 @@ from typing import Any
 from voice_eval.content import load_case, load_suspect
 from voice_eval.identify import decompose_jamo, identify_suspect, suspect_aliases
 from voice_eval.metrics import normalize_for_match, phrase_hits, split_sentences
-from voice_eval.prompt import VARIANTS, render_system_prompt
+from voice_eval.prompt import VARIANTS, raised_topics, render_system_prompt
 from voice_eval.summary import load_summary_probes, overview_fallback, render_summary_prompt
 
 GOLDEN_VERSION = 1
@@ -91,6 +91,16 @@ GUARD_SAMPLES: tuple[str, ...] = (
 )
 """Answers the spoiler guard must catch (or pass) the same way in Python and Kotlin."""
 
+TOPIC_QUESTIONS: tuple[tuple[str, tuple[str, ...], str], ...] = (
+    ("butler", (), "지하실 문 열쇠는 누가 갖고 있어요?"),
+    ("butler", ("clue-cellar-key",), "지하실 문 열쇠는 누가 갖고 있어요?"),
+    ("butler", (), "두꺼비집 차단기는 누가 내렸어요?"),
+    ("cook", (), "영수증은요? 고무장갑은 쓰세요?"),
+    ("niece", ("clue-fusebox",), "두꺼비집 차단기 내려간 거 알았어요? 열 쇠는요?"),
+    ("niece", (), "정전 때 어디 있었어요?"),
+)
+"""(suspect, clues found, question): questions that do or do not raise a clue not found yet."""
+
 
 def build_golden(
     case_dir: Path, suspect_template: str, summary_template: str, summary_probes: Path
@@ -113,6 +123,21 @@ def build_golden(
         for unlocked in clue_sets
         for variant in VARIANTS
     ]
+    by_id = {suspect.id: suspect for suspect in suspects}
+    topics = []
+    for suspect_id, unlocked, question in TOPIC_QUESTIONS:
+        raised = raised_topics(case, frozenset(unlocked), question)
+        topics.append(
+            {
+                "suspect": suspect_id,
+                "unlocked": list(unlocked),
+                "question": question,
+                "topics": list(raised),
+                "prompt": render_system_prompt(
+                    case, by_id[suspect_id], frozenset(unlocked), "cover", suspect_template, topics=raised
+                ),
+            }
+        )
     summaries = [
         {
             "probe": probe.id,
@@ -131,6 +156,7 @@ def build_golden(
         "case": case.id,
         "overview": overview_fallback(case),
         "prompts": prompts,
+        "topics": topics,
         "summaries": summaries,
         "identify": [
             {"utterance": text, "default": default, "expected": identify_suspect(text, aliases, default)}

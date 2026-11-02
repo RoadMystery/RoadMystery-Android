@@ -132,14 +132,16 @@ class VoiceAgent(
         val suspect = scenario.suspect(suspectId)
         mutableState.update { if (it.game == progress.game) it.copy(currentSuspect = suspectId) else it }
         progress.update { it.copy(suspectId = suspectId) }
+        val topics = SuspectPrompt.raisedTopics(scenario.case, state.unlockedClues, question)
         val request = LlmRequest(
             task = LlmTask.INTERROGATION,
-            system = SuspectPrompt.render(scenario.case, suspect, state.unlockedClues, config.variant, scenario.suspectTemplate),
+            system = SuspectPrompt.render(scenario.case, suspect, state.unlockedClues, config.variant, scenario.suspectTemplate, topics),
             messages = conversation(state.notebook, suspectId, question),
             requestId = UUID.randomUUID().toString(),
         )
+        val blocked = unsentClueWords(request, state.unlockedClues)
         val answer = try {
-            speakAnswer(progress, request, suspect.speaker, suspect.filler, config.maxAnswerSentences)
+            speakAnswer(progress, request, suspect.speaker, suspect.filler, config.maxAnswerSentences, blocked)
         } catch (e: CancellationException) {
             // The player cut in: keep what they heard so a follow-up question has its context.
             remember(progress.game, suspectId, question, progress.snapshot.sentences)
@@ -181,6 +183,17 @@ class VoiceAgent(
         return history + ChatMessage(Role.USER, question)
     }
 
+    /**
+     * Keywords of clues not found yet that appear nowhere in [request]: neither the player nor the
+     * prompt brought them up, so a suspect saying one is volunteering the clue.
+     */
+    private fun unsentClueWords(request: LlmRequest, unlocked: Set<String>): List<String> {
+        val sent = (listOf(request.system) + request.messages.map { it.content }).joinToString("\n")
+        val locked = SuspectPrompt.lockedKeywords(scenario.case, unlocked)
+        val mentioned = phraseHits(sent, locked).toSet()
+        return locked.filterNot { it in mentioned }
+    }
+
     private fun remember(game: Int, suspectId: String, question: String, sentences: List<String>) {
         if (sentences.isEmpty()) return
         val testimony = Testimony(suspectId, question, sentences.joinToString(" ").take(ProxyContract.MAX_MESSAGE_CHARS))
@@ -198,6 +211,7 @@ class VoiceAgent(
         speaker: String,
         filler: String,
         maxSentences: Int,
+        blockedWords: List<String> = emptyList(),
     ): Answer = coroutineScope {
         val lines = Channel<Line>(Channel.UNLIMITED)
         val talker = launch {
@@ -208,7 +222,7 @@ class VoiceAgent(
             // trySend: on a multi-threaded dispatcher the answer may already have closed the queue.
             lines.trySend(Line(filler, isFiller = true))
         }
-        val builder = AnswerBuilder(maxSentences, scenario.case.forbiddenPhrases) { sentence ->
+        val builder = AnswerBuilder(maxSentences, scenario.case.forbiddenPhrases + blockedWords) { sentence ->
             fillerJob.cancel()
             lines.trySend(Line(sentence, isFiller = false))
         }
@@ -308,7 +322,7 @@ private class TurnProgress(val game: Int) {
 /** Turns streamed text into speakable sentences under the spoiler guard and the sentence limit. */
 private class AnswerBuilder(
     private val maxSentences: Int,
-    private val forbiddenPhrases: List<String>,
+    private val blockedPhrases: List<String>,
     private val onSentence: (String) -> Unit,
 ) {
     private val splitter = StreamingSentenceSplitter()
@@ -333,7 +347,7 @@ private class AnswerBuilder(
             if (!isOpen) return false
             // The whole answer so far is checked with punctuation ignored, so a phrase split across
             // two sentences is caught at its second half, which is then not spoken.
-            if (phraseHits((accepted + sentence).joinToString(" "), forbiddenPhrases).isNotEmpty()) {
+            if (phraseHits((accepted + sentence).joinToString(" "), blockedPhrases).isNotEmpty()) {
                 guarded = true
                 return false
             }

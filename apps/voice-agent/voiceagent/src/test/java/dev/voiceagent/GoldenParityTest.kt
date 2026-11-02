@@ -45,6 +45,21 @@ class GoldenParityTest {
     }
 
     @Test
+    fun `topic rules for questions about clues not found yet match Python`() {
+        val entries = golden.getJSONArray("topics").objects()
+        assertTrue(entries.any { it.getJSONArray("topics").length() > 0 })
+        for (entry in entries) {
+            val question = entry.getString("question")
+            val unlocked = entry.getJSONArray("unlocked").strings().toSet()
+            val topics = SuspectPrompt.raisedTopics(scenario.case, unlocked, question)
+            assertEquals("'$question'", entry.getJSONArray("topics").strings(), topics)
+            val suspect = scenario.suspect(entry.getString("suspect"))
+            val actual = SuspectPrompt.render(scenario.case, suspect, unlocked, PromptVariant.COVER, scenario.suspectTemplate, topics)
+            assertEquals("'$question'", entry.getString("prompt"), actual)
+        }
+    }
+
+    @Test
     fun `summary prompts and the empty-notebook overview match Python`() {
         assertEquals(golden.getString("overview"), SummaryPrompt.overviewFallback(scenario.case))
         val entries = golden.getJSONArray("summaries").objects()
