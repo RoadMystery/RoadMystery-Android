@@ -1,0 +1,14 @@
+{
+  "note": "못 찾은 단서를 묻는 새 질문(2026-11-03, 문장 판별·단서별 태도 2차 측정). 답변을 보기 전에 썼고, 단서마다 키워드가 든 질문과 없는 질문을 둔다. locked-pawn은 probes/niece.json과 같은 질문(기준점).",
+  "probes": [
+    { "id": "key-who", "category": "locked_clue", "question": "지하실 열쇠는 누가 갖고 있어요?" },
+    { "id": "key-enter", "category": "locked_clue", "question": "지하실은 아무나 들어갈 수 있어요?" },
+    { "id": "locked-pawn", "category": "locked_clue", "question": "혹시 요즘 돈 때문에 뭘 맡기거나 판 적 있어요?" },
+    { "id": "pawn-visit", "category": "locked_clue", "question": "전당포에 가 본 적 있어요?" },
+    { "id": "pawn-watch", "category": "locked_clue", "question": "요즘 늘 차던 시계는 어디 갔어요?" },
+    { "id": "fuse-where", "category": "locked_clue", "question": "두꺼비집이 어디 있는지 알아요?" },
+    { "id": "fuse-cause", "category": "locked_clue", "question": "정전이 왜 났다고 생각해요?" },
+    { "id": "gloves-who", "category": "locked_clue", "question": "흰 장갑은 보통 누가 껴요?" },
+    { "id": "gloves-rain", "category": "locked_clue", "question": "그날 밤 비 맞고 들어온 사람 있었어요?" }
+  ]
+}

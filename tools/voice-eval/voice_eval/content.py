@@ -38,6 +38,8 @@ class Clue:
     summary: str
     chapter: int
     keywords: tuple[str, ...]
+    hidden_facts: tuple[str, ...] = ()
+    """What the clue gives away, one fact a sentence, none of it public. Empty: only the summary."""
 
 
 @dataclass(frozen=True)
@@ -56,6 +58,8 @@ class Solution:
     method: str
     motive: str
     hiding_place: str
+    hidden_facts: tuple[str, ...] = ()
+    """The solution split into facts that leave out what is public, such as the culprit's alibi."""
 
 
 @dataclass(frozen=True)
@@ -100,6 +104,14 @@ class UnlockableFact:
 
 
 @dataclass(frozen=True)
+class BeforeFound:
+    """How the suspect answers a question about [clue] while the player has not found it."""
+
+    clue: str
+    text: str
+
+
+@dataclass(frozen=True)
 class Relationship:
     target: str
     attitude: str
@@ -125,6 +137,7 @@ class Suspect:
     fallback_offline: str
     fallback_not_understood: str
     filler: str
+    before_found: tuple[BeforeFound, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -195,6 +208,7 @@ def load_case(case_dir: Path, schema_dir: Path | None = None) -> Case:
             summary=item["summary"],
             chapter=item["chapter"],
             keywords=tuple(item["keywords"]),
+            hidden_facts=tuple(item.get("hiddenFacts", ())),
         )
         for item in data["clues"]
     )
@@ -222,6 +236,7 @@ def load_case(case_dir: Path, schema_dir: Path | None = None) -> Case:
             method=solution["method"],
             motive=solution["motive"],
             hiding_place=solution["hidingPlace"],
+            hidden_facts=tuple(solution.get("hiddenFacts", ())),
         ),
         forbidden_phrases=tuple(data["spoilerGuard"]["forbiddenPhrases"]),
         schema_dir=resolved_schema_dir,
@@ -262,6 +277,12 @@ def load_suspect(path: Path, case: Case) -> Suspect:
                 clue_id in clue_ids,
                 f"{path}: knowledge '{fact.id}' is unlocked by unknown clue '{clue_id}'",
             )
+    before_found = tuple(
+        BeforeFound(clue=item["clue"], text=item["text"]) for item in knowledge.get("beforeFound", ())
+    )
+    for line in before_found:
+        _require(line.clue in clue_ids, f"{path}: beforeFound refers to unknown clue '{line.clue}'")
+    _unique([line.clue for line in before_found], "beforeFound clue", path)
 
     relationships = tuple(
         Relationship(target=item["target"], attitude=item["attitude"])
@@ -301,6 +322,7 @@ def load_suspect(path: Path, case: Case) -> Suspect:
         fallback_offline=fallback["offline"],
         fallback_not_understood=fallback["notUnderstood"],
         filler=fallback["filler"],
+        before_found=before_found,
     )
 
 

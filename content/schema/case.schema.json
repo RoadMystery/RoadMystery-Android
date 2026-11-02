@@ -31,7 +31,8 @@
         "culprit": { "type": "string", "description": "cast의 id" },
         "method": { "type": "string" },
         "motive": { "type": "string" },
-        "hidingPlace": { "type": "string" }
+        "hidingPlace": { "type": "string" },
+        "hiddenFacts": { "$ref": "#/$defs/hiddenFacts" }
       }
     },
     "spoilerGuard": {
@@ -75,8 +76,15 @@
         "title": { "type": "string", "minLength": 1 },
         "summary": { "type": "string", "minLength": 1 },
         "chapter": { "type": "integer", "minimum": 1 },
-        "keywords": { "type": "array", "items": { "type": "string" } }
+        "keywords": { "type": "array", "items": { "type": "string" } },
+        "hiddenFacts": { "$ref": "#/$defs/hiddenFacts" }
       }
+    },
+    "hiddenFacts": {
+      "description": "플레이어가 찾기 전에는 용의자가 말하면 안 되는 사실을 한 문장에 하나씩. 공개 사실이나 용의자가 말해도 되는 사실과 겹치는 내용(예: 집사의 알리바이)은 넣지 않는다. 문장 판별이 이 목록과 비교한다.",
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "minItems": 1
     }
   }
 }

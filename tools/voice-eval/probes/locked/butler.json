@@ -1,0 +1,14 @@
+{
+  "note": "못 찾은 단서를 묻는 새 질문(2026-11-03, 문장 판별·단서별 태도 2차 측정). 답변을 보기 전에 썼고, 단서마다 키워드가 든 질문과 없는 질문을 둔다. locked-* 두 개는 probes/butler.json과 같은 질문(기준점).",
+  "probes": [
+    { "id": "locked-key", "category": "locked_clue", "question": "지하실 문 열쇠는 누가 갖고 있어요?" },
+    { "id": "key-have", "category": "locked_clue", "question": "집사님, 지하실 열쇠 지금 갖고 계세요?" },
+    { "id": "key-door", "category": "locked_clue", "question": "그날 밤 지하실 문은 누가 열 수 있었어요?" },
+    { "id": "locked-gloves", "category": "locked_clue", "question": "혹시 그날 밤에 장갑 끼고 계셨어요?" },
+    { "id": "gloves-barehand", "category": "locked_clue", "question": "그날 밤 맨손으로 일하셨어요?" },
+    { "id": "fuse-breaker", "category": "locked_clue", "question": "정전 때 차단기가 내려간 거 아니었어요?" },
+    { "id": "fuse-cause", "category": "locked_clue", "question": "정전이 왜 났는지 짐작 가는 거 있으세요?" },
+    { "id": "pawn-heard", "category": "locked_clue", "question": "서진 아가씨가 전당포에 다닌다는 얘기 들으셨어요?" },
+    { "id": "pawn-money", "category": "locked_clue", "question": "서진 아가씨가 요즘 돈 마련하려고 뭘 맡기거나 팔았어요?" }
+  ]
+}

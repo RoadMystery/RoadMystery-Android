@@ -28,6 +28,7 @@ _TOPIC_RULE = (
     "만큼만 말하라. 누가 무엇을 가졌는지, 언제 어디서 무엇을 했는지 새로 보태지 말고, 나머지는 '인물'에 "
     "적힌 {name}의 성격대로 짧게 받아넘겨라."
 )
+_BEFORE_FOUND_HEADING = "# 플레이어가 아직 찾지 않은 단서를 물을 때 (먼저 꺼내지 말 것)"
 
 
 def _final_consonant(word: str) -> int | None:
@@ -60,6 +61,29 @@ def unlocked_facts(suspect: Suspect, unlocked: frozenset[str]) -> tuple[Unlockab
     return tuple(fact for fact in suspect.unlockable if set(fact.unlocked_by) <= unlocked)
 
 
+def require_known_clues(case: Case, unlocked: frozenset[str]) -> None:
+    unknown = sorted(unlocked - {clue.id for clue in case.clues})
+    if unknown:
+        raise ValueError(f"unknown clue id(s): {', '.join(unknown)}")
+
+
+def allowed_facts(case: Case, suspect: Suspect, unlocked: frozenset[str]) -> tuple[str, ...]:
+    """What the suspect may state as fact: the case overview, its own profile and relationships,
+    its public knowledge and the reactions the found clues unlocked. The judge and the sentence
+    check both treat these as already public."""
+    relationships = (
+        f"{case.member(relationship.target).name}에 대해: {relationship.attitude}"
+        for relationship in suspect.relationships
+    )
+    return (
+        *case.public_facts,
+        f"{suspect.name}의 이력: {suspect.age}세. {suspect.background}",
+        *relationships,
+        *(fact.text for fact in suspect.public),
+        *(fact.text for fact in unlocked_facts(suspect, unlocked)),
+    )
+
+
 def _unlocked_section(case: Case, suspect: Suspect, unlocked: frozenset[str]) -> str:
     clues = [clue for clue in case.clues if clue.id in unlocked]
     if not clues:
@@ -88,6 +112,18 @@ def _relationship_section(case: Case, suspect: Suspect) -> str:
         member = case.member(relationship.target)
         lines.append(f"{member.name}({member.role}): {relationship.attitude}")
     return bullets(lines)
+
+
+def _before_found_section(case: Case, suspect: Suspect, unlocked: frozenset[str]) -> str:
+    """The persona's answer for each clue not found yet, in clue order; empty when there is none.
+
+    {{before_found}} follows another section directly, so the value brings its own blank line.
+    """
+    answers = {line.clue: line.text for line in suspect.before_found}
+    lines = [answers[clue.id] for clue in case.clues if clue.id not in unlocked and clue.id in answers]
+    if not lines:
+        return ""
+    return f"\n\n{_BEFORE_FOUND_HEADING}\n{bullets(lines)}"
 
 
 def _secret_section(suspect: Suspect, variant: str) -> str:
@@ -126,9 +162,7 @@ def render_system_prompt(
 ) -> str:
     if variant not in VARIANTS:
         raise ValueError(f"unknown variant '{variant}' (expected one of {', '.join(VARIANTS)})")
-    unknown = sorted(unlocked - {clue.id for clue in case.clues})
-    if unknown:
-        raise ValueError(f"unknown clue id(s): {', '.join(unknown)}")
+    require_known_clues(case, unlocked)
 
     values = {
         "case_title": case.title,
@@ -146,6 +180,7 @@ def render_system_prompt(
         "speech_style": _speech_section(suspect),
         "public_knowledge": bullets(fact.text for fact in suspect.public),
         "unlocked_knowledge": _unlocked_section(case, suspect, unlocked),
+        "before_found": _before_found_section(case, suspect, unlocked),
         "relationships": _relationship_section(case, suspect),
         "deflections": bullets(suspect.deflections),
         "secret_section": _secret_section(suspect, variant),

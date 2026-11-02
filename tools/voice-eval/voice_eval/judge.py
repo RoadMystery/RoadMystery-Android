@@ -9,7 +9,7 @@ from typing import Any, Protocol
 import anthropic
 
 from voice_eval.content import Case, Probe, Suspect
-from voice_eval.prompt import unlocked_facts
+from voice_eval.prompt import allowed_facts
 from voice_eval.providers import raise_if_missing_credentials
 
 DEFAULT_JUDGE_MODEL = "claude-opus-5-5"
@@ -86,17 +86,7 @@ def build_judge_prompt(
     culprit = case.member(case.solution.culprit)
     # Everything in the suspect's own prompt except the secrets: its profile and relationships
     # are part of the character, so repeating them is not inventing case facts.
-    relationships = [
-        f"{case.member(relationship.target).name}에 대해: {relationship.attitude}"
-        for relationship in suspect.relationships
-    ]
-    allowed = [
-        *case.public_facts,
-        f"{suspect.name}의 이력: {suspect.age}세. {suspect.background}",
-        *relationships,
-        *(fact.text for fact in suspect.public),
-        *(fact.text for fact in unlocked_facts(suspect, unlocked)),
-    ]
+    allowed = list(allowed_facts(case, suspect, unlocked))
     found = [f"{clue.title}: {clue.summary}" for clue in case.clues if clue.id in unlocked]
     hidden = [f"{clue.title}: {clue.summary}" for clue in case.clues if clue.id not in unlocked]
     speaker = {"user": "플레이어", "assistant": "용의자"}

@@ -156,3 +156,29 @@ def test_topic_rule_follows_the_unfound_evidence_rule_only_for_raised_topics(
     # Without a raised topic the prompt is exactly what it was before topic rules existed.
     assert noted.replace(f"\n{rule}", "", 1) == plain
     assert "{{" not in noted
+
+
+def test_the_shipped_template_leaves_before_found_answers_out(
+    case: Case, butler: Suspect, template: str
+) -> None:
+    prompt = _render(case, butler, template)
+
+    assert "{{before_found}}" not in template
+    assert not any(line.text in prompt for line in butler.before_found)
+
+
+def test_before_found_answers_cover_only_clues_not_found_yet(case: Case, butler: Suspect) -> None:
+    template = "{{unlocked_knowledge}}{{before_found}}\n\n# 다음"
+    answers = {line.clue: line.text for line in butler.before_found}
+
+    none_found = _render(case, butler, template)
+    key_found = _render(case, butler, template, unlocked=("clue-cellar-key",))
+    all_found = _render(case, butler, template, unlocked=ALL_CLUES)
+
+    heading = "# 플레이어가 아직 찾지 않은 단서를 물을 때 (먼저 꺼내지 말 것)"
+    listed = [f"- {answers[clue]}" for clue in ALL_CLUES]
+    assert f"\n\n{heading}\n" + "\n".join(listed) + "\n\n# 다음" in none_found
+    assert answers["clue-cellar-key"] not in key_found
+    assert answers["clue-fusebox"] in key_found
+    # With every clue found the placeholder adds nothing, not even a blank line.
+    assert all_found == _render(case, butler, "{{unlocked_knowledge}}\n\n# 다음", unlocked=ALL_CLUES)

@@ -1,0 +1,152 @@
+import dataclasses
+
+import pytest
+
+from voice_eval.clue_check import (
+    SOLUTION,
+    CheckError,
+    build_check_message,
+    build_check_system,
+    hidden_facts,
+    parse_check,
+)
+from voice_eval.content import Case, Probe, Suspect
+from voice_eval.judge import build_judge_prompt
+from voice_eval.proxy import MAX_MESSAGE_CHARS, MAX_SYSTEM_CHARS
+
+QUESTION = "지하실 문 열쇠는 누가 갖고 있어요?"
+FUSEBOX = frozenset({"clue-fusebox"})
+
+
+def _section(prompt: str, title: str) -> str:
+    start = prompt.index(title)
+    end = prompt.find("\n\n# ", start)
+    return prompt[start : end if end != -1 else None]
+
+
+def test_facts_of_clues_not_found_and_of_the_solution_are_hidden_with_their_ids(
+    case: Case, butler: Suspect
+) -> None:
+    prompt = build_check_system(case, butler, FUSEBOX, (), QUESTION)
+
+    hidden = _section(prompt, "# 숨길 사실")
+    assert "- [clue-cellar-key] 집사 한도윤이 지하실 열쇠를 가지고 있다." in hidden
+    assert "- [solution] 브로치를 가져간 사람은 집사 한도윤이다." in hidden
+    assert "clue-fusebox" not in hidden
+    assert "찾은 단서 지하실 두꺼비집: 정전 직후" in _section(prompt, "# 이미 알려진 사실")
+    assert "- 한도윤(집사)" in _section(prompt, "# 말하는 용의자")
+    assert prompt.endswith("none만 적는다.")
+    assert "{{" not in prompt
+
+
+def test_hidden_facts_follow_clue_order_then_the_solution(case: Case) -> None:
+    ids = [fact_id for fact_id, _ in hidden_facts(case, frozenset())]
+
+    expected = [clue.id for clue in case.clues for _ in clue.hidden_facts]
+    assert ids == expected + [SOLUTION] * len(case.solution.hidden_facts)
+
+
+def test_without_hidden_facts_the_check_falls_back_to_the_summaries(case: Case) -> None:
+    plain = dataclasses.replace(
+        case,
+        clues=tuple(dataclasses.replace(clue, hidden_facts=()) for clue in case.clues),
+        solution=dataclasses.replace(case.solution, hidden_facts=()),
+    )
+
+    facts = hidden_facts(plain, FUSEBOX)
+
+    assert ("clue-cellar-key", case.clue("clue-cellar-key").summary) in facts
+    assert (SOLUTION, "범인: 한도윤(집사)") in facts
+    assert (SOLUTION, f"수법: {case.solution.method}") in facts
+
+
+def test_the_check_knows_what_the_judge_treats_as_public(
+    case: Case, butler: Suspect, probes: tuple[Probe, ...]
+) -> None:
+    unlocked = frozenset({"clue-cellar-key", "clue-fusebox"})
+    check = build_check_system(case, butler, unlocked, (), QUESTION)
+    judge = build_judge_prompt(case, butler, probes[0], unlocked, "모릅니다.")
+
+    allowed = _section(judge, "# 용의자가 말해도 되는 사실").split("\n", 1)[1]
+    assert _section(check, "# 이미 알려진 사실").split("\n", 1)[1].startswith(allowed + "\n- 찾은 단서 ")
+
+
+def test_the_dialogue_keeps_the_last_three_exchanges_and_ends_with_the_question(
+    case: Case, butler: Suspect
+) -> None:
+    history = [
+        {"role": role, "content": f"{word} {n}"}
+        for n in range(1, 6)
+        for role, word in (("user", "질문"), ("assistant", "대답"))
+    ]
+
+    dialogue = _section(build_check_system(case, butler, frozenset(), history, QUESTION), "# 지금까지의 대화")
+
+    assert "질문 2" not in dialogue
+    assert "플레이어: 질문 3\n용의자: 대답 3" in dialogue
+    assert dialogue.endswith(f"용의자: 대답 5\n플레이어: {QUESTION}")
+
+
+def test_the_largest_check_fits_the_proxy_limits(case: Case, butler: Suspect) -> None:
+    longest = "가" * MAX_MESSAGE_CHARS
+    history = [{"role": role, "content": longest} for _ in range(10) for role in ("user", "assistant")]
+
+    assert len(build_check_system(case, butler, frozenset(), history, longest)) <= MAX_SYSTEM_CHARS
+    assert len(build_check_message([longest, longest], longest)) == MAX_MESSAGE_CHARS
+
+
+def test_the_message_shows_what_was_already_said_then_the_new_sentence() -> None:
+    assert build_check_message([], "열쇠 말씀이십니까.") == (
+        "# 이번 대답에서 앞서 한 말\n없음\n\n# 새 문장\n열쇠 말씀이십니까."
+    )
+    assert build_check_message(["하나입니다.", "둘입니다."], "셋입니다.") == (
+        "# 이번 대답에서 앞서 한 말\n하나입니다. 둘입니다.\n\n# 새 문장\n셋입니다."
+    )
+
+
+def test_an_overlong_message_drops_the_start_of_what_came_before_then_the_end_of_the_sentence() -> None:
+    message = build_check_message(["앞" * 990, "끝."], "새 문장입니다.")
+    assert len(message) == MAX_MESSAGE_CHARS
+    assert message.endswith("앞 끝.\n\n# 새 문장\n새 문장입니다.")
+
+    message = build_check_message([], "말" * 2000)
+    assert len(message) == MAX_MESSAGE_CHARS
+    assert message.startswith("# 이번 대답에서 앞서 한 말\n없음\n\n# 새 문장\n말")
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("none", ()),
+        ("  None.\n", ()),
+        ("없음", ()),
+        ("clue-cellar-key", ("clue-cellar-key",)),
+        ("clue-cellar-key, solution", ("clue-cellar-key", SOLUTION)),
+        ("`solution`", (SOLUTION,)),
+        ("clue-cellar-key,clue-cellar-key", ("clue-cellar-key",)),
+        ("[clue-cellar-key], [solution]", ("clue-cellar-key", SOLUTION)),
+    ],
+)
+def test_parse_check_reads_none_or_the_ids_it_was_shown(case: Case, text: str, expected: tuple[str, ...]) -> None:
+    assert parse_check(text, case, FUSEBOX) == expected
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["", "clue-fusebox", "clue-unknown", "none, clue-cellar-key", "열쇠를 드러냈습니다"],
+)
+def test_parse_check_rejects_anything_else(case: Case, text: str) -> None:
+    # clue-fusebox is already found, so it is not among the ids the check was shown.
+    with pytest.raises(CheckError):
+        parse_check(text, case, FUSEBOX)
+
+
+def test_unknown_clue_ids_are_rejected(case: Case, butler: Suspect) -> None:
+    with pytest.raises(ValueError, match="clue-nope"):
+        build_check_system(case, butler, frozenset({"clue-nope"}), (), QUESTION)
+
+
+def test_history_that_still_holds_the_question_is_rejected(case: Case, butler: Suspect) -> None:
+    # Passing the suspect's message list (which ends with the question) would show the question twice.
+    with pytest.raises(ValueError, match="check history"):
+        build_check_system(case, butler, frozenset(), [{"role": "user", "content": QUESTION}], QUESTION)

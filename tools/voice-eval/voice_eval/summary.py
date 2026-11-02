@@ -20,7 +20,7 @@ from voice_eval.judge import (
     require_score,
 )
 from voice_eval.metrics import format_violations, normalize_for_match, phrase_hits, split_sentences
-from voice_eval.prompt import bullets, case_overview, fill_template, theme_rule
+from voice_eval.prompt import bullets, case_overview, fill_template, require_known_clues, theme_rule
 
 MAX_SUMMARY_SENTENCES = 5
 """About 30 seconds of speech (F-06 output condition)."""
@@ -105,9 +105,7 @@ def _testimony_lines(case: Case, testimonies: Sequence[Testimony]) -> str:
 def render_summary_prompt(
     case: Case, template: str, unlocked: frozenset[str], testimonies: Sequence[Testimony]
 ) -> str:
-    unknown = sorted(unlocked - {clue.id for clue in case.clues})
-    if unknown:
-        raise ValueError(f"unknown clue id(s): {', '.join(unknown)}")
+    require_known_clues(case, unlocked)
     return fill_template(
         template,
         {
