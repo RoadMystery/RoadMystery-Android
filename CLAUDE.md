@@ -61,13 +61,19 @@ enum class AppMode { IDLE, BRIEFING, DRIVING, PAUSED, STOPPED, ENDING }
 
 interface StoryEngine {
     val mode: StateFlow<AppMode>
-    val pendingClues: StateFlow<List<Clue>>
+    val scenario: StateFlow<Scenario?>
+    val clues: StateFlow<List<Clue>>        // 찾은 단서 전체
+    val pendingClues: StateFlow<List<Clue>> // 마지막 정차 이후 새로 찾은 단서
+    val nowPlaying: StateFlow<NowPlaying?>
+    val progress: StateFlow<Float>
+    val outcome: StateFlow<Outcome?>        // 범인 지목 결과
     fun start(scenarioId: String)
     fun onVehicleEvent(event: VehicleEvent)
     fun choose(decisionId: String, optionId: String)
 }
 
 interface AudioPlayer {
+    val events: Flow<AudioEvent> // SentenceStarted, SceneFinished → StoryEngine이 다음 장면으로 진행
     fun play(scene: Scene, fromSentence: Int = 0)
     fun pause(): Int // 멈춘 문장 인덱스
     fun stop()
@@ -87,9 +93,12 @@ interface ProgressStore {
 ```
 
 ## 시나리오 데이터 형식
+- 파일 위치: `app/src/main/assets/scenarios/{id}.json`, 검증: `ScenarioParser.validate` (`ScenarioDataTest`가 실행)
 - scenario: id, title, culprit, suspects[], chapters[], clues[]
-- suspect: id, name, voice, persona(말투·알리바이·숨긴 사실), revealable(답변으로 공개 가능한 단서 id)
-- scene: id, required(false면 도착 시간에 맞춰 넣거나 뺌), durationSec, script, unlocks(열리는 단서), trigger(차량 이벤트 태그)
+- suspect: id, name, role, voice, persona(말투·알리바이·숨긴 사실), revealable(답변으로 공개 가능한 단서 id)
+- scene: id, required(false면 도착 시간에 맞춰 넣거나 뺌), durationSec, script, unlocks(열리는 단서), trigger
+  - trigger 없음: 본편, 순서대로 재생 / `briefing`: 시작 시 / `ending_correct`·`ending_wrong`: 범인 지목 후 / 그 외: `VehicleEvent.Place` 태그(예: `tunnel`)
+  - 도착하면 못 들은 필수 장면의 단서를 지급하므로, 모든 단서는 필수 본편 장면에서 열려야 한다.
 - progress: scenarioId, chapterId, lastSceneId, lastSentenceIndex, cluesFound, testimonies, choices
 - 용의자 답변(LLM)은 범인과 트릭을 직접 공개하지 않는다.
 

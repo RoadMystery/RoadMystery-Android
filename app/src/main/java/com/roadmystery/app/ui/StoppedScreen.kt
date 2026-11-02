@@ -25,13 +25,13 @@ import com.roadmystery.app.story.Clue
 @Composable
 fun StoppedScreen(
     clues: List<Clue>,
-    newClueId: String?,
+    newClueIds: Set<String>,
     totalClues: Int,
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
-    LaunchedEffect(newClueId) {
-        val index = clues.indexOfFirst { it.id == newClueId }
+    LaunchedEffect(newClueIds) {
+        val index = clues.indexOfFirst { it.id in newClueIds }
         if (index >= 0) listState.animateScrollToItem(index)
     }
 
@@ -47,7 +47,7 @@ fun StoppedScreen(
         } else {
             LazyRow(state = listState, horizontalArrangement = Arrangement.spacedBy(20.dp)) {
                 items(clues, key = { it.id }) { clue ->
-                    ClueCard(clue = clue, isNew = clue.id == newClueId)
+                    ClueCard(clue = clue, isNew = clue.id in newClueIds)
                 }
             }
         }
