@@ -35,9 +35,14 @@ class MissingCredentialsError(RuntimeError):
     """No Claude API credentials could be resolved (no API key, token, or login profile)."""
 
 
+def is_missing_credentials(exc: TypeError) -> bool:
+    """The SDK reports missing credentials as a TypeError with this message."""
+    return _NO_CREDENTIALS in str(exc)
+
+
 def raise_if_missing_credentials(exc: TypeError) -> None:
-    """The SDK reports missing credentials as a TypeError; turn that into MissingCredentialsError."""
-    if _NO_CREDENTIALS in str(exc):
+    """Turn the SDK's missing-credentials TypeError into MissingCredentialsError."""
+    if is_missing_credentials(exc):
         raise MissingCredentialsError(str(exc)) from exc
 
 

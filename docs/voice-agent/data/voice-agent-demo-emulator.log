@@ -1,0 +1,18 @@
+# VoiceAgent demo on Pleos Connect Emulator v2.1.0, on-device TTS/STT, dev proxy --mock (2026-11-02 10:46)
+# Answers are the proxy's canned text; only flow and timing are under test.
+# typed question
+DEMO_REPLY {"command":"ask","heard":null,"kind":"ANSWER","suspect":"butler","sentences":["그 시각에는 지하 저장고에서 와인을 고르고 있었습니다.","다른 것은 보지 못했습니다."],"fillerPlayed":true,"firstTextMs":461,"elapsedMs":6701,"failure":null,"speechError":null}
+# recorded question
+DEMO_REPLY {"command":"pcm","heard":"집사한테 어젯밤 어디 있었는지 물어봐","kind":"ANSWER","suspect":"butler","sentences":["그 시각에는 지하 저장고에서 와인을 고르고 있었습니다.","다른 것은 보지 못했습니다."],"fillerPlayed":true,"firstTextMs":486,"elapsedMs":6896,"failure":null,"speechError":null}
+# recorded two-sentence question
+DEMO_REPLY {"command":"pcm","heard":"서진 아가씨는 요즘 어때요? 무슨 일 있었어요","kind":"ANSWER","suspect":"niece","sentences":["그 시각에는 지하 저장고에서 와인을 고르고 있었습니다.","다른 것은 보지 못했습니다."],"fillerPlayed":true,"firstTextMs":511,"elapsedMs":7102,"failure":null,"speechError":null}
+# recorded question to the cook
+DEMO_REPLY {"command":"pcm","heard":"요리사한테 정전 때 어디 있었는지 물어봐","kind":"ANSWER","suspect":"cook","sentences":["그 시각에는 지하 저장고에서 와인을 고르고 있었습니다.","다른 것은 보지 못했습니다."],"fillerPlayed":true,"firstTextMs":413,"elapsedMs":6803,"failure":null,"speechError":null}
+# summary with an empty notebook
+DEMO_REPLY {"command":"summary","heard":null,"kind":"OVERVIEW","suspect":null,"sentences":["아직 수사 수첩이 비어 있어요. 사건을 다시 들려드릴게요. 비 오는 밤, 교외에 있는 윤씨 저택. 윤정호 회장의 일흔 번째 생일 만찬 도중 정전이 일어났고, 불이 다시 들어왔을 때 서재 진열장의 푸른 사파이어 브로치가 사라져 있었다."],"fillerPlayed":false,"firstTextMs":null,"elapsedMs":14849,"failure":null,"speechError":null}
+# clues, question, summary
+DEMO_REPLY {"command":"ask","heard":null,"kind":"ANSWER","suspect":"cook","sentences":["그 시각에는 지하 저장고에서 와인을 고르고 있었습니다.","다른 것은 보지 못했습니다."],"fillerPlayed":true,"firstTextMs":417,"elapsedMs":6590,"failure":null,"speechError":null}
+DEMO_REPLY {"command":"summary","heard":null,"kind":"SUMMARY","suspect":null,"sentences":["지하실 두꺼비집 차단기가 손으로 내려가 있었어요.","집사는 그때 저장고에 있었다고 말했어요."],"fillerPlayed":true,"firstTextMs":408,"elapsedMs":7877,"failure":null,"speechError":null}
+# barge-in after 1.5 s
+DEMO_REPLY {"command":"ask","heard":null,"kind":"INTERRUPTED","suspect":"butler","sentences":["그 시각에는 지하 저장고에서 와인을 고르고 있었습니다."],"fillerPlayed":true,"firstTextMs":414,"elapsedMs":1566,"failure":null,"speechError":null}
+DEMO_REPLY {"command":"ask","heard":null,"kind":"ANSWER","suspect":"cook","sentences":["그 시각에는 지하 저장고에서 와인을 고르고 있었습니다.","다른 것은 보지 못했습니다."],"fillerPlayed":true,"firstTextMs":523,"elapsedMs":6621,"failure":null,"speechError":null}

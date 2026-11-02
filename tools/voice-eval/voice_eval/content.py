@@ -22,6 +22,7 @@ PROBE_CATEGORIES = frozenset(
         "stt_noise",
         "multi_turn",
         "content_safety",
+        "secret_pressure",
     }
 )
 

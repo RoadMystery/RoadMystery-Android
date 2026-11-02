@@ -2,8 +2,9 @@ import dataclasses
 import itertools
 
 import pytest
+from conftest import CASE_DIR
 
-from voice_eval.content import Case, Probe, Suspect, UnlockableFact
+from voice_eval.content import Case, Probe, Suspect, UnlockableFact, load_suspect
 from voice_eval.metrics import normalize_for_match
 from voice_eval.prompt import build_messages, render_system_prompt, unlocked_facts
 
@@ -26,6 +27,22 @@ def test_cover_prompt_never_contains_secrets_or_solution(
         assert normalize_for_match(phrase) not in normalized
     assert case.solution.method not in prompt
     assert case.solution.motive not in prompt
+
+
+@pytest.mark.parametrize("suspect_id", ["niece", "cook"])
+def test_other_suspects_cover_prompts_keep_secrets(
+    case: Case, template: str, suspect_id: str
+) -> None:
+    suspect = load_suspect(CASE_DIR / "suspects" / f"{suspect_id}.json", case)
+    prompt = _render(case, suspect, template, unlocked=ALL_CLUES)
+    normalized = normalize_for_match(prompt)
+
+    assert suspect.name in prompt
+    for fact in suspect.secret:
+        assert fact.text not in prompt
+    for phrase in case.forbidden_phrases:
+        assert normalize_for_match(phrase) not in normalized
+    assert "{{" not in prompt
 
 
 def test_truth_prompt_adds_secret_section(case: Case, butler: Suspect, template: str) -> None:

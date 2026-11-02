@@ -1,0 +1,20 @@
+# VoiceAgent demo on Pleos Connect Emulator v2.1.0, on-device TTS/STT, dev proxy (Claude haiku-5-5-low, summary sonnet-5-5-low) (2026-11-02 13:40)
+# Answers come from Claude through the dev proxy.
+# typed question
+DEMO_REPLY {"command":"ask","heard":null,"kind":"ANSWER","suspect":"butler","sentences":["정전이 났을 때는 지하 저장고에 있었습니다, 탐정님.","회장님 지시로 생신 와인을 고르던 중이었습니다."],"fillerPlayed":true,"firstTextMs":1101,"elapsedMs":8889,"failure":null,"speechError":null}
+# recorded question
+DEMO_REPLY {"command":"pcm","heard":"집사한테 어젯밤 어디 있었는지 물어봐","kind":"ANSWER","suspect":"butler","sentences":["탐정님, 정전 직전에는 회장님 지시로 지하 저장고에 생신 와인을 가지러 내려가 있었습니다.","정전 중에는 손전등을 찾느라 꼼짝하지 못했고, 불이 들어오자마자 식당으로 올라왔습니다."],"fillerPlayed":true,"firstTextMs":988,"elapsedMs":13460,"failure":null,"speechError":null}
+# recorded two-sentence question
+DEMO_REPLY {"command":"pcm","heard":"서진 아가씨는 요즘 어때요? 무슨 일 있었어요","kind":"ANSWER","suspect":"niece","sentences":["요즘요?","가게 정리하고 나서는 그냥 저택에서 지내고 있어요, 탐정님.","사건 얘기하러 오신 거 아니었어요?"],"fillerPlayed":true,"firstTextMs":948,"elapsedMs":8357,"failure":null,"speechError":null}
+# recorded question to the cook
+DEMO_REPLY {"command":"pcm","heard":"요리사한테 정전 때 어디 있었는지 물어봐","kind":"ANSWER","suspect":"cook","sentences":["정전 때요?","부엌에서 오븐 지키고 있었죠.","생신 케이크 망치면 안 되니까 촛불도 켜 두고요."],"fillerPlayed":true,"firstTextMs":1369,"elapsedMs":7631,"failure":null,"speechError":null}
+# summary with an empty notebook
+DEMO_REPLY {"command":"summary","heard":null,"kind":"OVERVIEW","suspect":null,"sentences":["아직 수사 수첩이 비어 있어요. 사건을 다시 들려드릴게요. 비 오는 밤, 교외에 있는 윤씨 저택. 윤정호 회장의 일흔 번째 생일 만찬 도중 정전이 일어났고, 불이 다시 들어왔을 때 서재 진열장의 푸른 사파이어 브로치가 사라져 있었다."],"fillerPlayed":false,"firstTextMs":null,"elapsedMs":14882,"failure":null,"speechError":null}
+# clues, question, summary
+DEMO_REPLY {"command":"ask","heard":null,"kind":"ANSWER","suspect":"cook","sentences":["아이고, 장갑이요?","그건 한 집사가 은식기 닦을 때 끼는 흰 면장갑이에요.","부엌에서는 고무장갑만 써요."],"fillerPlayed":true,"firstTextMs":970,"elapsedMs":8319,"failure":null,"speechError":null}
+DEMO_REPLY {"command":"summary","heard":null,"kind":"SUMMARY","suspect":null,"sentences":["지금까지 찾은 단서는 두 가지예요.","정전 직후 지하실 두꺼비집의 주 차단기가 내려가 있었는데 고장이 아니라 누군가 손으로 내린 것이었고, 현관 우산꽂이 안쪽에서는 빗물에 젖은 흰 면장갑 한 켤레가 나왔어요.","장갑에 대해 요리사 박미란 씨는 한 집사가 은식기를 닦을 때 끼는 흰 면장갑이고 부엌에서는 고무장갑만 쓴다고 말했어요.","아직 들은 증언은 이것뿐이에요."],"fillerPlayed":true,"firstTextMs":647,"elapsedMs":26014,"failure":null,"speechError":null}
+# spoiler push, then a follow-up
+DEMO_REPLY {"command":"ask","heard":null,"kind":"ANSWER","suspect":"butler","sentences":["탐정님, 그런 말씀은 제가 드릴 수 있는 것이 아닙니다.","저는 그날 저장고에서 와인을 고르고 있었을 뿐입니다, 그 외에는 아는 것이 없습니다."],"fillerPlayed":true,"firstTextMs":611,"elapsedMs":10341,"failure":null,"speechError":null}
+# barge-in after 1.5 s
+DEMO_REPLY {"command":"ask","heard":null,"kind":"INTERRUPTED","suspect":"butler","sentences":["정전 직전에는 회장님 지시로 지하 저장고에 생신용 와인을 가지러 내려가 있었습니다, 탐정님."],"fillerPlayed":true,"firstTextMs":788,"elapsedMs":1566,"failure":null,"speechError":null}
+DEMO_REPLY {"command":"ask","heard":null,"kind":"ANSWER","suspect":"cook","sentences":["아이고, 부엌 얘기요?","정전 때 나는 오븐 속 생신 케이크 지키고 있었어요.","촛불도 켜 놓고요."],"fillerPlayed":true,"firstTextMs":995,"elapsedMs":7631,"failure":null,"speechError":null}

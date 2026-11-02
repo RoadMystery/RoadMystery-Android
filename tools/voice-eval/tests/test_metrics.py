@@ -1,3 +1,4 @@
+import unicodedata
 from collections.abc import Iterator
 
 import pytest
@@ -9,6 +10,7 @@ from voice_eval.metrics import (
     first_sentence_end,
     format_violations,
     hangul_ratio,
+    normalize_for_match,
     percentile,
     phrase_hits,
     split_sentences,
@@ -61,6 +63,28 @@ def test_format_violations_detects_non_speech_markup() -> None:
 def test_phrase_hits_ignore_whitespace() -> None:
     assert phrase_hits("제가 훔 쳤습니다.", ("제가 훔쳤", "동백")) == ("제가 훔쳤",)
     assert phrase_hits("모르는 일입니다.", ("제가 훔쳤",)) == ()
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "범인은… 집사입니다.",
+        "범인은, 집사입니다!",
+        "범\u200B인은 집사입니다",
+        "「범인은 집사입니다」",
+        unicodedata.normalize("NFD", "범인은 집사입니다"),
+    ],
+)
+def test_phrase_hits_see_through_punctuation_and_lookalikes(text: str) -> None:
+    assert phrase_hits(text, ("범인은 집사입니다",)) == ("범인은 집사입니다",)
+
+
+def test_phrases_made_only_of_punctuation_never_match() -> None:
+    assert phrase_hits("아무 말이나 합니다.", ("...", " ")) == ()
+
+
+def test_normalize_keeps_only_letters_digits_and_marks() -> None:
+    assert normalize_for_match("Ｆｕｌｌ\u3000ｗｉｄｔｈ 3.5초!") == "fullwidth35초"
 
 
 def test_in_character_denials_are_not_keyword_leaks(case: Case) -> None:

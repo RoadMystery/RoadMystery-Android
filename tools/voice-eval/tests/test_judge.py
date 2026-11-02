@@ -73,6 +73,18 @@ def test_prompt_separates_found_and_hidden_clues(
     assert prompt.rstrip().endswith("rationale: 한두 문장으로 근거.")
 
 
+def test_the_persona_profile_and_relationships_count_as_allowed_facts(
+    case: Case, butler: Suspect, probes: tuple[Probe, ...]
+) -> None:
+    probe = _probe(probes, "alibi-basic")
+    allowed = _section(build_judge_prompt(case, butler, probe, frozenset(), "네."), "# 용의자가 말해도 되는 사실")
+
+    # The suspect's own prompt carries these, so saying them is not inventing case facts.
+    assert butler.background in allowed
+    assert all(relationship.attitude in allowed for relationship in butler.relationships)
+    assert all(fact.text not in allowed for fact in butler.secret)
+
+
 def test_prompt_replays_conversation_history(
     case: Case, butler: Suspect, probes: tuple[Probe, ...]
 ) -> None:

@@ -84,8 +84,16 @@ def build_judge_prompt(
     case: Case, suspect: Suspect, probe: Probe, unlocked: frozenset[str], answer: str
 ) -> str:
     culprit = case.member(case.solution.culprit)
+    # Everything in the suspect's own prompt except the secrets: its profile and relationships
+    # are part of the character, so repeating them is not inventing case facts.
+    relationships = [
+        f"{case.member(relationship.target).name}에 대해: {relationship.attitude}"
+        for relationship in suspect.relationships
+    ]
     allowed = [
         *case.public_facts,
+        f"{suspect.name}의 이력: {suspect.age}세. {suspect.background}",
+        *relationships,
         *(fact.text for fact in suspect.public),
         *(fact.text for fact in unlocked_facts(suspect, unlocked)),
     ]
@@ -117,14 +125,14 @@ def build_judge_prompt(
     )
 
 
-def _flag(data: Any, key: str) -> bool:
+def require_bool(data: Any, key: str) -> bool:
     value = data[key]
     if not isinstance(value, bool):  # bool("false") would be True
         raise JudgeError(f"'{key}' is not a boolean: {data!r}")
     return value
 
 
-def _score(data: Any, key: str) -> int:
+def require_score(data: Any, key: str) -> int:
     value = data[key]
     if isinstance(value, bool) or not isinstance(value, int) or value not in _SCORE_RANGE:
         raise JudgeError(f"'{key}' is not an integer 1-5: {data!r}")
@@ -134,15 +142,56 @@ def _score(data: Any, key: str) -> int:
 def parse_verdict(data: Any) -> JudgeVerdict:
     try:
         return JudgeVerdict(
-            reveals_solution=_flag(data, "reveals_solution"),
-            reveals_locked_clue=_flag(data, "reveals_locked_clue"),
-            invents_case_facts=_flag(data, "invents_case_facts"),
-            in_character=_score(data, "in_character"),
-            answers_question=_score(data, "answers_question"),
+            reveals_solution=require_bool(data, "reveals_solution"),
+            reveals_locked_clue=require_bool(data, "reveals_locked_clue"),
+            invents_case_facts=require_bool(data, "invents_case_facts"),
+            in_character=require_score(data, "in_character"),
+            answers_question=require_score(data, "answers_question"),
             rationale=str(data["rationale"]),
         )
     except (KeyError, TypeError) as exc:
         raise JudgeError(f"malformed verdict: {data!r}") from exc
+
+
+def request_structured_json(
+    client: anthropic.Anthropic,
+    *,
+    model: str,
+    effort: str,
+    system: str,
+    prompt: str,
+    schema: dict[str, Any],
+) -> Any:
+    """One structured-output call shared by every judge; failures become JudgeError."""
+    try:
+        response = client.messages.create(
+            model=model,
+            max_tokens=16000,
+            system=system,
+            messages=[{"role": "user", "content": prompt}],
+            output_config={"effort": effort, "format": {"type": "json_schema", "schema": schema}},
+        )
+    except (
+        anthropic.AuthenticationError,
+        anthropic.PermissionDeniedError,
+        anthropic.CredentialsError,
+    ):
+        raise
+    except TypeError as exc:
+        raise_if_missing_credentials(exc)
+        raise
+    except anthropic.APIError as exc:
+        raise JudgeError(f"{type(exc).__name__}: {exc}") from exc
+
+    if response.stop_reason == "refusal":
+        raise JudgeError("judge refused")
+    text = next((block.text for block in response.content if block.type == "text"), None)
+    if text is None:
+        raise JudgeError(f"no text block (stop_reason={response.stop_reason})")
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise JudgeError(f"invalid JSON: {text[:200]}") from exc
 
 
 @dataclass
@@ -159,36 +208,12 @@ class ClaudeJudge:
         unlocked: frozenset[str],
         answer: str,
     ) -> JudgeVerdict:
-        prompt = build_judge_prompt(case, suspect, probe, unlocked, answer)
-        try:
-            response = self.client.messages.create(
-                model=self.model,
-                max_tokens=16000,
-                system=JUDGE_SYSTEM,
-                messages=[{"role": "user", "content": prompt}],
-                output_config={
-                    "effort": self.effort,
-                    "format": {"type": "json_schema", "schema": JUDGE_SCHEMA},
-                },
-            )
-        except (
-            anthropic.AuthenticationError,
-            anthropic.PermissionDeniedError,
-            anthropic.CredentialsError,
-        ):
-            raise
-        except TypeError as exc:
-            raise_if_missing_credentials(exc)
-            raise
-        except anthropic.APIError as exc:
-            raise JudgeError(f"{type(exc).__name__}: {exc}") from exc
-
-        if response.stop_reason == "refusal":
-            raise JudgeError("judge refused")
-        text = next((block.text for block in response.content if block.type == "text"), None)
-        if text is None:
-            raise JudgeError(f"no text block (stop_reason={response.stop_reason})")
-        try:
-            return parse_verdict(json.loads(text))
-        except json.JSONDecodeError as exc:
-            raise JudgeError(f"invalid JSON: {text[:200]}") from exc
+        data = request_structured_json(
+            self.client,
+            model=self.model,
+            effort=self.effort,
+            system=JUDGE_SYSTEM,
+            prompt=build_judge_prompt(case, suspect, probe, unlocked, answer),
+            schema=JUDGE_SCHEMA,
+        )
+        return parse_verdict(data)

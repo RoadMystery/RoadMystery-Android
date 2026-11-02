@@ -1,0 +1,272 @@
+package dev.voiceagent.demo
+
+import android.app.Activity
+import android.content.Intent
+import android.os.Bundle
+import android.os.SystemClock
+import android.util.Log
+import android.view.KeyEvent
+import android.view.View
+import android.view.ViewGroup.LayoutParams.MATCH_PARENT
+import android.view.inputmethod.EditorInfo
+import android.widget.Button
+import android.widget.CheckBox
+import android.widget.EditText
+import android.widget.HorizontalScrollView
+import android.widget.LinearLayout
+import android.widget.ScrollView
+import android.widget.TextView
+import dev.voiceagent.agent.AgentReply
+import dev.voiceagent.agent.AgentState
+import dev.voiceagent.agent.VoiceAgent
+import dev.voiceagent.content.Scenario
+import dev.voiceagent.llm.ProxyLlmClient
+import dev.voiceagent.platform.PleosSpeechInput
+import dev.voiceagent.platform.PleosSpeechOutput
+import dev.voiceagent.platform.fromAssets
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.json.JSONArray
+import org.json.JSONObject
+
+/**
+ * Emulator demo of VoiceAgent: pick a suspect, tick the clues found, then ask by typing, by
+ * microphone, or with a recorded question, and hear the answer. For unattended runs:
+ *
+ *   adb shell am start -n dev.voiceagent.demo/.MainActivity --es ask "집사한테 정전 때 어디 있었는지 물어봐"
+ *
+ * Extras, applied in this order: `reset` (boolean), `suspect` (id; empty clears), `clues`
+ * (comma-separated ids), `pcm` (asset path of a recorded question, e.g. stt/alibi-basic.pcm),
+ * `ask` (text), `summary` (boolean). Each reply is logged under the VoiceAgentDemo tag as
+ * `DEMO_REPLY {json}`, and every command list ends with `DEMO_DONE`.
+ */
+class MainActivity : Activity() {
+    private class Services(val agent: VoiceAgent, val output: PleosSpeechOutput, val input: PleosSpeechInput)
+
+    private val scope = MainScope()
+    private val services = CompletableDeferred<Services>()
+    private var ready: Services? = null
+    private lateinit var scenario: Scenario
+    private lateinit var stateView: TextView
+    private lateinit var logView: TextView
+    private lateinit var questionInput: EditText
+    private val clueBoxes = mutableListOf<CheckBox>()
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        scenario = Scenario.fromAssets(assets)
+        setContentView(buildLayout())
+        // On recreation the launch intent is redelivered; only a fresh launch runs its commands.
+        val commands = if (savedInstanceState == null) intent else null
+        scope.launch {
+            try {
+                services.complete(startServices())
+                log("준비 완료: ${scenario.case.title}")
+            } catch (e: Exception) {
+                services.completeExceptionally(e)
+                Log.e(TAG, "음성 엔진 준비 실패", e)
+                log("음성 엔진 준비 실패: $e")
+            }
+            commands?.let(::runCommands)
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        runCommands(intent)
+    }
+
+    override fun onDestroy() {
+        scope.cancel()
+        ready?.let {
+            it.output.release()
+            it.input.release()
+        }
+        super.onDestroy()
+    }
+
+    private suspend fun startServices(): Services {
+        val output = PleosSpeechOutput.create(this)
+        val input = try {
+            PleosSpeechInput.create(this)
+        } catch (e: Exception) {
+            output.release()
+            throw e
+        }
+        val llm = ProxyLlmClient(BuildConfig.PROXY_URL, BuildConfig.PROXY_TOKEN, allowCleartext = BuildConfig.DEBUG)
+        val agent = VoiceAgent(scenario, llm, output)
+        scope.launch { agent.state.collect(::showState) }
+        return Services(agent, output, input).also { ready = it }
+    }
+
+    private fun runCommands(intent: Intent) {
+        // The adb channel is debug-only: any app on the device can send this activity an intent.
+        if (!BuildConfig.DEBUG || AUTOMATION_EXTRAS.none(intent::hasExtra)) return
+        runAutomation(intent)
+    }
+
+    private fun runAutomation(intent: Intent) = withServices(alwaysLogDone = true) { s ->
+        if (intent.getBooleanExtra(EXTRA_RESET, false)) s.agent.reset()
+        intent.getStringExtra(EXTRA_SUSPECT)?.let { s.agent.selectSuspect(it.ifEmpty { null }) }
+        intent.getStringExtra(EXTRA_CLUES)?.split(',')?.map(String::trim)?.filter(String::isNotEmpty)
+            ?.forEach(s.agent::unlockClue)
+        intent.getStringExtra(EXTRA_PCM)?.let { askRecorded(s, it) }
+        intent.getStringExtra(EXTRA_ASK)?.let { question -> report("ask") { s.agent.ask(question) } }
+        if (intent.getBooleanExtra(EXTRA_SUMMARY, false)) report("summary") { s.agent.summarize() }
+    }
+
+    private suspend fun askRecorded(s: Services, asset: String) {
+        val pcm = withContext(Dispatchers.IO) { assets.open(asset).use { it.readBytes() } }
+        s.agent.stop()
+        val heard = s.input.recognizePcm(pcm)
+        log("인식: ${heard ?: "(없음)"}")
+        report("pcm", heard) { s.agent.ask(heard.orEmpty()) }
+    }
+
+    private suspend fun report(command: String, heard: String? = null, call: suspend () -> AgentReply) {
+        val startedAt = SystemClock.elapsedRealtime()
+        val reply = call()
+        val json = JSONObject()
+            .put("command", command)
+            .put("heard", heard ?: JSONObject.NULL)
+            .put("kind", reply.kind.name)
+            .put("suspect", reply.suspectId ?: JSONObject.NULL)
+            .put("sentences", JSONArray(reply.sentences))
+            .put("fillerPlayed", reply.fillerPlayed)
+            .put("firstTextMs", reply.firstTextMs ?: JSONObject.NULL)
+            .put("elapsedMs", SystemClock.elapsedRealtime() - startedAt)
+            .put("failure", reply.failure ?: JSONObject.NULL)
+            .put("speechError", reply.speechError ?: JSONObject.NULL)
+        // Debug builds only: these lines are the player's conversation (llm-proxy-contract.md).
+        if (BuildConfig.DEBUG) Log.i(TAG, "DEMO_REPLY $json")
+        log("[${reply.kind}] ${speakerName(reply.suspectId)}: ${reply.text}")
+    }
+
+    private fun withServices(alwaysLogDone: Boolean = false, block: suspend (Services) -> Unit) = scope.launch {
+        try {
+            block(services.await())
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.e(TAG, "DEMO_FAILED", e)
+            log("실패: $e")
+        } finally {
+            if (alwaysLogDone) Log.i(TAG, "DEMO_DONE")
+        }
+    }
+
+    private fun buildLayout(): View {
+        val padding = dp(16)
+        stateView = TextView(this).apply { textSize = 16f }
+        logView = TextView(this).apply {
+            textSize = 16f
+            setTextIsSelectable(true)
+        }
+        questionInput = EditText(this).apply {
+            hint = "질문 입력 (예: 집사한테 정전 때 어디 있었는지 물어봐)"
+            textSize = 18f
+            isSingleLine = true
+            imeOptions = EditorInfo.IME_ACTION_SEND
+            setOnEditorActionListener { _, _, event ->
+                // A hardware Enter reports key-down and key-up; ask once.
+                if (event == null || event.action == KeyEvent.ACTION_DOWN) askTyped()
+                true
+            }
+        }
+        val suspects = listOf(button("자동 판별") { select(null) }) +
+            scenario.suspects.values.map { suspect -> button("${suspect.name}(${suspect.role})") { select(suspect.id) } }
+        scenario.case.clues.mapTo(clueBoxes) { clue ->
+            CheckBox(this).apply {
+                text = clue.title
+                textSize = 16f
+                // showState() disables a box before ticking it, so only a tap reaches the agent.
+                setOnCheckedChangeListener { box, checked ->
+                    if (checked && box.isEnabled) withServices { it.agent.unlockClue(clue.id) }
+                }
+            }
+        }
+        val actions = listOf(
+            button("묻기") { askTyped() },
+            button("말로 묻기") { withServices { s -> report("listen") { s.agent.listenAndAsk(s.input) } } },
+            button("정리해줘") { withServices { s -> report("summary") { s.agent.summarize() } } },
+            button("멈춰") { ready?.agent?.stop() },
+            button("새 게임") { withServices { it.agent.reset() } },
+        )
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(padding, padding, padding, padding)
+            addView(TextView(this@MainActivity).apply { text = connectionStatus() })
+            addView(stateView)
+            addView(row(suspects))
+            addView(row(clueBoxes))
+            addView(questionInput)
+            addView(row(actions))
+            addView(ScrollView(this@MainActivity).apply { addView(logView) }, LinearLayout.LayoutParams(MATCH_PARENT, 0, 1f))
+        }
+    }
+
+    private fun askTyped() {
+        val question = questionInput.text.toString()
+        if (question.isBlank()) return // an empty ask would cut off the answer being spoken
+        questionInput.text.clear()
+        withServices { s -> report("ask") { s.agent.ask(question) } }
+    }
+
+    private fun select(suspectId: String?) = withServices { it.agent.selectSuspect(suspectId) }
+
+    private fun showState(state: AgentState) {
+        val current = state.currentSuspect?.let(scenario::suspect)?.let { "${it.name}(${it.role})" } ?: "없음"
+        stateView.text = "지금 묻는 사람: $current · 찾은 단서 ${state.unlockedClues.size}개 · 수첩 ${state.notebook.size}개"
+        clueBoxes.forEachIndexed { index, box ->
+            val found = scenario.case.clues[index].id in state.unlockedClues
+            box.isEnabled = !found
+            box.isChecked = found
+        }
+    }
+
+    /** Never shows the token itself. */
+    private fun connectionStatus(): String {
+        val token = if (BuildConfig.PROXY_TOKEN.isEmpty()) "없음 (tools/voice-eval/.env의 VOICE_PROXY_TOKEN)" else "있음"
+        return "프록시 ${BuildConfig.PROXY_URL} · 토큰 $token"
+    }
+
+    private fun speakerName(suspectId: String?): String = suspectId?.let { scenario.suspect(it).name } ?: "진행자"
+
+    private fun row(views: List<View>): View = HorizontalScrollView(this).apply {
+        addView(
+            LinearLayout(this@MainActivity).apply {
+                orientation = LinearLayout.HORIZONTAL
+                views.forEach { addView(it) }
+            },
+        )
+    }
+
+    private fun button(label: String, onClick: () -> Unit): Button = Button(this).apply {
+        text = label
+        textSize = 18f
+        setOnClickListener { onClick() }
+    }
+
+    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
+
+    private fun log(line: String) {
+        runOnUiThread { logView.append("$line\n") }
+    }
+
+    companion object {
+        const val TAG = "VoiceAgentDemo"
+        const val EXTRA_RESET = "reset"
+        const val EXTRA_SUSPECT = "suspect"
+        const val EXTRA_CLUES = "clues"
+        const val EXTRA_PCM = "pcm"
+        const val EXTRA_ASK = "ask"
+        const val EXTRA_SUMMARY = "summary"
+        private val AUTOMATION_EXTRAS = listOf(EXTRA_RESET, EXTRA_SUSPECT, EXTRA_CLUES, EXTRA_PCM, EXTRA_ASK, EXTRA_SUMMARY)
+    }
+}

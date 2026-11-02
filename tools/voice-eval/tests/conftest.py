@@ -11,6 +11,17 @@ TEMPLATE_PATH = TOOL_ROOT / "prompts" / "suspect_system.ko.md"
 PROBES_PATH = TOOL_ROOT / "probes" / "butler.json"
 
 
+@pytest.fixture(autouse=True)
+def _no_real_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Tests never read the developer's tools/voice-eval/.env or shell credentials, so no test can
+    reach the paid API by accident."""
+    import voice_eval.__main__ as cli
+
+    monkeypatch.setattr(cli, "DEFAULT_ENV_FILE", TOOL_ROOT / "tests" / "no-such.env")
+    for name in ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "VOICE_PROXY_TOKEN"):
+        monkeypatch.delenv(name, raising=False)
+
+
 @pytest.fixture(scope="session")
 def case() -> Case:
     return load_case(CASE_DIR)

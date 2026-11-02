@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 import re
+import unicodedata
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 
@@ -16,7 +17,8 @@ MIN_HANGUL_RATIO = 0.8
 _SENTENCE_END = re.compile(r"(?<![.…])[.?!。？！](?![.…])(?=\s|$)")
 # While streaming, "약 3." may continue as "약 3.5초", so only a mark followed by whitespace counts.
 _CONFIRMED_SENTENCE_END = re.compile(r"(?<![.…])[.?!。？！](?![.…])(?=\s)")
-_WHITESPACE = re.compile(r"\s+")
+_IGNORED_CATEGORIES = frozenset("PSZC")
+"""Unicode punctuation, symbols, separators and control/format characters."""
 _FORMAT_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("markdown", re.compile(r"[*_#`|]")),
     ("bracket", re.compile(r"[()\[\]{}<>「」『』【】]")),
@@ -64,12 +66,19 @@ def format_violations(text: str) -> tuple[str, ...]:
 
 
 def normalize_for_match(text: str) -> str:
-    return _WHITESPACE.sub("", text)
+    """NFKC and lowercase, keeping only letters, digits and marks, so a forbidden phrase still
+    matches through spacing, punctuation ("범인은… 집사입니다", "동·백"), zero-width characters or
+    decomposed Hangul. The Kotlin guard (text/PythonText.kt) mirrors this, checked by the golden file."""
+    folded = unicodedata.normalize("NFKC", text).lower()
+    return "".join(char for char in folded if unicodedata.category(char)[0] not in _IGNORED_CATEGORIES)
 
 
 def phrase_hits(text: str, phrases: Iterable[str]) -> tuple[str, ...]:
     normalized = normalize_for_match(text)
-    return tuple(phrase for phrase in phrases if normalize_for_match(phrase) in normalized)
+    return tuple(
+        phrase for phrase in phrases
+        if (needle := normalize_for_match(phrase)) and needle in normalized
+    )
 
 
 def percentile(values: Sequence[float], pct: float) -> float | None:

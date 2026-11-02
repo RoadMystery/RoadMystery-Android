@@ -1,4 +1,5 @@
 import json
+import socket
 from pathlib import Path
 
 import pytest
@@ -98,6 +99,25 @@ def test_missing_credentials_exit_with_code_2(
     assert code == cli.EXIT_USAGE_ERROR
 
 
+def test_summary_mock_run_writes_results_and_report(tmp_path: Path) -> None:
+    code = cli.main(
+        ["summary", "--mock", "--only", "haiku-5-5-low",
+         "--probe-ids", "empty-notebook,one-clue", "--out-dir", str(tmp_path)]
+    )
+
+    assert code == 0
+    run_dir = next(tmp_path.iterdir())
+    assert run_dir.name.endswith("-summary")
+    rows = [json.loads(line) for line in (run_dir / "results.jsonl").read_text("utf-8").splitlines()]
+    assert [row["fallback"] for row in rows] == [True, False]
+    assert "| haiku-5-5-low | 2 |" in (run_dir / "report.md").read_text(encoding="utf-8")
+
+
+def test_summary_dry_run_writes_nothing(tmp_path: Path) -> None:
+    assert cli.main(["summary", "--dry-run", "--out-dir", str(tmp_path)]) == 0
+    assert list(tmp_path.iterdir()) == []
+
+
 def test_judge_preflight_failure_stops_before_paying_for_answers(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -131,3 +151,22 @@ def test_report_is_written_when_a_run_stops_halfway(
     run_dir = next(tmp_path.iterdir())
     assert len((run_dir / "results.jsonl").read_text(encoding="utf-8").splitlines()) == 1
     assert "| haiku-5-5-low | cover |" in (run_dir / "report.md").read_text(encoding="utf-8")
+
+
+def test_proxy_refuses_a_non_loopback_host(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("VOICE_PROXY_TOKEN", "dev-test-token-0123456789")
+    assert cli.main(["proxy", "--mock", "--host", "0.0.0.0"]) == cli.EXIT_USAGE_ERROR
+
+
+def test_proxy_rejects_a_short_token(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("VOICE_PROXY_TOKEN", "short")
+    assert cli.main(["proxy", "--mock"]) == cli.EXIT_USAGE_ERROR
+
+
+def test_proxy_reports_a_port_that_is_taken(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("VOICE_PROXY_TOKEN", "dev-test-token-0123456789")
+    with socket.socket() as holder:
+        holder.bind(("127.0.0.1", 0))
+        holder.listen()
+        port = holder.getsockname()[1]
+        assert cli.main(["proxy", "--mock", "--port", str(port)]) == cli.EXIT_USAGE_ERROR

@@ -112,6 +112,27 @@ def test_probe_with_unknown_clue_is_rejected(tmp_path: Path, case: Case) -> None
         load_probes(path, case)
 
 
+@pytest.mark.parametrize("suspect_id", ["butler", "niece", "cook"])
+def test_every_suspect_has_a_persona_and_probes(case: Case, suspect_id: str) -> None:
+    suspect = load_suspect(CASE_DIR / "suspects" / f"{suspect_id}.json", case)
+    probes = load_probes(PROBES_PATH.parent / f"{suspect_id}.json", case)
+
+    assert suspect.name == case.member(suspect_id).name
+    assert suspect.secret and suspect.unlockable
+    assert len(probes) >= 15
+    assert {"in_scope", "clue_reaction", "spoiler", "jailbreak", "stt_noise"} <= {
+        probe.category for probe in probes
+    }
+
+
+def test_each_suspect_has_a_distinct_voice(case: Case) -> None:
+    speakers = {
+        load_suspect(CASE_DIR / "suspects" / f"{suspect_id}.json", case).pleos_speaker
+        for suspect_id in ("butler", "niece", "cook")
+    }
+    assert len(speakers) == 3
+
+
 def test_probe_history_is_checked_when_loading(tmp_path: Path, case: Case) -> None:
     def mutate(data: dict) -> None:
         data["probes"][0]["history"] = [{"role": "user", "content": "먼저 한 질문"}]

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 
 from voice_eval.content import Case, Probe, Suspect, UnlockableFact, history_error
 
@@ -45,7 +45,7 @@ def with_instrumental_particle(word: str) -> str:
     return word + ("으로" if final and final != _RIEUL_FINAL else "로")
 
 
-def _bullets(lines: Iterable[str]) -> str:
+def bullets(lines: Iterable[str]) -> str:
     return "\n".join(f"- {line}" for line in lines)
 
 
@@ -62,7 +62,7 @@ def _unlocked_section(case: Case, suspect: Suspect, unlocked: frozenset[str]) ->
     for fact in unlocked_facts(suspect, unlocked):
         demeanor = f" (태도: {fact.demeanor})" if fact.demeanor else ""
         lines.append(f"[너의 반응] {fact.text}{demeanor}")
-    return _bullets(lines)
+    return bullets(lines)
 
 
 def _speech_section(suspect: Suspect) -> str:
@@ -70,7 +70,7 @@ def _speech_section(suspect: Suspect) -> str:
     return "\n".join(
         [
             f"- 말투: {suspect.register}",
-            _bullets(suspect.speech_rules),
+            bullets(suspect.speech_rules),
             f"- 예시:\n{examples}",
         ]
     )
@@ -81,13 +81,13 @@ def _relationship_section(case: Case, suspect: Suspect) -> str:
     for relationship in suspect.relationships:
         member = case.member(relationship.target)
         lines.append(f"{member.name}({member.role}): {relationship.attitude}")
-    return _bullets(lines)
+    return bullets(lines)
 
 
 def _secret_section(suspect: Suspect, variant: str) -> str:
     if variant != "truth":
         return ""
-    facts = _bullets(fact.text for fact in suspect.secret)
+    facts = bullets(fact.text for fact in suspect.secret)
     return f"\n# 너만 아는 진실 (절대 말하지 말 것)\n{_SECRET_INTRO}\n{facts}"
 
 
@@ -111,18 +111,23 @@ def render_system_prompt(
         "name_ro": with_instrumental_particle(suspect.name),
         "role": suspect.role,
         "not_understood": suspect.fallback_not_understood,
-        "theme_rule": _FAMILY_RULE if case.theme == "family" else "",
-        "public_facts": f"{case.setting}\n{_bullets(case.public_facts)}",
-        "profile": _bullets(
+        "theme_rule": theme_rule(case),
+        "public_facts": case_overview(case),
+        "profile": bullets(
             [f"{suspect.age}세. {suspect.background}", *suspect.personality]
         ),
         "speech_style": _speech_section(suspect),
-        "public_knowledge": _bullets(fact.text for fact in suspect.public),
+        "public_knowledge": bullets(fact.text for fact in suspect.public),
         "unlocked_knowledge": _unlocked_section(case, suspect, unlocked),
         "relationships": _relationship_section(case, suspect),
-        "deflections": _bullets(suspect.deflections),
+        "deflections": bullets(suspect.deflections),
         "secret_section": _secret_section(suspect, variant),
     }
+    return fill_template(template, values)
+
+
+def fill_template(template: str, values: Mapping[str, str]) -> str:
+    """Replace {{name}} placeholders; an unknown placeholder is an error, never left in place."""
 
     def substitute(match: re.Match[str]) -> str:
         key = match.group(1)
@@ -131,6 +136,14 @@ def render_system_prompt(
         return values[key]
 
     return _PLACEHOLDER.sub(substitute, template).strip() + "\n"
+
+
+def theme_rule(case: Case) -> str:
+    return _FAMILY_RULE if case.theme == "family" else ""
+
+
+def case_overview(case: Case) -> str:
+    return f"{case.setting}\n{bullets(case.public_facts)}"
 
 
 def build_messages(probe: Probe) -> list[dict[str, str]]:
