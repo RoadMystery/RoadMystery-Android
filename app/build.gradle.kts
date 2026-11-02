@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -9,6 +11,8 @@ android {
     namespace = "com.roadmystery.app"
     compileSdk = 36
 
+    useLibrary("android.car")
+
     defaultConfig {
         applicationId = "com.roadmystery.app"
         minSdk = 34
@@ -17,6 +21,13 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // Pleos Playground > My Project의 클라이언트 ID/시크릿. 비어 있으면 TTS·STT를 ON_DEVICE 모드로 쓴다.
+        val local = Properties().apply {
+            rootProject.file("local.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
+        }
+        buildConfigField("String", "PLEOS_CLIENT_ID", "\"${local.getProperty("pleos.clientId", "")}\"")
+        buildConfigField("String", "PLEOS_CLIENT_SECRET", "\"${local.getProperty("pleos.clientSecret", "")}\"")
     }
 
     buildTypes {
@@ -37,6 +48,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -51,6 +63,11 @@ dependencies {
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
     implementation(libs.kotlinx.serialization.json)
+    implementation(libs.androidx.datastore.preferences)
+    implementation(libs.pleos.vehicle)
+    implementation(libs.pleos.navihelper)
+    implementation(libs.pleos.tts)
+    implementation(libs.pleos.stt)
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(libs.androidx.junit)

@@ -22,51 +22,75 @@ import com.roadmystery.app.story.NowPlaying
 import com.roadmystery.app.vehicle.HazardReason
 import com.roadmystery.app.vehicle.VehicleEvent
 
+data class PanelState(
+    val mode: AppMode,
+    val nowPlaying: NowPlaying?,
+    val fastAudio: Boolean,
+    val canResume: Boolean,
+    val autoplayStep: String?,
+    /** 예: "Pleos TTS", "무음(TTS 초기화 실패)" */
+    val audioLabel: String,
+    val lastEffect: String?,
+)
+
+class PanelActions(
+    val onStart: () -> Unit,
+    val onResume: () -> Unit,
+    val onAutoplay: () -> Unit,
+    val onEvent: (VehicleEvent) -> Unit,
+    val onToggleSpeed: () -> Unit,
+)
+
 /**
- * 시연·개발용 패널. 차량 이벤트를 보내고, 소리가 없는 동안 낭독 중인 문장을 자막으로 보여준다.
+ * 시연·개발용 패널. 차량 이벤트를 보내고, 낭독 중인 문장을 자막으로 보여준다.
  * 운전자용 화면이 아니므로 실제 차량 빌드에서는 빼야 한다.
  */
 @Composable
 fun SimulationPanel(
-    mode: AppMode,
-    nowPlaying: NowPlaying?,
-    fastAudio: Boolean,
-    onStart: () -> Unit,
-    onEvent: (VehicleEvent) -> Unit,
-    onToggleSpeed: () -> Unit,
+    state: PanelState,
+    actions: PanelActions,
     modifier: Modifier = Modifier,
 ) {
+    val onEvent = actions.onEvent
+    val autoplaying = state.autoplayStep != null
     Surface(modifier = modifier, color = MaterialTheme.colorScheme.surfaceVariant) {
         Column(
             modifier = Modifier.verticalScroll(rememberScrollState()).padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text("시뮬레이션 패널", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-            Text("현재 모드: ${mode.name}", style = MaterialTheme.typography.bodyMedium)
+            Text("모드: ${state.mode.name} · 음성: ${state.audioLabel}", style = MaterialTheme.typography.bodySmall)
 
-            PanelButton("사건 시작", onClick = onStart)
+            PanelButton("사건 시작", enabled = !autoplaying, onClick = actions.onStart)
+            if (state.canResume) PanelButton("이어하기", enabled = !autoplaying, onClick = actions.onResume)
+            PanelButton(if (autoplaying) "자동 재생 중…" else "시연 자동 재생", enabled = !autoplaying, onClick = actions.onAutoplay)
+            state.autoplayStep?.let { Text("▶ $it", style = MaterialTheme.typography.labelMedium) }
             HorizontalDivider()
             PanelButton("출발") { onEvent(VehicleEvent.Driving) }
             PanelButton("정차") { onEvent(VehicleEvent.Stopped) }
+            PanelButton("주차") { onEvent(VehicleEvent.Parked) }
             PanelButton("터널") { onEvent(VehicleEvent.Place("tunnel")) }
             PanelButton("도착 1분 전") { onEvent(VehicleEvent.EtaChanged(remainingSec = 60)) }
             PanelButton("도착") { onEvent(VehicleEvent.Arrived) }
             PanelButton("급제동", danger = true) { onEvent(VehicleEvent.Hazard(HazardReason.HARD_BRAKE)) }
+            PanelButton("ADAS 경고", danger = true) { onEvent(VehicleEvent.Hazard(HazardReason.ADAS_WARNING)) }
             PanelButton("\"멈춰\"", danger = true) { onEvent(VehicleEvent.Hazard(HazardReason.USER_STOP)) }
             HorizontalDivider()
-            OutlinedButton(onClick = onToggleSpeed, modifier = Modifier.fillMaxWidth()) {
-                Text(if (fastAudio) "낭독 속도 ×10" else "낭독 속도 ×1")
+            OutlinedButton(onClick = actions.onToggleSpeed, modifier = Modifier.fillMaxWidth()) {
+                Text(if (state.fastAudio) "무음 낭독 속도 ×10" else "무음 낭독 속도 ×1")
             }
+            state.lastEffect?.let { Text("연출: $it", style = MaterialTheme.typography.labelMedium) }
 
             Text("자막", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
-            if (nowPlaying == null) {
+            val playing = state.nowPlaying
+            if (playing == null) {
                 Text("(낭독 없음)", style = MaterialTheme.typography.bodyMedium)
             } else {
                 Text(
-                    "${nowPlaying.title} (${nowPlaying.sentenceIndex + 1}/${nowPlaying.sentenceCount})",
+                    "${playing.title} (${playing.sentenceIndex + 1}/${playing.sentenceCount})",
                     style = MaterialTheme.typography.labelMedium,
                 )
-                Text(nowPlaying.sentence.orEmpty(), style = MaterialTheme.typography.bodyMedium)
+                Text(playing.sentence.orEmpty(), style = MaterialTheme.typography.bodyMedium)
             }
         }
     }
@@ -76,10 +100,12 @@ fun SimulationPanel(
 private fun PanelButton(
     label: String,
     danger: Boolean = false,
+    enabled: Boolean = true,
     onClick: () -> Unit,
 ) {
     Button(
         onClick = onClick,
+        enabled = enabled,
         modifier = Modifier.fillMaxWidth(),
         colors =
             if (danger) {
@@ -88,6 +114,6 @@ private fun PanelButton(
                 ButtonDefaults.buttonColors()
             },
     ) {
-        Text(label, style = MaterialTheme.typography.titleMedium)
+        Text(label, style = MaterialTheme.typography.titleSmall)
     }
 }

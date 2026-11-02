@@ -1,5 +1,6 @@
 package com.roadmystery.app.story
 
+import com.roadmystery.app.director.Effect
 import kotlinx.serialization.json.Json
 
 object ScenarioParser {
@@ -22,6 +23,13 @@ object ScenarioParser {
             suspect.revealable.filterNot { it in clueIds }.forEach {
                 errors += "용의자 ${suspect.id}: 없는 단서 $it"
             }
+            if (suspect.fallback.isEmpty()) errors += "용의자 ${suspect.id}: fallback 대답이 없음"
+            suspect.interrogation.forEach { answer ->
+                if (answer.keywords.isEmpty()) errors += "${suspect.id}/${answer.id}: 키워드가 없음"
+                answer.reveals.filterNot { it in suspect.revealable }.forEach {
+                    errors += "${suspect.id}/${answer.id}: revealable에 없는 단서 $it 공개"
+                }
+            }
         }
 
         scenario.chapters.forEach { chapter ->
@@ -33,6 +41,7 @@ object ScenarioParser {
                 if (scene.script.isEmpty() || scene.script.any { it.isBlank() }) errors += "${scene.id}: 빈 대본"
                 if (scene.durationSec <= 0) errors += "${scene.id}: durationSec는 0보다 커야 함"
                 scene.unlocks.filterNot { it in clueIds }.forEach { errors += "${scene.id}: 없는 단서 $it" }
+                scene.effect?.let { if (Effect.from(it) == null) errors += "${scene.id}: 알 수 없는 연출 $it" }
             }
         }
 

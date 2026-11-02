@@ -2,8 +2,15 @@ package com.roadmystery.app.story
 
 import com.roadmystery.app.audio.AudioEvent
 import com.roadmystery.app.audio.AudioPlayer
+import com.roadmystery.app.director.Director
+import com.roadmystery.app.director.Effect
+import com.roadmystery.app.director.FakeDirector
 import com.roadmystery.app.vehicle.VehicleEvent
 import com.roadmystery.app.vehicle.VehicleState
+import com.roadmystery.app.voice.CaseContext
+import com.roadmystery.app.voice.ScriptedVoiceAgent
+import com.roadmystery.app.voice.SuspectReply
+import com.roadmystery.app.voice.VoiceAgent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,8 +23,9 @@ import kotlinx.coroutines.launch
  *
  * - 본편(trigger 없는 장면)은 주행·정차 중 순서대로 재생된다. 첫 출발 전에는 브리핑만 재생한다.
  * - 장면이 끝나면 그 장면의 단서가 열리고, 다음 정차 때까지 pendingClues에 쌓인다.
- * - 위험 이벤트(급제동·ADAS·"멈춰")는 즉시 낭독을 멈추고, 다음 출발 때 멈춘 문장부터 재개한다.
+ * - 위험 이벤트(급제동·ADAS·"멈춰")는 즉시 낭독과 심문을 멈추고, 다음 출발 때 멈춘 문장부터 재개한다.
  * - 남은 도착 시간이 부족하면 required=false 장면을 뺀다.
+ * - 정차 중에는 심문·수첩 요약을 받는다. 출발하면 심문은 즉시 끝나고 낭독으로 돌아간다.
  * - 도착하면 낭독을 멈추고, 아직 못 들은 필수 장면의 단서를 지급한 뒤 범인 지목을 기다린다.
  *
  * 메인 스레드에서만 호출한다고 가정한다(스레드 안전하지 않음).
@@ -25,6 +33,9 @@ import kotlinx.coroutines.launch
 class DefaultStoryEngine(
     private val repository: ScenarioRepository,
     private val audio: AudioPlayer,
+    private val voice: VoiceAgent = ScriptedVoiceAgent(),
+    private val director: Director = FakeDirector(),
+    private var scope: CoroutineScope? = null,
 ) : StoryEngine {
     private val _mode = MutableStateFlow(AppMode.IDLE)
     override val mode: StateFlow<AppMode> = _mode.asStateFlow()
@@ -47,6 +58,18 @@ class DefaultStoryEngine(
     private val _outcome = MutableStateFlow<Outcome?>(null)
     override val outcome: StateFlow<Outcome?> = _outcome.asStateFlow()
 
+    private val _canInteract = MutableStateFlow(false)
+    override val canInteract: StateFlow<Boolean> = _canInteract.asStateFlow()
+
+    private val _testimonies = MutableStateFlow<List<Testimony>>(emptyList())
+    override val testimonies: StateFlow<List<Testimony>> = _testimonies.asStateFlow()
+
+    private val _interrogation = MutableStateFlow<Interrogation?>(null)
+    override val interrogation: StateFlow<Interrogation?> = _interrogation.asStateFlow()
+
+    private val _snapshot = MutableStateFlow<Progress?>(null)
+    override val snapshot: StateFlow<Progress?> = _snapshot.asStateFlow()
+
     private var chapter: Chapter? = null
     private val queue = ArrayDeque<Scene>()
     private val playedIds = mutableSetOf<String>()
@@ -64,45 +87,85 @@ class DefaultStoryEngine(
     private var etaSec: Int? = null
     private val choices = mutableMapOf<String, String>()
 
+    /** 판정할 수 없으면 움직이는 것으로 본다. */
+    private var moving = true
+
+    /** 이어하기: 이 장면은 이 문장부터 재생한다. */
+    private var resumeAt: Pair<String, Int>? = null
+
+    /** 심문 때문에 멈춘 낭독 장면과 문장. */
+    private var interrupted: Pair<Scene, Int>? = null
+    private var askJob: Job? = null
+    private var replyCount = 0
+    private val heardAnswers = mutableMapOf<String, MutableSet<String>>()
+
     fun bind(
         vehicle: VehicleState,
         scope: CoroutineScope,
-    ): Job =
-        scope.launch {
+    ): Job {
+        if (this.scope == null) this.scope = scope
+        return scope.launch {
             launch { audio.events.collect { onAudioEvent(it) } }
             launch { vehicle.events.collect { onVehicleEvent(it) } }
         }
+    }
 
-    override fun start(scenarioId: String) {
+    override fun start(
+        scenarioId: String,
+        resume: Progress?,
+    ) {
         audio.stop()
+        askJob?.cancel()
         val loaded = repository.load(scenarioId)
         val errors = ScenarioParser.validate(loaded)
         check(errors.isEmpty()) { "시나리오 오류: ${errors.joinToString()}" }
-        val firstChapter = loaded.chapters.first()
+        val saved = resume?.takeIf { it.scenarioId == scenarioId }
+        val firstChapter = loaded.chapters.firstOrNull { it.id == saved?.chapterId } ?: loaded.chapters.first()
 
         queue.clear()
         playedIds.clear()
         droppedIds.clear()
         skippedIds.clear()
         choices.clear()
+        heardAnswers.clear()
         current = null
+        interrupted = null
+        askJob = null
         sentenceIndex = 0
         held = false
         etaSec = null
-        _clues.value = emptyList()
+        resumeAt = null
         _pendingClues.value = emptyList()
         _nowPlaying.value = null
         _outcome.value = null
+        _interrogation.value = null
 
         _scenario.value = loaded
         chapter = firstChapter
-        queue.addAll(firstChapter.mainScenes)
+        _clues.value = saved?.cluesFound.orEmpty().mapNotNull { loaded.clue(it) }
+        _testimonies.value = saved?.testimonies.orEmpty()
+        saved?.choices?.let { choices.putAll(it) }
+        saved?.playedSceneIds?.let { playedIds.addAll(it) }
+        queue.addAll(firstChapter.mainScenes.filterNot { it.id in playedIds })
         _mode.value = AppMode.BRIEFING
-        firstChapter.sceneFor(SceneTrigger.BRIEFING)?.let { play(it) }
+
+        if (saved == null) {
+            firstChapter.sceneFor(SceneTrigger.BRIEFING)?.let { play(it) }
+        } else {
+            resumeAt = saved.lastSceneId?.let { it to saved.lastSentenceIndex }
+        }
         updateProgress()
+        publishSnapshot()
     }
 
     override fun onVehicleEvent(event: VehicleEvent) {
+        when (event) {
+            VehicleEvent.Driving -> moving = true
+            VehicleEvent.Stopped, VehicleEvent.Parked, VehicleEvent.Arrived -> moving = false
+            else -> Unit
+        }
+        _canInteract.value = !moving
+
         if (_mode.value == AppMode.IDLE) return
         when (event) {
             VehicleEvent.Driving -> onDriving()
@@ -126,9 +189,11 @@ class DefaultStoryEngine(
                     sentenceIndex = event.index
                     publishNowPlaying(scene)
                     updateProgress()
+                    if (scene.trigger == null) publishSnapshot()
                 }
             is AudioEvent.SceneFinished ->
-                if (event.sceneId == scene.id && !held) finishScene(scene)
+                // 위험 정지로 멈춘 낭독의 종료는 무시한다. 정지 중 정차 화면에서 들은 대답은 끝까지 처리한다.
+                if (event.sceneId == scene.id && (!held || scene.trigger == SceneTrigger.REPLY)) finishScene(scene)
         }
     }
 
@@ -136,8 +201,10 @@ class DefaultStoryEngine(
         decisionId: String,
         optionId: String,
     ) {
+        if (moving) return
         if (decisionId != StoryEngine.DECISION_ACCUSE) {
             choices[decisionId] = optionId
+            publishSnapshot()
             return
         }
         val loaded = _scenario.value ?: return
@@ -148,7 +215,94 @@ class DefaultStoryEngine(
         val correct = optionId == loaded.culprit
         _outcome.value = Outcome(accusedId = optionId, culpritId = loaded.culprit, correct = correct)
         val trigger = if (correct) SceneTrigger.ENDING_CORRECT else SceneTrigger.ENDING_WRONG
+        held = false
         chapter?.sceneFor(trigger)?.let { play(it) }
+        publishSnapshot()
+    }
+
+    override fun ask(
+        suspectId: String,
+        utterance: String,
+    ) {
+        val loaded = _scenario.value ?: return
+        val suspect = loaded.suspect(suspectId) ?: return
+        respond(suspectId = suspectId, question = utterance, title = "${suspect.name}의 대답") {
+            val context =
+                CaseContext(
+                    scenario = loaded,
+                    suspect = suspect,
+                    foundClueIds = _clues.value.map { it.id }.toSet(),
+                    heardAnswerIds = heardAnswers[suspectId].orEmpty(),
+                )
+            voice.ask(utterance, context)
+        }
+    }
+
+    override fun requestSummary() {
+        val loaded = _scenario.value ?: return
+        val progress = _snapshot.value ?: return
+        respond(suspectId = null, question = "수첩 요약", title = "수첩 요약") {
+            SuspectReply(text = voice.summarize(loaded, progress))
+        }
+    }
+
+    private fun respond(
+        suspectId: String?,
+        question: String,
+        title: String,
+        produce: suspend () -> SuspectReply,
+    ) {
+        val asyncScope = scope ?: return
+        if (_mode.value != AppMode.STOPPED || moving || question.isBlank()) return
+        if (askJob?.isActive == true) return
+
+        // 진행 중이던 대답은 끊고, 낭독 중이었다면 멈춘 자리를 기억해 둔다.
+        val playing = current
+        when {
+            playing?.trigger == SceneTrigger.REPLY -> {
+                audio.stop()
+                current = null
+            }
+            playing != null -> {
+                interrupted = playing to (if (held) sentenceIndex else audio.pause())
+                current = null
+            }
+        }
+        _nowPlaying.value = null
+        _interrogation.value = Interrogation(suspectId, question)
+
+        askJob =
+            asyncScope.launch {
+                val reply = produce()
+                if (_mode.value != AppMode.STOPPED || moving) return@launch
+                if (suspectId != null) {
+                    reply.answerId?.let { heardAnswers.getOrPut(suspectId) { mutableSetOf() } += it }
+                    _testimonies.value = _testimonies.value + Testimony(suspectId, question, reply.text)
+                    unlock(reply.reveals)
+                }
+                _interrogation.value = Interrogation(suspectId, question, reply.text)
+                play(replyScene(title, reply.text))
+                publishSnapshot()
+            }
+    }
+
+    /** 생각 중이거나 대답 중인 심문을 끝내고 멈췄던 낭독 장면을 current로 되돌린다. 재생은 하지 않는다. */
+    private fun abortInterrogation(): Boolean {
+        val thinking = askJob?.isActive == true
+        askJob?.cancel()
+        askJob = null
+        val inReply = current?.trigger == SceneTrigger.REPLY
+        _interrogation.value = null
+        if (!thinking && !inReply) return false
+
+        if (inReply) audio.stop()
+        val back = interrupted
+        interrupted = null
+        current = back?.first
+        sentenceIndex = back?.second ?: 0
+        val restored = current
+        if (restored == null) _nowPlaying.value = null else publishNowPlaying(restored)
+        return true
     }
 
     private fun onDriving() {
@@ -158,9 +312,12 @@ class DefaultStoryEngine(
             else -> Unit
         }
         _mode.value = AppMode.DRIVING
+        val aborted = abortInterrogation()
+        val scene = current
         when {
             held -> resume()
-            current == null -> playNext()
+            aborted && scene != null -> play(scene, sentenceIndex)
+            scene == null -> playNext()
         }
     }
 
@@ -174,25 +331,31 @@ class DefaultStoryEngine(
     }
 
     private fun onHazard() {
-        if (current != null && !held) {
+        if (abortInterrogation()) {
+            if (current != null) held = true
+        } else if (current != null && !held) {
             sentenceIndex = audio.pause()
             held = true
             current?.let { publishNowPlaying(it) }
         }
         if (_mode.value != AppMode.ENDING) _mode.value = AppMode.PAUSED
+        publishSnapshot()
     }
 
     private fun onArrived() {
         if (_mode.value == AppMode.ENDING) return
+        abortInterrogation()
         audio.stop()
         val unheard = listOfNotNull(current?.takeIf { it.trigger == null }) + queue.filter { it.trigger == null }
         unlock(unheard.filter { it.required }.flatMap { it.unlocks })
+        playedIds += unheard.filter { it.required }.map { it.id }
         queue.clear()
         current = null
         held = false
         _nowPlaying.value = null
         _mode.value = AppMode.ENDING
         _progress.value = 1f
+        publishSnapshot()
     }
 
     private fun onPlace(tag: String) {
@@ -211,9 +374,26 @@ class DefaultStoryEngine(
     private fun finishScene(scene: Scene) {
         current = null
         _nowPlaying.value = null
+
+        if (scene.trigger == SceneTrigger.REPLY) {
+            val back = interrupted
+            interrupted = null
+            val canPlay = !held && (_mode.value == AppMode.STOPPED || _mode.value == AppMode.DRIVING)
+            when {
+                back != null && canPlay -> play(back.first, back.second)
+                back != null -> {
+                    current = back.first
+                    sentenceIndex = back.second
+                }
+                canPlay -> playNext()
+            }
+            return
+        }
+
         playedIds += scene.id
         unlock(scene.unlocks)
         updateProgress()
+        publishSnapshot()
         if (scene.trigger in SceneTrigger.endings) return
         if (_mode.value == AppMode.DRIVING || _mode.value == AppMode.STOPPED) playNext()
     }
@@ -225,7 +405,9 @@ class DefaultStoryEngine(
                 droppedIds += next.id
                 continue
             }
-            play(next)
+            val from = resumeAt?.takeIf { it.first == next.id }?.second ?: 0
+            resumeAt = null
+            play(next, from)
             return
         }
     }
@@ -236,8 +418,8 @@ class DefaultStoryEngine(
     ) {
         current = scene
         sentenceIndex = fromSentence
-        held = false
         publishNowPlaying(scene)
+        if (fromSentence == 0) scene.effect?.let(Effect::from)?.let(director::perform)
         audio.play(scene, fromSentence)
     }
 
@@ -261,7 +443,7 @@ class DefaultStoryEngine(
         skippedIds.clear()
         val eta = etaSec ?: return
         val upcoming = queue.filter { it.trigger == null }
-        val currentLeft = current?.let { remainingSec(it, sentenceIndex) } ?: 0
+        val currentLeft = current?.takeIf { it.trigger == null }?.let { remainingSec(it, sentenceIndex) } ?: 0
         var slack = eta - currentLeft - upcoming.filter { it.required }.sumOf { it.durationSec }
         upcoming.filterNot { it.required }.forEach { scene ->
             if (scene.durationSec <= slack) slack -= scene.durationSec else skippedIds += scene.id
@@ -287,6 +469,39 @@ class DefaultStoryEngine(
                 sentenceCount = scene.script.size,
                 sentence = scene.script.getOrNull(sentenceIndex),
             )
+    }
+
+    private fun publishSnapshot() {
+        val loaded = _scenario.value ?: return
+        val ch = chapter ?: return
+        val narration = (interrupted?.first ?: current)?.takeIf { it.trigger == null }
+        val narrationIndex = if (interrupted != null) interrupted!!.second else sentenceIndex
+        _snapshot.value =
+            Progress(
+                scenarioId = loaded.id,
+                chapterId = ch.id,
+                lastSceneId = narration?.id ?: resumeAt?.first,
+                lastSentenceIndex = if (narration != null) narrationIndex else resumeAt?.second ?: 0,
+                playedSceneIds = playedIds.toList(),
+                cluesFound = _clues.value.map { it.id },
+                testimonies = _testimonies.value,
+                choices = choices.toMap(),
+            )
+    }
+
+    private fun replyScene(
+        title: String,
+        text: String,
+    ): Scene {
+        val sentences = text.split(Regex("(?<=[.!?])\\s+")).filter { it.isNotBlank() }.ifEmpty { listOf(text) }
+        return Scene(
+            id = "reply_${replyCount++}",
+            title = title,
+            required = false,
+            durationSec = (text.length / 7).coerceAtLeast(3),
+            script = sentences,
+            trigger = SceneTrigger.REPLY,
+        )
     }
 
     private fun remainingSec(

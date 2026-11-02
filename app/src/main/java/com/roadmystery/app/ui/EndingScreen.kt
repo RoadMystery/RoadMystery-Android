@@ -23,6 +23,7 @@ import com.roadmystery.app.story.Suspect
 fun EndingScreen(
     suspects: List<Suspect>,
     outcome: Outcome?,
+    canInteract: Boolean,
     onAccuse: (suspectId: String) -> Unit,
 ) {
     if (outcome != null) {
@@ -31,6 +32,11 @@ fun EndingScreen(
             title = if (outcome.correct) "정답입니다" else "범인이 아닙니다",
             body = "범인은 ${culprit}입니다.",
         )
+        return
+    }
+    if (!canInteract) {
+        // 도착 후 다시 움직이면 선택지를 숨긴다(주행 중 선택지 표시 금지).
+        CenterMessage(title = "목적지에 도착했습니다", body = "차를 세우면 범인을 지목할 수 있습니다.")
         return
     }
 

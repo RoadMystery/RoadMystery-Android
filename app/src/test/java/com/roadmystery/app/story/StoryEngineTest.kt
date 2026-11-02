@@ -2,6 +2,8 @@ package com.roadmystery.app.story
 
 import com.roadmystery.app.audio.AudioEvent
 import com.roadmystery.app.audio.AudioPlayer
+import com.roadmystery.app.director.Effect
+import com.roadmystery.app.director.FakeDirector
 import com.roadmystery.app.vehicle.FakeVehicleState
 import com.roadmystery.app.vehicle.HazardReason
 import com.roadmystery.app.vehicle.VehicleEvent
@@ -10,6 +12,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -159,6 +162,115 @@ class StoryEngineTest {
             )
         }
 
+    @Test
+    fun `도착 후 다시 움직이면 지목을 받지 않는다`() {
+        startDriving()
+        send(VehicleEvent.Arrived)
+        assertTrue(engine.canInteract.value)
+
+        send(VehicleEvent.Driving)
+        assertFalse(engine.canInteract.value)
+        assertEquals(AppMode.ENDING, engine.mode.value)
+        engine.choose(StoryEngine.DECISION_ACCUSE, "a")
+        assertNull(engine.outcome.value)
+    }
+
+    @Test
+    fun `장면이 시작되면 연출을 실행한다`() {
+        val director = FakeDirector()
+        val engine = DefaultStoryEngine(ScenarioRepository { testScenario }, audio, director = director)
+        engine.start("test")
+        engine.onAudioEvent(AudioEvent.SceneFinished("briefing"))
+        engine.onVehicleEvent(VehicleEvent.Driving)
+        assertEquals(Effect.TENSION, director.lastEffect.value)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun `정차 중 심문하면 낭독을 멈추고 대답한 뒤 멈춘 문장부터 이어 읽는다`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val engine = DefaultStoryEngine(ScenarioRepository { testScenario }, audio, scope = backgroundScope)
+            engine.start("test")
+            engine.onAudioEvent(AudioEvent.SceneFinished("briefing"))
+            engine.onVehicleEvent(VehicleEvent.Driving)
+            engine.onAudioEvent(AudioEvent.SentenceStarted("m1", 2))
+            audio.pauseIndex = 2
+            engine.onVehicleEvent(VehicleEvent.Stopped)
+
+            engine.ask("a", "커피는 왜 샀나요?")
+            val reply = audio.playing!!
+            assertTrue(reply.startsWith("reply_"))
+            assertEquals("대표님이 드실 커피였어요.", engine.interrogation.value?.answer)
+            assertEquals(listOf("c2"), engine.clues.value.map { it.id })
+            assertEquals(1, engine.testimonies.value.size)
+
+            audio.playing = null
+            engine.onAudioEvent(AudioEvent.SceneFinished(reply))
+            assertEquals("m1" to 2, audio.history.last())
+        }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun `주행 중에는 심문을 받지 않고, 대답 중 출발하면 대답을 끊고 낭독으로 돌아간다`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val engine = DefaultStoryEngine(ScenarioRepository { testScenario }, audio, scope = backgroundScope)
+            engine.start("test")
+            engine.onAudioEvent(AudioEvent.SceneFinished("briefing"))
+            engine.onVehicleEvent(VehicleEvent.Driving)
+
+            engine.ask("a", "커피")
+            assertEquals("m1", audio.playing)
+
+            audio.pauseIndex = 1
+            engine.onVehicleEvent(VehicleEvent.Stopped)
+            engine.ask("b", "아무 질문")
+            assertEquals("몰라요.", engine.interrogation.value?.answer)
+
+            engine.onVehicleEvent(VehicleEvent.Driving)
+            assertNull(engine.interrogation.value)
+            assertEquals("m1" to 1, audio.history.last())
+        }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun `대답 중 급제동이면 즉시 멈추고, 다시 출발하면 낭독을 재개한다`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val engine = DefaultStoryEngine(ScenarioRepository { testScenario }, audio, scope = backgroundScope)
+            engine.start("test")
+            engine.onAudioEvent(AudioEvent.SceneFinished("briefing"))
+            engine.onVehicleEvent(VehicleEvent.Driving)
+            audio.pauseIndex = 1
+            engine.onVehicleEvent(VehicleEvent.Stopped)
+            engine.ask("a", "커피")
+
+            engine.onVehicleEvent(VehicleEvent.Hazard(HazardReason.USER_STOP))
+            assertEquals(AppMode.PAUSED, engine.mode.value)
+            assertNull(audio.playing)
+
+            engine.onVehicleEvent(VehicleEvent.Driving)
+            assertEquals("m1" to 1, audio.history.last())
+        }
+
+    @Test
+    fun `저장한 진행 상황에서 이어하면 멈춘 장면의 그 문장부터 재생한다`() {
+        val saved =
+            Progress(
+                scenarioId = "test",
+                chapterId = "ch1",
+                lastSceneId = "m2",
+                lastSentenceIndex = 2,
+                playedSceneIds = listOf("m1", "opt1"),
+                cluesFound = listOf("c1"),
+            )
+        engine.start("test", resume = saved)
+        assertNull("이어하기에서는 브리핑을 다시 틀지 않는다", audio.playing)
+        assertEquals(listOf("c1"), engine.clues.value.map { it.id })
+
+        send(VehicleEvent.Driving)
+        assertEquals("m2" to 2, audio.history.last())
+        assertEquals("m2", engine.snapshot.value?.lastSceneId)
+    }
+
     private fun startDriving() {
         engine.start("test")
         finish("briefing")
@@ -196,6 +308,7 @@ private fun scene(
     durationSec: Int = 40,
     unlocks: List<String> = emptyList(),
     trigger: String? = null,
+    effect: String? = null,
 ) = Scene(
     id = id,
     title = id,
@@ -204,6 +317,7 @@ private fun scene(
     script = listOf("$id 첫 문장", "$id 둘째 문장", "$id 셋째 문장"),
     unlocks = unlocks,
     trigger = trigger,
+    effect = effect,
 )
 
 private val testScenario =
@@ -211,10 +325,24 @@ private val testScenario =
         id = "test",
         title = "테스트 사건",
         culprit = "a",
+        victim = Victim("피해자", "대표"),
         suspects =
             listOf(
-                Suspect("a", "가", "비서", "v1", Persona("", "", "")),
-                Suspect("b", "나", "기사", "v2", Persona("", "", "")),
+                Suspect(
+                    id = "a",
+                    name = "가",
+                    role = "비서",
+                    relation = "비서",
+                    voice = "v1",
+                    persona = Persona("", "", ""),
+                    revealable = listOf("c2"),
+                    interrogation =
+                        listOf(
+                            Answer("q1", "커피는 왜 샀나요?", listOf("커피"), "대표님이 드실 커피였어요.", reveals = listOf("c2")),
+                        ),
+                    fallback = listOf("모르겠습니다."),
+                ),
+                Suspect("b", "나", "기사", "기사", "v2", Persona("", "", ""), fallback = listOf("몰라요.")),
             ),
         clues = listOf(Clue("c1", "단서1", ""), Clue("c2", "단서2", "")),
         chapters =
@@ -225,7 +353,7 @@ private val testScenario =
                     scenes =
                         listOf(
                             scene("briefing", trigger = SceneTrigger.BRIEFING),
-                            scene("m1", unlocks = listOf("c1")),
+                            scene("m1", unlocks = listOf("c1"), effect = "tension"),
                             scene("opt1", required = false, durationSec = 20),
                             scene("m2", unlocks = listOf("c2")),
                             scene("tunnel", required = false, trigger = "tunnel"),
