@@ -13,43 +13,87 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.roadmystery.app.story.Clue
+import com.roadmystery.app.story.Interrogation
+import com.roadmystery.app.story.Scenario
+import com.roadmystery.app.story.Testimony
 
-/** 정차 중: 지금까지 모은 단서 카드를 가로로 보여주고, 이번에 열린 카드를 강조한다. */
+/** 정차 중: 단서 수첩 · 인물 관계도 · 심문. 출발하면 GameScreen이 이 화면을 바로 내린다. */
 @Composable
 fun StoppedScreen(
+    scenario: Scenario?,
     clues: List<Clue>,
-    newClueId: String?,
-    totalClues: Int,
+    newClueIds: Set<String>,
+    testimonies: List<Testimony>,
+    interrogation: Interrogation?,
+    listening: Boolean,
+    onAsk: (suspectId: String, question: String) -> Unit,
+    onListen: (suspectId: String) -> Unit,
+    onSummary: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    var tab by rememberSaveable { mutableIntStateOf(0) }
+    val tabs = listOf("단서 (${clues.size}/${scenario?.clues?.size ?: 0})", "인물 관계도", "심문")
+
+    Column(modifier = modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+        TabRow(selectedTabIndex = tab) {
+            tabs.forEachIndexed { index, label ->
+                Tab(
+                    selected = tab == index,
+                    onClick = { tab = index },
+                    text = { Text(label, style = MaterialTheme.typography.titleMedium) },
+                )
+            }
+        }
+        when (tab) {
+            0 -> ClueList(clues = clues, newClueIds = newClueIds)
+            1 -> if (scenario != null) RelationMap(scenario = scenario, testimonies = testimonies)
+            2 ->
+                if (scenario != null) {
+                    InterrogationPanel(
+                        scenario = scenario,
+                        testimonies = testimonies,
+                        interrogation = interrogation,
+                        listening = listening,
+                        onAsk = onAsk,
+                        onListen = onListen,
+                        onSummary = onSummary,
+                    )
+                }
+        }
+    }
+}
+
+@Composable
+private fun ClueList(
+    clues: List<Clue>,
+    newClueIds: Set<String>,
+) {
     val listState = rememberLazyListState()
-    LaunchedEffect(newClueId) {
-        val index = clues.indexOfFirst { it.id == newClueId }
+    LaunchedEffect(newClueIds) {
+        val index = clues.indexOfFirst { it.id in newClueIds }
         if (index >= 0) listState.animateScrollToItem(index)
     }
 
-    Column(modifier = modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(24.dp)) {
-        Text(
-            "단서 수첩 (${clues.size}/$totalClues)",
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
-        )
-
-        if (clues.isEmpty()) {
-            Text("아직 찾은 단서가 없습니다.", style = MaterialTheme.typography.titleMedium)
-        } else {
-            LazyRow(state = listState, horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-                items(clues, key = { it.id }) { clue ->
-                    ClueCard(clue = clue, isNew = clue.id == newClueId)
-                }
-            }
+    if (clues.isEmpty()) {
+        Text("아직 찾은 단서가 없습니다.", style = MaterialTheme.typography.titleMedium)
+        return
+    }
+    LazyRow(state = listState, horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+        items(clues, key = { it.id }) { clue ->
+            ClueCard(clue = clue, isNew = clue.id in newClueIds)
         }
     }
 }

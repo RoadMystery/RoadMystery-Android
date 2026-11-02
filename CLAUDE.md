@@ -14,18 +14,24 @@
 
 ## 기술 스택
 - Kotlin, Jetpack Compose (Material 3)
-- Android Automotive OS 기반 Pleos Connect, 에뮬레이터는 Pleos Connect v2.0 (API 34)
-- Pleos Connect SDK: Vehicle, NaviHelper, ADAS, Fused Location, Gleo AI(음성 인식·합성·LLM)
+- Android Automotive OS 기반 Pleos Connect, 에뮬레이터는 Pleos Connect v2.1.0 (API 34, Virtual Console 지원)
+- Pleos Connect SDK (저장소 `https://nexus-playground.pleos.ai/repository/maven-releases/`, 인증 없음)
+  - Vehicle 2.3.2: Gear(P/D) → 주행·주차 판정, Light(무드등) → 연출. 급제동·ADAS 경고 신호는 없음(패널로만 시연)
+  - NaviHelper 3.0.5: `onDrivingInfo`(남은 시간), `onDestinationArrived`(도착)
+  - TextToSpeech / SpeechToText 3.3.1: ON_DEVICE는 키 없이 동작, HYBRID·SERVER는 클라이언트 ID/시크릿 필요
+  - 주행 중 UX 제한은 AAOS 표준 `CarUxRestrictions` 기준 (Pleos 정책)
+  - Gleo AI는 앱이 LLM을 직접 부르는 구조가 아니라, 앱이 등록한 함수(App Schema)를 Gleo가 호출하는 구조. 데모의 용의자 답변은 시나리오에 써 둔 답변에서 고른다(`ScriptedVoiceAgent`)
+- 키: `local.properties`에 `pleos.clientId`, `pleos.clientSecret` (Pleos Playground > My Project). 비어 있으면 TTS·STT를 ON_DEVICE로 쓴다. 커밋 금지
 - 로컬 저장: DataStore 또는 Room
 
 ## 패키지 구조
 ```
 com.roadmystery.app
- ├─ vehicle/   VehicleEvent, VehicleState, FakeVehicleState (차량 신호 → 이벤트)
- ├─ story/     AppMode, 시나리오 데이터, StoryEngine (상태 머신·재생 목록)
- ├─ audio/     AudioPlayer (장면 음성 재생, 문장 단위 일시정지·재개)
- ├─ voice/     VoiceAgent (음성 심문, 수첩 요약)
- ├─ director/  Director (조명·공조·효과음 연출)
+ ├─ vehicle/   VehicleEvent, VehicleState, FakeVehicleState, PleosVehicleState, DemoAutoplay
+ ├─ story/     AppMode, 시나리오 데이터, StoryEngine (상태 머신·재생 목록), ProgressStore
+ ├─ audio/     AudioPlayer (장면 음성 재생, 문장 단위 일시정지·재개): PleosTts, Fake(무음)
+ ├─ voice/     VoiceAgent (음성 심문, 수첩 요약), SpeechInput(STT)
+ ├─ director/  Director (무드등·효과음 연출)
  ├─ ui/        화면 (Compose)
  └─ MainActivity.kt
 ```
@@ -34,7 +40,7 @@ com.roadmystery.app
 1. 엔진은 차량과 분리한다. StoryEngine은 차량 SDK를 직접 호출하지 않고 VehicleEvent만 받는다.
 2. 목업으로 병렬 개발한다. 모든 모듈은 인터페이스 + Fake 구현을 먼저 만든다.
 3. 시뮬레이션 패널을 유지한다. 출발·정차·터널·급제동·도착 버튼으로 FakeVehicleState에 이벤트를 넣는다. 시연용 이벤트 순서 자동 재생 기능도 이 패널에 둔다.
-4. 장면 낭독은 미리 만든 음성 파일(assets)로 재생한다. 실시간 생성은 용의자 답변과 수첩 요약에만 쓴다.
+4. 장면 낭독은 미리 만든 음성 파일(assets)로 재생한다. 녹음 전까지는 Pleos TTS로 대신하고, TTS가 안 되면 무음 + 패널 자막으로 진행한다.
 5. 안전이 기능보다 우선한다.
     - 주행 중에는 이미지·긴 텍스트·선택지를 표시하지 않는다.
     - 급제동·ADAS 경고·"멈춰" 명령이 오면 낭독과 심문을 즉시 멈춘다.
@@ -61,13 +67,25 @@ enum class AppMode { IDLE, BRIEFING, DRIVING, PAUSED, STOPPED, ENDING }
 
 interface StoryEngine {
     val mode: StateFlow<AppMode>
-    val pendingClues: StateFlow<List<Clue>>
-    fun start(scenarioId: String)
+    val scenario: StateFlow<Scenario?>
+    val clues: StateFlow<List<Clue>>        // 찾은 단서 전체
+    val pendingClues: StateFlow<List<Clue>> // 마지막 정차 이후 새로 찾은 단서
+    val nowPlaying: StateFlow<NowPlaying?>
+    val progress: StateFlow<Float>
+    val outcome: StateFlow<Outcome?>        // 범인 지목 결과
+    val canInteract: StateFlow<Boolean>     // 정차 중이라 선택·심문 가능 (판정 불가 시 false)
+    val testimonies: StateFlow<List<Testimony>>
+    val interrogation: StateFlow<Interrogation?>
+    val snapshot: StateFlow<Progress?>      // 저장용
+    fun start(scenarioId: String, resume: Progress? = null)
     fun onVehicleEvent(event: VehicleEvent)
     fun choose(decisionId: String, optionId: String)
+    fun ask(suspectId: String, utterance: String) // 정차 중에만
+    fun requestSummary()                          // 정차 중에만
 }
 
 interface AudioPlayer {
+    val events: Flow<AudioEvent> // SentenceStarted, SceneFinished → StoryEngine이 다음 장면으로 진행
     fun play(scene: Scene, fromSentence: Int = 0)
     fun pause(): Int // 멈춘 문장 인덱스
     fun stop()
@@ -75,10 +93,10 @@ interface AudioPlayer {
 
 interface VoiceAgent {
     suspend fun ask(utterance: String, context: CaseContext): SuspectReply
-    suspend fun summarize(progress: Progress): String
+    suspend fun summarize(scenario: Scenario, progress: Progress): String
 }
 
-interface Director { fun perform(effect: Effect) } // 제어 불가 시 효과음만
+interface Director { fun perform(effect: Effect) } // 무드등 제어 불가 시 효과음만
 
 interface ProgressStore {
     suspend fun load(scenarioId: String): Progress?
@@ -87,10 +105,15 @@ interface ProgressStore {
 ```
 
 ## 시나리오 데이터 형식
+- 파일 위치: `app/src/main/assets/scenarios/{id}.json`, 검증: `ScenarioParser.validate` (`ScenarioDataTest`가 실행)
 - scenario: id, title, culprit, suspects[], chapters[], clues[]
-- suspect: id, name, voice, persona(말투·알리바이·숨긴 사실), revealable(답변으로 공개 가능한 단서 id)
-- scene: id, required(false면 도착 시간에 맞춰 넣거나 뺌), durationSec, script, unlocks(열리는 단서), trigger(차량 이벤트 태그)
-- progress: scenarioId, chapterId, lastSceneId, lastSentenceIndex, cluesFound, testimonies, choices
+- victim: name, role
+- suspect: id, name, role, relation(관계도 표시용), voice, interrogation[](question, keywords, text, reveals), fallback[], persona(말투·알리바이·숨긴 사실), revealable(답변으로 공개 가능한 단서 id)
+- scene: id, required(false면 도착 시간에 맞춰 넣거나 뺌), durationSec, script, unlocks(열리는 단서), trigger
+  - trigger 없음: 본편, 순서대로 재생 / `briefing`: 시작 시 / `ending_correct`·`ending_wrong`: 범인 지목 후 / 그 외: `VehicleEvent.Place` 태그(예: `tunnel`)
+  - 도착하면 못 들은 필수 장면의 단서를 지급하므로, 모든 단서는 필수 본편 장면에서 열려야 한다.
+- scene.effect: night | tension | tunnel | reveal
+- progress: scenarioId, chapterId, lastSceneId, lastSentenceIndex, playedSceneIds, cluesFound, testimonies, choices
 - 용의자 답변(LLM)은 범인과 트릭을 직접 공개하지 않는다.
 
 ## 코딩 규칙

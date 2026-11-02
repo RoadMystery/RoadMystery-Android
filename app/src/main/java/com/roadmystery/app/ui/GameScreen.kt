@@ -17,34 +17,69 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.roadmystery.app.story.AppMode
 import com.roadmystery.app.story.Clue
+import com.roadmystery.app.story.Interrogation
+import com.roadmystery.app.story.NowPlaying
+import com.roadmystery.app.story.Outcome
+import com.roadmystery.app.story.Scenario
+import com.roadmystery.app.story.Testimony
 
-/** 모드에 따라 화면을 고른다. 상태는 전달받아 그리기만 한다. */
+/** StoryEngine 상태를 화면용으로 모은 것. UI는 이걸 그리기만 한다. */
+data class GameUiState(
+    val mode: AppMode = AppMode.IDLE,
+    val scenario: Scenario? = null,
+    val nowPlaying: NowPlaying? = null,
+    val progress: Float = 0f,
+    val clues: List<Clue> = emptyList(),
+    val pendingClues: List<Clue> = emptyList(),
+    val outcome: Outcome? = null,
+    val canInteract: Boolean = false,
+    val testimonies: List<Testimony> = emptyList(),
+    val interrogation: Interrogation? = null,
+    val listening: Boolean = false,
+)
+
+class GameActions(
+    val onAccuse: (suspectId: String) -> Unit,
+    val onAsk: (suspectId: String, question: String) -> Unit,
+    val onListen: (suspectId: String) -> Unit,
+    val onSummary: () -> Unit,
+)
+
+/** 모드에 따라 화면을 고른다. 주행 중(BRIEFING·DRIVING·PAUSED)에는 제목·진행률·짧은 안내만 보인다. */
 @Composable
 fun GameScreen(
-    mode: AppMode,
-    sceneTitle: String,
-    unlockedClues: List<Clue>,
-    newClueId: String?,
-    totalClues: Int,
-    place: String?,
+    state: GameUiState,
+    actions: GameActions,
     modifier: Modifier = Modifier,
 ) {
+    val chapterTitle = state.scenario?.chapters?.firstOrNull()?.title.orEmpty()
     Box(modifier = modifier.fillMaxSize().padding(32.dp)) {
-        when (mode) {
-            AppMode.IDLE, AppMode.BRIEFING ->
-                CenterMessage(title = "RoadMystery", body = "출발하면 사건이 시작됩니다.")
-            AppMode.DRIVING ->
-                DrivingScreen(
-                    sceneTitle = sceneTitle,
-                    progress = if (totalClues == 0) 0f else unlockedClues.size.toFloat() / totalClues,
-                    inTunnel = place == "tunnel",
-                )
+        when (state.mode) {
+            AppMode.IDLE ->
+                CenterMessage(title = "RoadMystery", body = "시뮬레이션 패널에서 사건을 시작하세요.")
+            AppMode.BRIEFING, AppMode.DRIVING ->
+                DrivingScreen(title = state.nowPlaying?.title ?: chapterTitle, progress = state.progress)
             AppMode.PAUSED ->
                 CenterMessage(title = "일시정지", body = "안전을 위해 낭독을 멈췄습니다.")
             AppMode.STOPPED ->
-                StoppedScreen(clues = unlockedClues, newClueId = newClueId, totalClues = totalClues)
+                StoppedScreen(
+                    scenario = state.scenario,
+                    clues = state.clues,
+                    newClueIds = state.pendingClues.map { it.id }.toSet(),
+                    testimonies = state.testimonies,
+                    interrogation = state.interrogation,
+                    listening = state.listening,
+                    onAsk = actions.onAsk,
+                    onListen = actions.onListen,
+                    onSummary = actions.onSummary,
+                )
             AppMode.ENDING ->
-                CenterMessage(title = "목적지 도착", body = "이제 범인이 밝혀집니다.")
+                EndingScreen(
+                    suspects = state.scenario?.suspects.orEmpty(),
+                    outcome = state.outcome,
+                    canInteract = state.canInteract,
+                    onAccuse = actions.onAccuse,
+                )
         }
     }
 }
@@ -52,9 +87,8 @@ fun GameScreen(
 /** 주행 중: 장면 제목과 진행률만 보여준다. */
 @Composable
 private fun DrivingScreen(
-    sceneTitle: String,
+    title: String,
     progress: Float,
-    inTunnel: Boolean,
 ) {
     Column(
         modifier = Modifier.fillMaxSize(),
@@ -62,7 +96,7 @@ private fun DrivingScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
-            text = if (inTunnel) "$sceneTitle · 터널" else sceneTitle,
+            text = title,
             style = MaterialTheme.typography.headlineLarge,
             fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center,
@@ -75,7 +109,7 @@ private fun DrivingScreen(
 }
 
 @Composable
-private fun CenterMessage(
+internal fun CenterMessage(
     title: String,
     body: String,
 ) {
@@ -85,6 +119,6 @@ private fun CenterMessage(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(title, style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold)
-        Text(body, style = MaterialTheme.typography.titleLarge)
+        Text(body, style = MaterialTheme.typography.titleLarge, textAlign = TextAlign.Center)
     }
 }
