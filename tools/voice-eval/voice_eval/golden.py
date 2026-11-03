@@ -15,7 +15,7 @@ from typing import Any
 
 from voice_eval.content import load_case, load_suspect
 from voice_eval.identify import decompose_jamo, identify_suspect, suspect_aliases
-from voice_eval.metrics import normalize_for_match, phrase_hits, split_sentences
+from voice_eval.metrics import counted_sentences, normalize_for_match, phrase_hits, split_sentences
 from voice_eval.prompt import VARIANTS, raised_topics, render_system_prompt
 from voice_eval.summary import load_summary_probes, overview_fallback, render_summary_prompt
 
@@ -59,6 +59,12 @@ SENTENCE_SAMPLES: tuple[str, ...] = (
     "없습니다",
     "약 3.5초 걸렸습니다. 그렇죠?",
     "   ",
+    "하, 참. 맨발이요? 그날 새벽에 서재로 내려간 것밖에 없어요. 그 전엔 방에서 나간 적 없고요.",
+    "잠시만요, 탐정님. 열쇠는 제 허리춤에 있었습니다.",
+    "네? 하, 참. 아니요. 저는 모르는 일이에요.",
+    "저는 방에 있었어요. 네. 정말이에요.",
+    "그건 잘 모르겠어요. 저는 방에 있었어요.",
+    "OK. Fine! 알겠습니다.",
 )
 
 SIMILARITY_PAIRS: tuple[tuple[str, str], ...] = (
@@ -167,7 +173,8 @@ def build_golden(
             for a, b in SIMILARITY_PAIRS
         ],
         "sentences": [
-            {"text": text, "sentences": list(split_sentences(text))} for text in SENTENCE_SAMPLES
+            {"text": text, "sentences": list(split_sentences(text)), "counted": counted_sentences(split_sentences(text))}
+            for text in SENTENCE_SAMPLES
         ],
         "guard": [
             {

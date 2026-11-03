@@ -7,10 +7,14 @@ import re
 import unicodedata
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
+from itertools import takewhile
 
 from voice_eval.content import Case
 
 MAX_SENTENCES = 3
+OPENER_MAX_LETTERS = 7
+"""A sentence this short ("하, 참.", "맨발이요?", "잠시만요, 탐정님.") opens an answer rather than being one."""
+MAX_FREE_OPENERS = 2
 MIN_HANGUL_RATIO = 0.8
 
 # A single terminal mark; ellipses ("음...", "…") are hesitation, not sentence ends.
@@ -51,6 +55,18 @@ def split_sentences(text: str) -> tuple[str, ...]:
     if remainder:
         sentences.append(remainder)
     return tuple(sentences)
+
+
+def counted_sentences(sentences: Sequence[str]) -> int:
+    """How many sentences count toward the answer's sentence limit, as the app counts them
+    (Kotlin text/Sentences.kt). Up to MAX_FREE_OPENERS short openers at the start are free, so an
+    interjection or an echoed question does not push the last sentence, often the denial, out."""
+    free = sum(1 for _ in takewhile(_is_short_opener, sentences[:MAX_FREE_OPENERS]))
+    return len(sentences) - free
+
+
+def _is_short_opener(sentence: str) -> bool:
+    return sum(1 for char in sentence if char.isalpha()) <= OPENER_MAX_LETTERS
 
 
 def hangul_ratio(text: str) -> float:
@@ -144,6 +160,7 @@ class StreamTimer:
 @dataclass(frozen=True)
 class AnswerChecks:
     sentence_count: int
+    # The app would cut the answer: more than MAX_SENTENCES sentences once short openers are left out.
     over_three_sentences: bool
     char_count: int
     hangul_ratio: float
@@ -157,7 +174,7 @@ def check_answer(answer: str, case: Case) -> AnswerChecks:
     ratio = hangul_ratio(answer)
     return AnswerChecks(
         sentence_count=len(sentences),
-        over_three_sentences=len(sentences) > MAX_SENTENCES,
+        over_three_sentences=counted_sentences(sentences) > MAX_SENTENCES,
         char_count=len(answer),
         hangul_ratio=round(ratio, 3),
         low_hangul=bool(answer.strip()) and ratio < MIN_HANGUL_RATIO,

@@ -3,6 +3,10 @@ package dev.voiceagent.text
 private const val END_MARKS = ".?!。？！"
 private const val HESITATION_MARKS = ".…"
 
+/** voice_eval.metrics: "하, 참.", "맨발이요?", "잠시만요, 탐정님." open an answer rather than being one. */
+private const val OPENER_MAX_LETTERS = 7
+private const val MAX_FREE_OPENERS = 2
+
 /**
  * A single terminal mark at [index]; ellipses ("음...", "…") are hesitation, not sentence ends.
  * Python: `(?<![.…])[.?!。？！](?![.…])`.
@@ -27,6 +31,18 @@ fun splitSentences(text: String): List<String> {
     if (remainder.isNotEmpty()) sentences += remainder
     return sentences
 }
+
+/**
+ * voice_eval.metrics.counted_sentences: how many of [sentences] count toward an answer's sentence
+ * limit. Up to two short openers at the start are free, so an interjection or an echoed question
+ * does not push the last sentence, often the denial, out.
+ */
+fun countedSentences(sentences: List<String>): Int =
+    sentences.size - sentences.take(MAX_FREE_OPENERS).takeWhile(::isShortOpener).size
+
+/** Letters as Python str.isalpha counts them, by code point. */
+private fun isShortOpener(sentence: String): Boolean =
+    sentence.codePoints().filter(Character::isLetter).count() <= OPENER_MAX_LETTERS
 
 /**
  * Cuts streamed LLM text into sentences as soon as each one is certain, so the first sentence can

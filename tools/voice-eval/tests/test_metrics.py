@@ -7,6 +7,7 @@ from voice_eval.content import Case
 from voice_eval.metrics import (
     StreamTimer,
     check_answer,
+    counted_sentences,
     first_sentence_end,
     format_violations,
     hangul_ratio,
@@ -40,6 +41,23 @@ def test_ellipsis_is_hesitation_not_a_sentence_end() -> None:
         "정말요?!",
         "네.",
     )
+
+
+def test_short_openers_do_not_count_toward_the_sentence_limit() -> None:
+    # An interjection or an echoed question must not push the denial out of a three-sentence answer.
+    sentences = split_sentences("하, 참. 맨발이요? 그날 새벽에 서재로 내려간 것밖에 없어요. 그 전엔 방에서 나간 적 없고요.")
+    assert len(sentences) == 4
+    assert counted_sentences(sentences) == 2
+    assert counted_sentences(split_sentences("잠시만요, 탐정님. 열쇠는 제 허리춤에 있었습니다.")) == 1
+    assert counted_sentences(()) == 0
+
+
+def test_only_the_first_two_short_sentences_are_free() -> None:
+    assert counted_sentences(split_sentences("네? 하, 참. 아니요. 저는 모르는 일이에요.")) == 2
+    # Once the answer has started, a short sentence counts like any other.
+    assert counted_sentences(split_sentences("저는 방에 있었어요. 네. 정말이에요.")) == 3
+    # Eight letters is already an answer, not an opener.
+    assert counted_sentences(split_sentences("그건 잘 모르겠어요. 저는 방에 있었어요.")) == 2
 
 
 def test_first_sentence_end() -> None:
@@ -150,6 +168,12 @@ def test_check_answer_flags_long_and_leaky_answers(case: Case) -> None:
     assert not clean.over_three_sentences
     assert clean.forbidden_hits == ()
 
-    leaky = check_answer("네. 사실은. 제가 훔쳤습니다. 동백 화분 밑에 있습니다.", case)
+    leaky = check_answer("그날 밤 일을 말씀드리겠습니다. 사실은 정전 때였습니다. 제가 훔쳤습니다. 동백 화분 밑에 있습니다.", case)
     assert leaky.over_three_sentences
     assert set(leaky.forbidden_hits) >= {"제가 훔쳤습니다", "동백", "화분 밑"}
+
+
+def test_check_answer_counts_sentences_the_way_the_app_limits_them(case: Case) -> None:
+    opened = check_answer("하, 참. 창밖이요? 못 봤어요, 탐정님. 그때는 화관만 보고 있었거든요.", case)
+    assert opened.sentence_count == 4
+    assert not opened.over_three_sentences

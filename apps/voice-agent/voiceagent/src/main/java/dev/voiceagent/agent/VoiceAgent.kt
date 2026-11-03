@@ -17,6 +17,7 @@ import dev.voiceagent.speech.SpeechException
 import dev.voiceagent.speech.SpeechInput
 import dev.voiceagent.speech.SpeechOutput
 import dev.voiceagent.text.StreamingSentenceSplitter
+import dev.voiceagent.text.countedSentences
 import dev.voiceagent.text.phraseHits
 import dev.voiceagent.text.pythonStrip
 import kotlinx.coroutines.CancellationException
@@ -141,7 +142,7 @@ class VoiceAgent(
         )
         val blocked = unsentClueWords(request, state.unlockedClues)
         val answer = try {
-            speakAnswer(progress, request, suspect.speaker, suspect.filler, config.maxAnswerSentences, blocked)
+            speakAnswer(progress, request, suspect.speaker, suspect.filler, config.maxAnswerSentences, blocked, countSentences = ::countedSentences)
         } catch (e: CancellationException) {
             // The player cut in: keep what they heard so a follow-up question has its context.
             remember(progress.game, suspectId, question, progress.snapshot.sentences)
@@ -212,6 +213,8 @@ class VoiceAgent(
         filler: String,
         maxSentences: Int,
         blockedWords: List<String> = emptyList(),
+        // Suspects open with "하, 참." or "맨발이요?"; the narrator's summary counts every sentence.
+        countSentences: (List<String>) -> Int = List<String>::size,
     ): Answer = coroutineScope {
         val lines = Channel<Line>(Channel.UNLIMITED)
         val talker = launch {
@@ -222,7 +225,7 @@ class VoiceAgent(
             // trySend: on a multi-threaded dispatcher the answer may already have closed the queue.
             lines.trySend(Line(filler, isFiller = true))
         }
-        val builder = AnswerBuilder(maxSentences, scenario.case.forbiddenPhrases + blockedWords) { sentence ->
+        val builder = AnswerBuilder(maxSentences, scenario.case.forbiddenPhrases + blockedWords, countSentences) { sentence ->
             fillerJob.cancel()
             lines.trySend(Line(sentence, isFiller = false))
         }
@@ -323,6 +326,8 @@ private class TurnProgress(val game: Int) {
 private class AnswerBuilder(
     private val maxSentences: Int,
     private val blockedPhrases: List<String>,
+    /** How many of the accepted sentences count toward [maxSentences]. */
+    private val countSentences: (List<String>) -> Int,
     private val onSentence: (String) -> Unit,
 ) {
     private val splitter = StreamingSentenceSplitter()
@@ -333,7 +338,7 @@ private class AnswerBuilder(
     var guarded = false
         private set
 
-    private val isOpen: Boolean get() = !guarded && accepted.size < maxSentences
+    private val isOpen: Boolean get() = !guarded && countSentences(accepted) < maxSentences
 
     /** Adds streamed text; false once the answer is complete (limit reached or guard tripped). */
     fun add(text: String): Boolean = accept(splitter.push(text))

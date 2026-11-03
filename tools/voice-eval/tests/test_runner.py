@@ -185,7 +185,7 @@ def test_worst_failures_are_listed_first(
 ) -> None:
     def long_for_fast(candidate: Candidate, system: str, messages: list[dict]) -> str:
         if candidate.id == "fast":
-            return "네. 아닙니다. 모릅니다. 정말입니다."
+            return "저는 저장고에 있었습니다. 와인을 고르고 있었습니다. 불이 나갔습니다. 그 뒤로는 모릅니다."
         return "제가 훔쳤습니다."
 
     records = run_matrix(

@@ -7,6 +7,7 @@ import dev.voiceagent.prompt.PromptVariant
 import dev.voiceagent.prompt.SummaryPrompt
 import dev.voiceagent.prompt.SuspectPrompt
 import dev.voiceagent.prompt.Testimony
+import dev.voiceagent.text.countedSentences
 import dev.voiceagent.text.normalizeForMatch
 import dev.voiceagent.text.phraseHits
 import dev.voiceagent.text.splitSentences
@@ -108,10 +109,11 @@ class GoldenParityTest {
     }
 
     @Test
-    fun `sentence splitting matches Python`() {
+    fun `sentence splitting and the sentence limit count match Python`() {
         for (entry in golden.getJSONArray("sentences").objects()) {
             val text = entry.getString("text")
             assertEquals("'$text'", entry.getJSONArray("sentences").strings(), splitSentences(text))
+            assertEquals("'$text'", entry.getInt("counted"), countedSentences(splitSentences(text)))
         }
     }
 }

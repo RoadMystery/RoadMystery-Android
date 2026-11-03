@@ -192,11 +192,33 @@ class VoiceAgentTest {
 
     @Test
     fun `answers stop after three sentences`() = runTest {
-        val llm = ScriptedLlm(listOf(100L to delta("하나입니다. 둘입니다. 셋입니다. 넷입니다. "), 100L to done()))
+        val llm = ScriptedLlm(listOf(100L to delta("저장고에 있었습니다. 와인을 고르고 있었습니다. 불이 나갔습니다. 그 뒤로는 모릅니다. "), 100L to done()))
 
         val reply = agent(llm, speech()).ask("집사한테 물어봐")
 
-        assertEquals(listOf("하나입니다.", "둘입니다.", "셋입니다."), reply.sentences)
+        assertEquals(listOf("저장고에 있었습니다.", "와인을 고르고 있었습니다.", "불이 나갔습니다."), reply.sentences)
+        assertEquals(1, llm.cancelled)
+    }
+
+    @Test
+    fun `a short opener does not push the last sentence out`() = runTest {
+        val llm = ScriptedLlm(listOf(100L to delta("하, 참. 창밖이요? 못 봤어요, 탐정님. 그때는 화관만 보고 있었거든요."), 100L to done()))
+
+        val reply = agent(llm, speech()).ask("집사한테 물어봐")
+
+        assertEquals(listOf("하, 참.", "창밖이요?", "못 봤어요, 탐정님.", "그때는 화관만 보고 있었거든요."), reply.sentences)
+        assertEquals(0, llm.cancelled)
+    }
+
+    @Test
+    fun `openers are free but the third counting sentence still ends the answer`() = runTest {
+        val llm = ScriptedLlm(
+            listOf(100L to delta("네? 하, 참. 저장고에 있었습니다. 와인을 고르고 있었습니다. 불이 나갔습니다. 그 뒤로는 모릅니다. "), 100L to done()),
+        )
+
+        val reply = agent(llm, speech()).ask("집사한테 물어봐")
+
+        assertEquals(listOf("네?", "하, 참.", "저장고에 있었습니다.", "와인을 고르고 있었습니다.", "불이 나갔습니다."), reply.sentences)
         assertEquals(1, llm.cancelled)
     }
 

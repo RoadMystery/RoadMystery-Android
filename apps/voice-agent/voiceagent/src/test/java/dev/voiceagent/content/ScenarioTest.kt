@@ -28,8 +28,10 @@ class ScenarioTest {
 
     @Test
     fun `CRLF files load exactly like LF files`() {
-        val crlf = Scenario.load({ RepoFiles.asset(it).replace("\n", "\r\n") }, RepoFiles.CASE_DIR)
-        assertEquals(scenario, crlf)
+        // A Windows checkout (core.autocrlf) can already be CRLF, so derive both endings from LF text.
+        val lf = { path: String -> RepoFiles.asset(path).replace("\r\n", "\n") }
+        val crlf = Scenario.load({ lf(it).replace("\n", "\r\n") }, RepoFiles.CASE_DIR)
+        assertEquals(Scenario.load(lf, RepoFiles.CASE_DIR), crlf)
     }
 
     @Test

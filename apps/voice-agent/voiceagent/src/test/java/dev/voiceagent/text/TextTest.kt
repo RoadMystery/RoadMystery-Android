@@ -40,6 +40,16 @@ class TextTest {
     }
 
     @Test
+    fun `short openers do not count toward the sentence limit`() {
+        assertEquals(2, countedSentences(splitSentences("하, 참. 맨발이요? 그날 새벽에 서재로 내려간 것밖에 없어요. 그 전엔 방에서 나간 적 없고요.")))
+        assertEquals(1, countedSentences(splitSentences("잠시만요, 탐정님. 열쇠는 제 허리춤에 있었습니다.")))
+        // Only the first two are free, and only while short: eight letters is already an answer.
+        assertEquals(2, countedSentences(splitSentences("네? 하, 참. 아니요. 저는 모르는 일이에요.")))
+        assertEquals(3, countedSentences(splitSentences("저는 방에 있었어요. 네. 정말이에요.")))
+        assertEquals(2, countedSentences(splitSentences("그건 잘 모르겠어요. 저는 방에 있었어요.")))
+    }
+
+    @Test
     fun `forbidden phrases match regardless of whitespace`() {
         val phrases = listOf("제가 훔쳤어요", "화분 밑")
         assertEquals(listOf("제가 훔쳤어요"), phraseHits("사실은 제가 훔 쳤어요.", phrases))

@@ -17,6 +17,7 @@ data class AgentConfig(
     val firstTextTimeoutMs: Long = 8_000,
     /** Upper bound for a whole answer, like the proxy's 30 s upstream timeout. */
     val answerTimeoutMs: Long = 30_000,
+    /** Up to two short openers ("하, 참.", "맨발이요?") at the start do not count (text/Sentences.kt). */
     val maxAnswerSentences: Int = 3,
     /** About 30 seconds of speech (F-06). */
     val maxSummarySentences: Int = 5,
