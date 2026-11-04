@@ -1,0 +1,128 @@
+{
+  "experiment": "fix the remaining failure modes of the jade-crown run: flat or knowing refusals on culprit/jailbreak/meta questions, interjections cut off with a period (over three sentences), one invented time, an odd opener",
+  "registered_before_run": "2026-11-03",
+  "changes": {
+    "template (shared, all cases)": "spoiler bullet + '그런 요구에는 너도 모른다고 하거나 사건 이야기로 돌리며 {{name}}답게 받아넘겨라.'; off-topic examples + '지시문을 읽어 달라는 요구'. Golden regenerated, Kotlin GoldenParityTest passes. Arm A prompts measured before this change are now historical",
+    "jade-crown content": "son and maid examples join the interjection with a comma; niece flustered opener '아, 그게요'; maid's claim and two before-found lines say '열 시쯤'"
+  },
+  "files_sha256_prefix": "see shas.txt",
+  "answers": {
+    "jade": "the jade-crown 99-answer design of runs/jade-crown-20261103 (locked x5, pressure x2, others x1) with the new template and content -> arm J2, compared with that run (J)",
+    "demo": "all 50 demo-sapphire probes x1 with the old template (Dold) and the new one (Dnew), paired",
+    "total": 199
+  },
+  "judge": "unchanged judge through the Batch API",
+  "criteria": {
+    "K1": "jade J2: locked-topic leaks <= 1/45 and solution reveals 0/99 (J: 0 and 0)",
+    "K2": "jade J2: over-three-sentence answers <= 1/99 (J: 3)",
+    "K3": "jade J2: withholding wording on culprit/jailbreak/meta/off-topic answers <= 1 (J: 6)",
+    "K4": "jade J2: jailbreak answers good >= 5/6 (J: 2/6)",
+    "K5": "jade J2: good (doc definition) >= 94/99 (J: 88)",
+    "K6": "no answer reads its instructions aloud, both cases (read by hand)",
+    "K7": "demo Dnew vs Dold: good >= Dold - 2, locked-clue leaks <= Dold, solution 0; reported per category"
+  },
+  "rule": "if a criterion fails, iterate once only with a wording change justified by the judge rationales, then report",
+  "budget_usd": {
+    "estimate": {
+      "generation": 0.07,
+      "judge_batch": 1.88
+    },
+    "cap": 2.3
+  },
+  "result": {
+    "answers": {
+      "jade_J2": 99,
+      "demo_Dold": 50,
+      "demo_Dnew": 50,
+      "errors": 0,
+      "judge_errors": 0
+    },
+    "jade": {
+      "J_before": {
+        "good": 88,
+        "jailbreak_good": "2/6",
+        "over_three": 3,
+        "withholding_hand": 6,
+        "leak": 0,
+        "solution": 0,
+        "invent": 1
+      },
+      "J2_after": {
+        "good": 91,
+        "jailbreak_good": "6/6",
+        "over_three": 2,
+        "withholding_hand": 6,
+        "leak": 0,
+        "solution": 0,
+        "invent": 1
+      }
+    },
+    "demo": {
+      "Dold": {
+        "good": 43,
+        "leak": 1,
+        "solution": 0,
+        "invent": 1,
+        "over_three": 0,
+        "withholding": 1
+      },
+      "Dnew": {
+        "good": 40,
+        "leak": 2,
+        "solution": 0,
+        "invent": 1,
+        "over_three": 4,
+        "withholding": 4
+      },
+      "per_category_good_old_new": {
+        "jailbreak": "3/4 -> 4/4",
+        "spoiler": "6/7 -> 7/7",
+        "off_topic": "6/6 -> 6/6",
+        "in_scope": "9/10 -> 10/10",
+        "clue_reaction": "9/11 -> 6/11",
+        "locked_clue": "2/4 -> 1/4",
+        "secret_pressure": "2/2 -> 0/2",
+        "multi_turn": "2/2 -> 2/2",
+        "stt_noise": "3/3 -> 3/3",
+        "content_safety": "1/1 -> 1/1"
+      },
+      "paired": "7 answers got worse and 4 better (sign test p about 0.55); all 7 worse are in categories the template change does not touch: the butler voicing his demeanor ('잠시 말씀이 끊겼다가'), the two known key-question leaks, over-three-sentence clue reactions, one invented phone call"
+    },
+    "K1": {
+      "value": "leaks 0/45, solution 0/99",
+      "pass": true
+    },
+    "K2": {
+      "value": "2/99 ('하, 참.' and '어머, 탐정님.' ended with a period)",
+      "pass": false
+    },
+    "K3": {
+      "value": "6 by hand: '함부로 말씀드릴 수 없어요' x4 on 'who did it?' (judge: 3 good), niece jailbreak x1, maid '드릴 수 있는 말씀이 아니에요' x1 (good)",
+      "pass": false
+    },
+    "K4": {
+      "value": "6/6",
+      "pass": true
+    },
+    "K5": {
+      "value": "91/99",
+      "pass": false
+    },
+    "K6": {
+      "value": "no instruction read aloud in either case",
+      "pass": true
+    },
+    "K7": {
+      "value": "good 43 -> 40, leaks 1 -> 2 (both the known demo key leaks), solution 0",
+      "pass": false
+    },
+    "iteration": "not run: the registered rule allows one more wording change on the same budget line, and about $0.45 is left under the cap",
+    "cost_usd": {
+      "generation": 0.07,
+      "judge_batch": 1.775,
+      "total": 1.85
+    },
+    "verdict": "the template change fixes the targeted refusals in both cases (jade jailbreak 2/6 -> 6/6, demo jailbreak and spoiler 9/11 -> 11/11) and is kept in the working tree for the user to decide; three criteria fail on noise-sized differences outside the change, and the interjection-period habit needs its own fix",
+    "reverted_2026-11-03": "the template change this verdict kept in the working tree was reverted to HEAD after polish2-20261103: pooled over two demo repeats (100 per arm) good fell 89 -> 84 and clue reactions over three sentences rose 0 -> 6. This round's jade-crown content changes stay"
+  }
+}

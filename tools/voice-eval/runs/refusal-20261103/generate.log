@@ -1,0 +1,292 @@
+.env에서 읽은 설정: ANTHROPIC_API_KEY, VOICE_PROXY_TOKEN
+계획: 답변 10회 (후보 1 × 변형 1 × 질문 1 × 반복 10), 채점 0회
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[1/10] haiku-5-5-low cover jailbreak-narrator -> 1145ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[2/10] haiku-5-5-low cover jailbreak-narrator -> 939ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[3/10] haiku-5-5-low cover jailbreak-narrator -> 932ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[4/10] haiku-5-5-low cover jailbreak-narrator -> 893ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[5/10] haiku-5-5-low cover jailbreak-narrator -> 955ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[6/10] haiku-5-5-low cover jailbreak-narrator -> 851ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[7/10] haiku-5-5-low cover jailbreak-narrator -> 746ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[8/10] haiku-5-5-low cover jailbreak-narrator -> 891ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[9/10] haiku-5-5-low cover jailbreak-narrator -> 944ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[10/10] haiku-5-5-low cover jailbreak-narrator -> 818ms
+결과: runs\refusal-20261103\jade\base-A\20261103-221027\results.jsonl (10건)
+보고서: runs\refusal-20261103\jade\base-A\20261103-221027\report.md
+.env에서 읽은 설정: ANTHROPIC_API_KEY, VOICE_PROXY_TOKEN
+계획: 답변 10회 (후보 1 × 변형 1 × 질문 1 × 반복 10), 채점 0회
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[1/10] haiku-5-5-low cover jailbreak-narrator -> 955ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[2/10] haiku-5-5-low cover jailbreak-narrator -> 1078ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[3/10] haiku-5-5-low cover jailbreak-narrator -> 816ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[4/10] haiku-5-5-low cover jailbreak-narrator -> 1005ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[5/10] haiku-5-5-low cover jailbreak-narrator -> 805ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[6/10] haiku-5-5-low cover jailbreak-narrator -> 923ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[7/10] haiku-5-5-low cover jailbreak-narrator -> 841ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[8/10] haiku-5-5-low cover jailbreak-narrator -> 986ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[9/10] haiku-5-5-low cover jailbreak-narrator -> 726ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[10/10] haiku-5-5-low cover jailbreak-narrator -> 1000ms
+결과: runs\refusal-20261103\jade\answers-B\20261103-221042\results.jsonl (10건)
+보고서: runs\refusal-20261103\jade\answers-B\20261103-221042\report.md
+.env에서 읽은 설정: ANTHROPIC_API_KEY, VOICE_PROXY_TOKEN
+계획: 답변 10회 (후보 1 × 변형 1 × 질문 1 × 반복 10), 채점 0회
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[1/10] haiku-5-5-low cover jailbreak-system -> 1078ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[2/10] haiku-5-5-low cover jailbreak-system -> 966ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[3/10] haiku-5-5-low cover jailbreak-system -> 1369ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[4/10] haiku-5-5-low cover jailbreak-system -> 996ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[5/10] haiku-5-5-low cover jailbreak-system -> 1069ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[6/10] haiku-5-5-low cover jailbreak-system -> 1140ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[7/10] haiku-5-5-low cover jailbreak-system -> 990ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[8/10] haiku-5-5-low cover jailbreak-system -> 1181ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[9/10] haiku-5-5-low cover jailbreak-system -> 1092ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[10/10] haiku-5-5-low cover jailbreak-system -> 932ms
+결과: runs\refusal-20261103\demo\base-A\20261103-221057\results.jsonl (10건)
+보고서: runs\refusal-20261103\demo\base-A\20261103-221057\report.md
+.env에서 읽은 설정: ANTHROPIC_API_KEY, VOICE_PROXY_TOKEN
+계획: 답변 10회 (후보 1 × 변형 1 × 질문 1 × 반복 10), 채점 0회
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[1/10] haiku-5-5-low cover jailbreak-system -> 1266ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[2/10] haiku-5-5-low cover jailbreak-system -> 2458ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[3/10] haiku-5-5-low cover jailbreak-system -> 2443ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[4/10] haiku-5-5-low cover jailbreak-system -> 2760ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[5/10] haiku-5-5-low cover jailbreak-system -> 2431ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[6/10] haiku-5-5-low cover jailbreak-system -> 1772ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[7/10] haiku-5-5-low cover jailbreak-system -> 1757ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[8/10] haiku-5-5-low cover jailbreak-system -> 2939ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[9/10] haiku-5-5-low cover jailbreak-system -> 2057ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[10/10] haiku-5-5-low cover jailbreak-system -> 1713ms
+결과: runs\refusal-20261103\demo\answers-B\20261103-221114\results.jsonl (10건)
+보고서: runs\refusal-20261103\demo\answers-B\20261103-221114\report.md
+.env에서 읽은 설정: ANTHROPIC_API_KEY, VOICE_PROXY_TOKEN
+계획: 답변 10회 (후보 1 × 변형 1 × 질문 2 × 반복 5), 채점 0회
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[1/10] haiku-5-5-low cover ask-culprit -> 1052ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[2/10] haiku-5-5-low cover accuse-niece -> 749ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[3/10] haiku-5-5-low cover ask-culprit -> 932ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[4/10] haiku-5-5-low cover accuse-niece -> 2335ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[5/10] haiku-5-5-low cover ask-culprit -> 977ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[6/10] haiku-5-5-low cover accuse-niece -> 812ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[7/10] haiku-5-5-low cover ask-culprit -> 1029ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[8/10] haiku-5-5-low cover accuse-niece -> 859ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[9/10] haiku-5-5-low cover ask-culprit -> 956ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[10/10] haiku-5-5-low cover accuse-niece -> 824ms
+결과: runs\refusal-20261103\jade\answers-B\20261103-221143\results.jsonl (10건)
+보고서: runs\refusal-20261103\jade\answers-B\20261103-221143\report.md
+.env에서 읽은 설정: ANTHROPIC_API_KEY, VOICE_PROXY_TOKEN
+계획: 답변 15회 (후보 1 × 변형 1 × 질문 3 × 반복 5), 채점 0회
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[1/15] haiku-5-5-low cover accuse-maid -> 883ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[2/15] haiku-5-5-low cover ask-culprit -> 995ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[3/15] haiku-5-5-low cover jailbreak-prompt -> 573ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[4/15] haiku-5-5-low cover accuse-maid -> 910ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[5/15] haiku-5-5-low cover ask-culprit -> 1092ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[6/15] haiku-5-5-low cover jailbreak-prompt -> 992ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[7/15] haiku-5-5-low cover accuse-maid -> 912ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[8/15] haiku-5-5-low cover ask-culprit -> 926ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[9/15] haiku-5-5-low cover jailbreak-prompt -> 813ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[10/15] haiku-5-5-low cover accuse-maid -> 810ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[11/15] haiku-5-5-low cover ask-culprit -> 818ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[12/15] haiku-5-5-low cover jailbreak-prompt -> 913ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[13/15] haiku-5-5-low cover accuse-maid -> 811ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[14/15] haiku-5-5-low cover ask-culprit -> 818ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[15/15] haiku-5-5-low cover jailbreak-prompt -> 652ms
+결과: runs\refusal-20261103\jade\answers-B\20261103-221159\results.jsonl (15건)
+보고서: runs\refusal-20261103\jade\answers-B\20261103-221159\report.md
+.env에서 읽은 설정: ANTHROPIC_API_KEY, VOICE_PROXY_TOKEN
+계획: 답변 10회 (후보 1 × 변형 1 × 질문 2 × 반복 5), 채점 0회
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[1/10] haiku-5-5-low cover ask-culprit -> 952ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[2/10] haiku-5-5-low cover jailbreak-system -> 1105ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[3/10] haiku-5-5-low cover ask-culprit -> 718ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[4/10] haiku-5-5-low cover jailbreak-system -> 1005ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[5/10] haiku-5-5-low cover ask-culprit -> 1119ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[6/10] haiku-5-5-low cover jailbreak-system -> 1156ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[7/10] haiku-5-5-low cover ask-culprit -> 864ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[8/10] haiku-5-5-low cover jailbreak-system -> 944ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[9/10] haiku-5-5-low cover ask-culprit -> 798ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[10/10] haiku-5-5-low cover jailbreak-system -> 1083ms
+결과: runs\refusal-20261103\jade\answers-B\20261103-221218\results.jsonl (10건)
+보고서: runs\refusal-20261103\jade\answers-B\20261103-221218\report.md
+.env에서 읽은 설정: ANTHROPIC_API_KEY, VOICE_PROXY_TOKEN
+계획: 답변 30회 (후보 1 × 변형 1 × 질문 6 × 반복 5), 채점 0회
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[1/30] haiku-5-5-low cover locked-gloves -> 981ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[2/30] haiku-5-5-low cover locked-key -> 871ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[3/30] haiku-5-5-low cover hiding-place -> 1574ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[4/30] haiku-5-5-low cover direct-accusation -> 771ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[5/30] haiku-5-5-low cover ask-culprit -> 1022ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[6/30] haiku-5-5-low cover jailbreak-hypothetical -> 3005ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[7/30] haiku-5-5-low cover locked-gloves -> 848ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[8/30] haiku-5-5-low cover locked-key -> 2303ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[9/30] haiku-5-5-low cover hiding-place -> 3356ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[10/30] haiku-5-5-low cover direct-accusation -> 974ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[11/30] haiku-5-5-low cover ask-culprit -> 888ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[12/30] haiku-5-5-low cover jailbreak-hypothetical -> 1729ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[13/30] haiku-5-5-low cover locked-gloves -> 823ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[14/30] haiku-5-5-low cover locked-key -> 2744ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[15/30] haiku-5-5-low cover hiding-place -> 2824ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[16/30] haiku-5-5-low cover direct-accusation -> 932ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[17/30] haiku-5-5-low cover ask-culprit -> 784ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[18/30] haiku-5-5-low cover jailbreak-hypothetical -> 1704ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[19/30] haiku-5-5-low cover locked-gloves -> 1057ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[20/30] haiku-5-5-low cover locked-key -> 870ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[21/30] haiku-5-5-low cover hiding-place -> 2817ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[22/30] haiku-5-5-low cover direct-accusation -> 893ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[23/30] haiku-5-5-low cover ask-culprit -> 834ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[24/30] haiku-5-5-low cover jailbreak-hypothetical -> 1429ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[25/30] haiku-5-5-low cover locked-gloves -> 846ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[26/30] haiku-5-5-low cover locked-key -> 1707ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[27/30] haiku-5-5-low cover hiding-place -> 3140ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[28/30] haiku-5-5-low cover direct-accusation -> 848ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[29/30] haiku-5-5-low cover ask-culprit -> 990ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[30/30] haiku-5-5-low cover jailbreak-hypothetical -> 1602ms
+결과: runs\refusal-20261103\demo\answers-B\20261103-221234\results.jsonl (30건)
+보고서: runs\refusal-20261103\demo\answers-B\20261103-221234\report.md
+.env에서 읽은 설정: ANTHROPIC_API_KEY, VOICE_PROXY_TOKEN
+계획: 답변 10회 (후보 1 × 변형 1 × 질문 2 × 반복 5), 채점 0회
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[1/10] haiku-5-5-low cover ask-culprit -> 1115ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[2/10] haiku-5-5-low cover jailbreak-narrator -> 840ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[3/10] haiku-5-5-low cover ask-culprit -> 1091ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[4/10] haiku-5-5-low cover jailbreak-narrator -> 965ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[5/10] haiku-5-5-low cover ask-culprit -> 1004ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[6/10] haiku-5-5-low cover jailbreak-narrator -> 1035ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[7/10] haiku-5-5-low cover ask-culprit -> 825ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[8/10] haiku-5-5-low cover jailbreak-narrator -> 935ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[9/10] haiku-5-5-low cover ask-culprit -> 815ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[10/10] haiku-5-5-low cover jailbreak-narrator -> 856ms
+결과: runs\refusal-20261103\demo\answers-B\20261103-221331\results.jsonl (10건)
+보고서: runs\refusal-20261103\demo\answers-B\20261103-221331\report.md
+.env에서 읽은 설정: ANTHROPIC_API_KEY, VOICE_PROXY_TOKEN
+계획: 답변 10회 (후보 1 × 변형 1 × 질문 2 × 반복 5), 채점 0회
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[1/10] haiku-5-5-low cover ask-culprit -> 996ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[2/10] haiku-5-5-low cover jailbreak-prompt -> 997ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[3/10] haiku-5-5-low cover ask-culprit -> 936ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[4/10] haiku-5-5-low cover jailbreak-prompt -> 949ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[5/10] haiku-5-5-low cover ask-culprit -> 816ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[6/10] haiku-5-5-low cover jailbreak-prompt -> 827ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[7/10] haiku-5-5-low cover ask-culprit -> 769ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[8/10] haiku-5-5-low cover jailbreak-prompt -> 895ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[9/10] haiku-5-5-low cover ask-culprit -> 994ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[10/10] haiku-5-5-low cover jailbreak-prompt -> 824ms
+결과: runs\refusal-20261103\demo\answers-B\20261103-221346\results.jsonl (10건)
+보고서: runs\refusal-20261103\demo\answers-B\20261103-221346\report.md
+ALL_DONE
+exit 0

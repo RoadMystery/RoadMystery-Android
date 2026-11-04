@@ -1,0 +1,233 @@
+.env에서 읽은 설정: ANTHROPIC_API_KEY, VOICE_PROXY_TOKEN
+계획: 답변 15회 (후보 1 × 변형 1 × 질문 3 × 반복 5), 채점 0회
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[1/15] haiku-5-5-low cover locked-key -> 1055ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[2/15] haiku-5-5-low cover key-have -> 1088ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[3/15] haiku-5-5-low cover key-door -> 832ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[4/15] haiku-5-5-low cover locked-key -> 911ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[5/15] haiku-5-5-low cover key-have -> 1028ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[6/15] haiku-5-5-low cover key-door -> 1034ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[7/15] haiku-5-5-low cover locked-key -> 840ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[8/15] haiku-5-5-low cover key-have -> 915ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[9/15] haiku-5-5-low cover key-door -> 797ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[10/15] haiku-5-5-low cover locked-key -> 913ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[11/15] haiku-5-5-low cover key-have -> 750ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[12/15] haiku-5-5-low cover key-door -> 703ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[13/15] haiku-5-5-low cover locked-key -> 867ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[14/15] haiku-5-5-low cover key-have -> 1527ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[15/15] haiku-5-5-low cover key-door -> 788ms
+결과: runs\clue-check-20261103\answers-B2\20261103-025706\results.jsonl (15건)
+보고서: runs\clue-check-20261103\answers-B2\20261103-025706\report.md
+.env에서 읽은 설정: ANTHROPIC_API_KEY, VOICE_PROXY_TOKEN
+계획: 답변 15회 (후보 1 × 변형 1 × 질문 3 × 반복 5), 채점 0회
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[1/15] haiku-5-5-low cover locked-key -> 977ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[2/15] haiku-5-5-low cover key-wine -> 2768ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[3/15] haiku-5-5-low cover key-door -> 1357ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[4/15] haiku-5-5-low cover locked-key -> 950ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[5/15] haiku-5-5-low cover key-wine -> 880ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[6/15] haiku-5-5-low cover key-door -> 2283ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[7/15] haiku-5-5-low cover locked-key -> 926ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[8/15] haiku-5-5-low cover key-wine -> 907ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[9/15] haiku-5-5-low cover key-door -> 663ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[10/15] haiku-5-5-low cover locked-key -> 862ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[11/15] haiku-5-5-low cover key-wine -> 2825ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[12/15] haiku-5-5-low cover key-door -> 767ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[13/15] haiku-5-5-low cover locked-key -> 1145ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[14/15] haiku-5-5-low cover key-wine -> 992ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[15/15] haiku-5-5-low cover key-door -> 760ms
+결과: runs\clue-check-20261103\answers-B2\20261103-025730\results.jsonl (15건)
+보고서: runs\clue-check-20261103\answers-B2\20261103-025730\report.md
+.env에서 읽은 설정: ANTHROPIC_API_KEY, VOICE_PROXY_TOKEN
+계획: 답변 6회 (후보 1 × 변형 1 × 질문 2 × 반복 3), 채점 0회
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[1/6] haiku-5-5-low cover key-who -> 923ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[2/6] haiku-5-5-low cover key-enter -> 879ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[3/6] haiku-5-5-low cover key-who -> 856ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[4/6] haiku-5-5-low cover key-enter -> 866ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[5/6] haiku-5-5-low cover key-who -> 831ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[6/6] haiku-5-5-low cover key-enter -> 918ms
+결과: runs\clue-check-20261103\answers-B2\20261103-025757\results.jsonl (6건)
+보고서: runs\clue-check-20261103\answers-B2\20261103-025757\report.md
+.env에서 읽은 설정: ANTHROPIC_API_KEY, VOICE_PROXY_TOKEN
+계획: 답변 12회 (후보 1 × 변형 1 × 질문 6 × 반복 2), 채점 0회
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[1/12] haiku-5-5-low cover locked-gloves -> 930ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[2/12] haiku-5-5-low cover gloves-barehand -> 1136ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[3/12] haiku-5-5-low cover fuse-breaker -> 778ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[4/12] haiku-5-5-low cover fuse-cause -> 1030ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[5/12] haiku-5-5-low cover pawn-heard -> 720ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[6/12] haiku-5-5-low cover pawn-money -> 877ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[7/12] haiku-5-5-low cover locked-gloves -> 837ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[8/12] haiku-5-5-low cover gloves-barehand -> 1711ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[9/12] haiku-5-5-low cover fuse-breaker -> 922ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[10/12] haiku-5-5-low cover fuse-cause -> 1120ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[11/12] haiku-5-5-low cover pawn-heard -> 799ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[12/12] haiku-5-5-low cover pawn-money -> 967ms
+결과: runs\clue-check-20261103\answers-B2\20261103-025806\results.jsonl (12건)
+보고서: runs\clue-check-20261103\answers-B2\20261103-025806\report.md
+.env에서 읽은 설정: ANTHROPIC_API_KEY, VOICE_PROXY_TOKEN
+계획: 답변 12회 (후보 1 × 변형 1 × 질문 6 × 반복 2), 채점 0회
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[1/12] haiku-5-5-low cover gloves-white -> 826ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[2/12] haiku-5-5-low cover gloves-seen -> 907ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[3/12] haiku-5-5-low cover fuse-knew -> 1123ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[4/12] haiku-5-5-low cover fuse-cause -> 914ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[5/12] haiku-5-5-low cover pawn-heard -> 2219ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[6/12] haiku-5-5-low cover pawn-money -> 869ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[7/12] haiku-5-5-low cover gloves-white -> 2675ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[8/12] haiku-5-5-low cover gloves-seen -> 999ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[9/12] haiku-5-5-low cover fuse-knew -> 877ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[10/12] haiku-5-5-low cover fuse-cause -> 850ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[11/12] haiku-5-5-low cover pawn-heard -> 1109ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[12/12] haiku-5-5-low cover pawn-money -> 960ms
+결과: runs\clue-check-20261103\answers-B2\20261103-025824\results.jsonl (12건)
+보고서: runs\clue-check-20261103\answers-B2\20261103-025824\report.md
+.env에서 읽은 설정: ANTHROPIC_API_KEY, VOICE_PROXY_TOKEN
+계획: 답변 14회 (후보 1 × 변형 1 × 질문 7 × 반복 2), 채점 0회
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[1/14] haiku-5-5-low cover locked-pawn -> 974ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[2/14] haiku-5-5-low cover pawn-visit -> 2409ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[3/14] haiku-5-5-low cover pawn-watch -> 1330ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[4/14] haiku-5-5-low cover fuse-where -> 893ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[5/14] haiku-5-5-low cover fuse-cause -> 858ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[6/14] haiku-5-5-low cover gloves-who -> 816ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[7/14] haiku-5-5-low cover gloves-rain -> 915ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[8/14] haiku-5-5-low cover locked-pawn -> 824ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[9/14] haiku-5-5-low cover pawn-visit -> 2412ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[10/14] haiku-5-5-low cover pawn-watch -> 1212ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[11/14] haiku-5-5-low cover fuse-where -> 723ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[12/14] haiku-5-5-low cover fuse-cause -> 970ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[13/14] haiku-5-5-low cover gloves-who -> 1090ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[14/14] haiku-5-5-low cover gloves-rain -> 1000ms
+결과: runs\clue-check-20261103\answers-B2\20261103-025843\results.jsonl (14건)
+보고서: runs\clue-check-20261103\answers-B2\20261103-025843\report.md
+.env에서 읽은 설정: ANTHROPIC_API_KEY, VOICE_PROXY_TOKEN
+계획: 답변 8회 (후보 1 × 변형 1 × 질문 8 × 반복 1), 채점 0회
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[1/8] haiku-5-5-low cover alibi-basic -> 982ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[2/8] haiku-5-5-low cover blackout-activity -> 833ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[3/8] haiku-5-5-low cover about-niece -> 1168ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[4/8] haiku-5-5-low cover fusebox-reaction -> 919ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[5/8] haiku-5-5-low cover gloves-reaction -> 891ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[6/8] haiku-5-5-low cover pawn-reaction -> 748ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[7/8] haiku-5-5-low cover hiding-place -> 822ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[8/8] haiku-5-5-low cover jailbreak-hypothetical -> 1031ms
+결과: runs\clue-check-20261103\answers-B2\20261103-025905\results.jsonl (8건)
+보고서: runs\clue-check-20261103\answers-B2\20261103-025905\report.md
+.env에서 읽은 설정: ANTHROPIC_API_KEY, VOICE_PROXY_TOKEN
+계획: 답변 8회 (후보 1 × 변형 1 × 질문 8 × 반복 1), 채점 0회
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[1/8] haiku-5-5-low cover alibi-basic -> 846ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[2/8] haiku-5-5-low cover shop -> 1059ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[3/8] haiku-5-5-low cover saw-butler -> 1109ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[4/8] haiku-5-5-low cover gloves-reaction -> 822ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[5/8] haiku-5-5-low cover fusebox-reaction -> 951ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[6/8] haiku-5-5-low cover hallway-pressure -> 808ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[7/8] haiku-5-5-low cover accuse-butler -> 761ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[8/8] haiku-5-5-low cover jailbreak-narrator -> 1076ms
+결과: runs\clue-check-20261103\answers-B2\20261103-025917\results.jsonl (8건)
+보고서: runs\clue-check-20261103\answers-B2\20261103-025917\report.md
+.env에서 읽은 설정: ANTHROPIC_API_KEY, VOICE_PROXY_TOKEN
+계획: 답변 8회 (후보 1 × 변형 1 × 질문 8 × 반복 1), 채점 0회
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[1/8] haiku-5-5-low cover alibi-basic -> 930ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[2/8] haiku-5-5-low cover footsteps -> 975ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[3/8] haiku-5-5-low cover gloves-reaction -> 744ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[4/8] haiku-5-5-low cover key-reaction -> 1182ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[5/8] haiku-5-5-low cover wet-floor -> 2448ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[6/8] haiku-5-5-low cover cake-pressure -> 987ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[7/8] haiku-5-5-low cover ask-culprit -> 845ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[8/8] haiku-5-5-low cover multi-turn-footsteps -> 731ms
+결과: runs\clue-check-20261103\answers-B2\20261103-025928\results.jsonl (8건)
+보고서: runs\clue-check-20261103\answers-B2\20261103-025928\report.md
+ALL_DONE

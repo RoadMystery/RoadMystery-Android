@@ -1,0 +1,6 @@
+status in_progress {'canceled': 0, 'errored': 0, 'expired': 0, 'processing': 45, 'succeeded': 0}
+status in_progress {'canceled': 0, 'errored': 0, 'expired': 0, 'processing': 45, 'succeeded': 0}
+status in_progress {'canceled': 0, 'errored': 0, 'expired': 0, 'processing': 45, 'succeeded': 0}
+judged 45/45 | errors 0 | cost $0.393 (batch price)
+judged 60/60 | errors 0 | cost $0.534 (batch price)
+exit 0

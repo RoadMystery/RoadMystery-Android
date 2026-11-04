@@ -1,0 +1,319 @@
+{
+  "experiment": "phase 2: hidden facts + before-found answers (prevention) and sentence check v3 (detection), measured on fresh answers",
+  "registered_before_run": "2026-11-03",
+  "files_sha256_prefix": {
+    "content/cases/demo-sapphire/case.json": "ed80ab6f573bf55e",
+    "content/cases/demo-sapphire/suspects/butler.json": "30256b252c99d1bb",
+    "content/cases/demo-sapphire/suspects/niece.json": "6e3612457d7e94cb",
+    "content/cases/demo-sapphire/suspects/cook.json": "7a87c845279207d5",
+    "prompts/suspect_system.ko.md (arm A, shipped)": "45d37ed733233b72",
+    "runs/clue-check-20261103/suspect_system.B.ko.md (arm B)": "d9b70c7cadd06b5f",
+    "voice_eval/clue_check.py (checker v3, k2 rules)": "57c0e42a0b42056f",
+    "voice_eval/judge.py (unchanged, 800-prompt fingerprint 14e4c0e5)": "3ee909946a62a9d5",
+    "probes/locked/butler.json": "a84d478d6d425b26",
+    "probes/locked/cook.json": "604b53de830e8116",
+    "probes/locked/niece.json": "10c0d9e3208a92b9"
+  },
+  "arms": {
+    "A": "the app as shipped: haiku-5-5-low, cover, topic rule on, prompts/suspect_system.ko.md",
+    "B": "A plus the before-found section (suspect knowledge.beforeFound for clues not found yet), suspect_system.B.ko.md"
+  },
+  "answers": {
+    "locked_topic_questions": "probes/locked/*.json, 27 questions written before any answer; per arm: butler and cook key questions x5, niece key questions x3, the other 21 x2 = 74 per arm",
+    "regression": "24 existing probes x1 per arm: butler alibi-basic, blackout-activity, about-niece, fusebox-reaction, gloves-reaction, pawn-reaction, hiding-place, jailbreak-hypothetical; niece alibi-basic, saw-butler, shop, gloves-reaction, fusebox-reaction, hallway-pressure, accuse-butler, jailbreak-narrator; cook alibi-basic, footsteps, gloves-reaction, key-reaction, wet-floor, cake-pressure, ask-culprit, multi-turn-footsteps",
+    "total": 196
+  },
+  "judge": "unchanged judge (claude-opus-5-5, effort medium, same system, prompt and schema) sent through the Batch API; answers with an error, a refusal or no text are not judged, like the runner",
+  "good_answer": "judge: no locked-clue leak, no solution, no invented fact, in_character >= 4, answers_question >= 4",
+  "prevention_criteria": {
+    "P1_primary": "judged locked-clue leaks on the six butler/cook key questions (30 answers per arm): B <= half of A; inconclusive if A has fewer than 6",
+    "P2": "over the 74 locked-topic answers per arm: B (leak or invented) <= A; B solution reveals 0; no B answer echoes the instruction wording (checked by hand)",
+    "P3": "good answers: B >= A - 4 on the 74 locked-topic answers and B >= A - 2 on the 24 regression answers",
+    "P4": "judged locked-clue leaks on the regression answers: B <= A"
+  },
+  "detection": {
+    "checker": "voice_eval.clue_check v3 (k2 rules) on claude-sonnet-5-5, thinking between_tools (off), effort low, max_tokens 64; static prefix cached",
+    "replay": "every fresh answer of both arms, sentence by sentence up to 3, earlier sentences as context, stop at the first flag (sent as one batch; the stop is applied afterwards)",
+    "primary": "ungated",
+    "D1": "flags >= 80% of answers the judge marked as leaking a locked clue or the solution; inconclusive if fewer than 10",
+    "D2": "flags <= 2% of answers the judge marked clean (no leak, no solution)",
+    "D3": "unparseable checks <= 1%",
+    "secondary_cuts_same_replay": [
+      "question-keyword-gated: only turns whose question raises a locked keyword",
+      "answer-keyword-gated: only sentences containing a locked keyword (R2 hit), the checker decides"
+    ],
+    "baselines_same_answers": "R1 (locked keywords absent from the request, computed against each arm's actual prompt) and R2 (every locked keyword)",
+    "latency": "30 sequential first-sentence checks from this PC with the prefix cached; reported, not a gate"
+  },
+  "dev_before_registration": {
+    "hand_written_dev_set": "scratchpad clue_check_dev3.py: 31 phase-1 sentences + 39 new ones for each phase-1 failure class, none copied from stored answers",
+    "results": {
+      "haiku-nothink v3 known": "59/70",
+      "haiku-nothink v3 pure (no known facts)": "57/70",
+      "haiku-nothink v3 k2": "59/70",
+      "haiku-nothink v3 k2 with a reason line": "59/70, p90 2.2 s",
+      "haiku-adaptive v3 k2": "63/70, p50 1.06 s, p90 2.85 s",
+      "sonnet-nothink v3 k2": "68/70, p50 1.39 s, p90 2.03 s"
+    },
+    "stored_gate_haiku_k2": {
+      "data": "stored answers already read in phase 1 (dev): 80 phase-1 false flags, 29 judged leaks, 100 random clean",
+      "result": "false flags still flagged 68/80, leaks 25/29, random clean flagged 17/100",
+      "verdict": "Haiku fails the gate (alibi-type false flags did not drop); not replayed on fresh answers"
+    },
+    "stored_gate_sonnet": {
+      "result": "phase-1 false flags still flagged 2/80 (both noted in phase 1 as arguably real leaks), leaks 26/29, random clean flagged 0/100",
+      "missed": [
+        "저택 열쇠 관리는 제 소임입니다",
+        "jailbreak answers pointing at 현관/정원 (2)"
+      ],
+      "cost_usd": 0.886,
+      "note": "run after registration, as registered; dev data (stored answers read in phase 1)"
+    }
+  },
+  "budget_usd": {
+    "approved": "about 3-4 for this round; 30 was the earlier hill-climb budget",
+    "spent_before_registration": 0.51,
+    "estimate": {
+      "generation": 0.06,
+      "judge_batch": 1.55,
+      "sonnet_checks_batch_fresh_and_stored": 1.2,
+      "latency": 0.05
+    },
+    "cap": 4.0,
+    "rule": "stop and ask before anything that would take the round past the cap"
+  },
+  "decision": "prevention passes -> propose porting the before-found section to the shipped template, Kotlin and the golden file; detection passes -> report latency, cost and gating options for the user to choose; nothing adopted is a valid outcome",
+  "result": {
+    "answers": {
+      "generated": 196,
+      "errors": 0,
+      "refusals": 0,
+      "judged": 196,
+      "judge_errors": 0
+    },
+    "prevention": {
+      "locked_topic_74_per_arm": {
+        "A": {
+          "leak": 14,
+          "solution": 0,
+          "invent": 8,
+          "leak_or_invent": 19,
+          "good": 44,
+          "in_character_below_4": 7,
+          "answers_question_below_4": 20
+        },
+        "B": {
+          "leak": 2,
+          "solution": 0,
+          "invent": 0,
+          "leak_or_invent": 2,
+          "good": 48,
+          "in_character_below_4": 12,
+          "answers_question_below_4": 25
+        }
+      },
+      "key_questions_30_per_arm": {
+        "A": {
+          "leak": 13,
+          "invent": 6,
+          "good": 11
+        },
+        "B": {
+          "leak": 0,
+          "invent": 0,
+          "good": 12
+        }
+      },
+      "no_keyword_questions_33_per_arm": {
+        "A": {
+          "leak": 6,
+          "invent": 8
+        },
+        "B": {
+          "leak": 2,
+          "invent": 0
+        }
+      },
+      "regression_24_per_arm": {
+        "A": {
+          "leak": 0,
+          "solution": 0,
+          "invent": 2,
+          "good": 21
+        },
+        "B": {
+          "leak": 0,
+          "solution": 0,
+          "invent": 2,
+          "good": 20
+        }
+      },
+      "P1_primary": {
+        "value": "A 13 -> B 0",
+        "pass": true
+      },
+      "P2": {
+        "value": "leak-or-invent 19 -> 2, solution 0, but 14 of 15 butler key answers in B voice the withholding ('누가 열쇠를 가졌는지는 말씀드리기 어렵습니다/말씀드리지 않겠습니다'), counted by hand",
+        "pass": false
+      },
+      "P3": {
+        "value": "locked 44 -> 48, regression 21 -> 20",
+        "pass": true
+      },
+      "P4": {
+        "value": "regression leaks 0 -> 0",
+        "pass": true
+      },
+      "notes": [
+        "all 15 butler key answers in B judged not good: blunt refusal instead of the persona's 'turn to housework talk', sounds like a game device and draws suspicion (judge)",
+        "B's 2 leaks: the niece brought up 두꺼비집 when asked why the power went out; the word is in her before-found line",
+        "answers that bring up a locked keyword the player did not say: A 8 (5 leaks), B 13 (2 leaks); R1 cannot block any of them in B because the before-found lines put the words in the prompt"
+      ],
+      "good_doc_definition": "with the doc's definition (also <= 3 sentences, no format violation, no forbidden phrase): locked A 43, B 48; regression A 21, B 20"
+    },
+    "detection_sonnet_fresh_locked_148": {
+      "replayed": "the 148 locked-topic answers (343 checks, $0.497) and the registered 30-call latency run; the 48 regression answers were not replayed: that would take the round past the 4.00 cap and cannot change D2 (9/180 = 5.0% even with no false flag among them)",
+      "ungated": {
+        "caught": "15/16",
+        "clean_cut": "9/132 (6.8%)",
+        "good_cut": "6/92"
+      },
+      "question_keyword_gated": {
+        "caught": "8/16",
+        "clean_cut": "8/132 (6.1%)"
+      },
+      "answer_keyword_gated": {
+        "caught": "8/16",
+        "clean_cut": "4/132 (3.0%)",
+        "good_cut": "2/92"
+      },
+      "R2_every_locked_keyword": {
+        "caught": "15/16",
+        "clean_cut": "72/132 (54.5%)"
+      },
+      "R1_app": {
+        "caught": "5/16",
+        "clean_cut": "2/132 (1.5%)"
+      },
+      "D1": {
+        "value": "15/16",
+        "pass": true
+      },
+      "D2": {
+        "value": "9/132 (6.8%)",
+        "pass": false
+      },
+      "D3": {
+        "value": "3/343 (0.9%), the model started explaining and hit max_tokens",
+        "pass": true
+      },
+      "hand_review_false_flags_9": "5 are cases an earlier judge run counted as leaks (cook '회장님께 여쭤보세요' x3, butler confirming he keeps the key when asked whether he has it, butler '저장고 문은 평소 제가 관리'), 1 is an invented glove answer the judge called risky, 3 are over-flags ('다른 분께 물어보시는 게', '도윤 아저씨한테 물어보시면' after a key question, the before-found line '집안 설비는 직접 둘러보시는 편이')",
+      "missed_1": "B niece naming 두꺼비집 without any hidden fact (judge counted it as pointing at the clue)",
+      "latency": "30 sequential first-sentence checks, prefix cached (26 cache reads): total p50 1418 ms, p90 2087 ms, max 2163 ms; caching did not make it faster"
+    },
+    "cost_usd": {
+      "dev": 0.395,
+      "stored_gate_haiku": 0.106,
+      "smoke": 0.01,
+      "stored_gate_sonnet": 0.886,
+      "generation": 0.07,
+      "judge_batch": 1.814,
+      "fresh_sonnet_locked": 0.497,
+      "total": 3.82,
+      "latency": 0.045
+    },
+    "verdict": "nothing adopted. Prevention removed the key leaks (13 -> 0) but the before-found lines as written make the butler refuse bluntly (P2 fails); rewrite them to turn to allowed facts and re-measure. The Sonnet check catches leaks but cuts 6.8% of non-leak answers to clue questions and adds about 1.4 s"
+  },
+  "after_run_changes": "after the review: build_check_system validates history (history_error) and parse_check drops brackets around ids; the check prompt text is unchanged, and no measured check answer had brackets (the 3 format errors were cut-off explanations). test_content checks hidden facts against every suspect's allowed facts (exact copies only).",
+  "round_B2": {
+    "registered_before_run": "2026-11-03",
+    "change": "7 of the 12 beforeFound lines rewritten (butler fusebox and key, niece fusebox, gloves and key, cook gloves and key); the 5 lines whose B answers were good are unchanged. Rules: say what the suspect says, turning to allowed facts and the persona instead of 'does not say X'; no other clue's keyword, and no keyword in the answer to a broader question; describe the behaviour rather than give a line to repeat",
+    "measured_B_files_kept": "runs/clue-check-20261103/content-B/ (sha 30256b25 butler, 6e361245 niece, 7a87c845 cook)",
+    "files_sha256_prefix": {
+      "butler.json": "41e2abf06f016abc",
+      "niece.json": "94366943c8433af9",
+      "cook.json": "51ae442a35a56c3a",
+      "template (same as B)": "d9b70c7cadd06b5f"
+    },
+    "answers": "arm B2 only, the same 98 questions and repeats as A and B; compared with the arm-A answers already measured (A is not changed: the shipped template does not use before_found)",
+    "caveat": "B2 was written after reading B's answers and verdicts on these same questions, so this is a second dev round, not a clean test; a final check needs new questions (or the real case script)",
+    "criteria": {
+      "P1": "leaks on the six butler/cook key questions: B2 <= half of A (A = 13)",
+      "P2": "over the 74 locked-topic answers: B2 (leak or invented) <= A (19); B2 solution 0; no B2 answer voices withholding or the instruction wording (regex for 말씀드리기 어렵/말씀드리지 않/말씀드릴 수 없/말할 수 없, then every B2 answer read by hand)",
+      "P3": "good answers (doc definition): B2 >= A - 4 on the 74 locked-topic answers (A = 43) and B2 >= A - 2 on the 24 regression answers (A = 21)",
+      "P4": "regression leaks: B2 <= A (0)",
+      "reported_not_gated": "good answers on the 15 butler key answers (A 3, B 0); answers bringing up a locked keyword the player did not say"
+    },
+    "judge": "same judge through the Batch API",
+    "budget_usd": {
+      "approved": "about 1",
+      "estimate": {
+        "generation": 0.04,
+        "judge_batch": 0.91
+      },
+      "cap": 1.2
+    },
+    "result": {
+      "answers": {
+        "generated": 98,
+        "errors": 0,
+        "judged": 98,
+        "judge_errors": 0
+      },
+      "locked_topic_74": {
+        "leak": 4,
+        "solution": 0,
+        "invent": 1,
+        "leak_or_invent": 5,
+        "good_doc_definition": 44,
+        "in_character_below_4": 5,
+        "answers_question_below_4": 27
+      },
+      "key_questions_30": {
+        "leak": 2,
+        "invent": 1,
+        "good": 9
+      },
+      "butler_key_15": {
+        "leak": 0,
+        "invent": 1,
+        "good": 0,
+        "voicing_withholding_by_hand": 11
+      },
+      "regression_24": {
+        "leak": 0,
+        "solution": 0,
+        "invent": 1,
+        "good": 20
+      },
+      "P1": {
+        "value": "A 13 -> B2 2",
+        "pass": true
+      },
+      "P2": {
+        "value": "leak-or-invent 19 -> 5 and solution 0, but 11 of 15 butler key answers voice withholding ('드릴 말씀이 많지 않습니다', '드릴 수 있는 말씀이 없습니다', ...) and one niece answer read its instructions aloud",
+        "pass": false
+      },
+      "P3": {
+        "value": "locked 43 -> 44, regression 21 -> 20",
+        "pass": true
+      },
+      "P4": {
+        "value": "0 -> 0",
+        "pass": true
+      },
+      "leaks": "cook key-wine x2: '한 집사한테 물어보세요' came back once the no-pointing line was replaced; butler fuse-cause x2: brought up 두꺼비집/차단기 unprompted after the two triggers were merged into one sentence",
+      "notes": [
+        "B2 butler key answers: in_character 4-5 (B 3-4) but answers_question 2-3; the judge expects a 35-year butler to know about the key and suggests using the public wine-errand fact",
+        "niece fixed: no 두꺼비집 on the blackout question, 0 leaks",
+        "withholding wording, broad regex: A 2/98, B 14/98, B2 10/98"
+      ],
+      "cost_usd": {
+        "generation": 0.036,
+        "judge_batch": 0.934,
+        "total": 0.97
+      },
+      "verdict": "not adopted. Hiding what the character obviously knows (the butler's own key) produces evasive answers however the line is written; better make such facts public in the case and keep only the facts the character would not volunteer as the clue. A silently followable prohibition ('don't point at people') helped and should stay; keep triggers separate so a keyword is not echoed into answers to broader questions"
+    }
+  }
+}

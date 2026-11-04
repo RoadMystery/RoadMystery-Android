@@ -1,0 +1,6 @@
+9644a0a8e4935538 prompts/suspect_system.ko.md
+45d37ed733233b72 runs/polish-20261103/suspect_system.old.ko.md
+de4cccbfc1a5e570 ../../content/cases/jade-crown/suspects/son.json
+e7c0016b3ff2b3b7 ../../content/cases/jade-crown/suspects/niece.json
+d972230f5e22737f ../../content/cases/jade-crown/suspects/maid.json
+4bbb88c6e2ed5671 ../../content/cases/jade-crown/case.json

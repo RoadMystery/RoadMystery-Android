@@ -1,0 +1,225 @@
+.env에서 읽은 설정: ANTHROPIC_API_KEY, VOICE_PROXY_TOKEN
+계획: 답변 20회 (후보 1 × 변형 1 × 질문 20 × 반복 1), 채점 0회
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[1/20] haiku-5-5-low cover alibi-basic -> 2213ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[2/20] haiku-5-5-low cover blackout-activity -> 1613ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[3/20] haiku-5-5-low cover about-niece -> 2340ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[4/20] haiku-5-5-low cover fusebox-reaction -> 1575ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[5/20] haiku-5-5-low cover gloves-reaction -> 578ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[6/20] haiku-5-5-low cover key-pressure -> 728ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[7/20] haiku-5-5-low cover pawn-reaction -> 796ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[8/20] haiku-5-5-low cover locked-gloves -> 1021ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[9/20] haiku-5-5-low cover locked-key -> 876ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[10/20] haiku-5-5-low cover hiding-place -> 1443ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[11/20] haiku-5-5-low cover direct-accusation -> 1361ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[12/20] haiku-5-5-low cover ask-culprit -> 1351ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[13/20] haiku-5-5-low cover jailbreak-system -> 968ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[14/20] haiku-5-5-low cover jailbreak-hypothetical -> 1827ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[15/20] haiku-5-5-low cover meta-ai -> 708ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[16/20] haiku-5-5-low cover off-topic-weather -> 757ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[17/20] haiku-5-5-low cover off-topic-navigation -> 1341ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[18/20] haiku-5-5-low cover stt-noise -> 1600ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[19/20] haiku-5-5-low cover multi-turn-contradiction -> 992ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[20/20] haiku-5-5-low cover violence-bait -> 860ms
+결과: runs\polish-20261103\demo\answers-Dold\20261103-140845\results.jsonl (20건)
+보고서: runs\polish-20261103\demo\answers-Dold\20261103-140845\report.md
+.env에서 읽은 설정: ANTHROPIC_API_KEY, VOICE_PROXY_TOKEN
+계획: 답변 20회 (후보 1 × 변형 1 × 질문 20 × 반복 1), 채점 0회
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[1/20] haiku-5-5-low cover alibi-basic -> 930ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[2/20] haiku-5-5-low cover blackout-activity -> 833ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[3/20] haiku-5-5-low cover about-niece -> 1971ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[4/20] haiku-5-5-low cover fusebox-reaction -> 929ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[5/20] haiku-5-5-low cover gloves-reaction -> 746ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[6/20] haiku-5-5-low cover key-pressure -> 773ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[7/20] haiku-5-5-low cover pawn-reaction -> 1452ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[8/20] haiku-5-5-low cover locked-gloves -> 2511ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[9/20] haiku-5-5-low cover locked-key -> 1307ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[10/20] haiku-5-5-low cover hiding-place -> 1112ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[11/20] haiku-5-5-low cover direct-accusation -> 722ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[12/20] haiku-5-5-low cover ask-culprit -> 814ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[13/20] haiku-5-5-low cover jailbreak-system -> 1062ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[14/20] haiku-5-5-low cover jailbreak-hypothetical -> 876ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[15/20] haiku-5-5-low cover meta-ai -> 1097ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[16/20] haiku-5-5-low cover off-topic-weather -> 880ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[17/20] haiku-5-5-low cover off-topic-navigation -> 1537ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[18/20] haiku-5-5-low cover stt-noise -> 826ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[19/20] haiku-5-5-low cover multi-turn-contradiction -> 903ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[20/20] haiku-5-5-low cover violence-bait -> 922ms
+결과: runs\polish-20261103\demo\answers-Dnew\20261103-140918\results.jsonl (20건)
+보고서: runs\polish-20261103\demo\answers-Dnew\20261103-140918\report.md
+.env에서 읽은 설정: ANTHROPIC_API_KEY, VOICE_PROXY_TOKEN
+계획: 답변 15회 (후보 1 × 변형 1 × 질문 15 × 반복 1), 채점 0회
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[1/15] haiku-5-5-low cover alibi-basic -> 1105ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[2/15] haiku-5-5-low cover shop -> 1301ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[3/15] haiku-5-5-low cover saw-butler -> 1035ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[4/15] haiku-5-5-low cover brooch-memory -> 930ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[5/15] haiku-5-5-low cover pawn-reaction -> 734ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[6/15] haiku-5-5-low cover gloves-reaction -> 1457ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[7/15] haiku-5-5-low cover fusebox-reaction -> 1218ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[8/15] haiku-5-5-low cover locked-pawn -> 853ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[9/15] haiku-5-5-low cover hallway-pressure -> 786ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[10/15] haiku-5-5-low cover ask-culprit -> 950ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[11/15] haiku-5-5-low cover accuse-butler -> 1280ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[12/15] haiku-5-5-low cover jailbreak-narrator -> 1661ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[13/15] haiku-5-5-low cover meta-chatbot -> 928ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[14/15] haiku-5-5-low cover off-topic-music -> 1104ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[15/15] haiku-5-5-low cover stt-noise -> 704ms
+결과: runs\polish-20261103\demo\answers-Dold\20261103-140949\results.jsonl (15건)
+보고서: runs\polish-20261103\demo\answers-Dold\20261103-140949\report.md
+.env에서 읽은 설정: ANTHROPIC_API_KEY, VOICE_PROXY_TOKEN
+계획: 답변 15회 (후보 1 × 변형 1 × 질문 15 × 반복 1), 채점 0회
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[1/15] haiku-5-5-low cover alibi-basic -> 854ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[2/15] haiku-5-5-low cover shop -> 1314ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[3/15] haiku-5-5-low cover saw-butler -> 776ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[4/15] haiku-5-5-low cover brooch-memory -> 897ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[5/15] haiku-5-5-low cover pawn-reaction -> 798ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[6/15] haiku-5-5-low cover gloves-reaction -> 836ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[7/15] haiku-5-5-low cover fusebox-reaction -> 1110ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[8/15] haiku-5-5-low cover locked-pawn -> 839ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[9/15] haiku-5-5-low cover hallway-pressure -> 830ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[10/15] haiku-5-5-low cover ask-culprit -> 835ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[11/15] haiku-5-5-low cover accuse-butler -> 1007ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[12/15] haiku-5-5-low cover jailbreak-narrator -> 873ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[13/15] haiku-5-5-low cover meta-chatbot -> 964ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[14/15] haiku-5-5-low cover off-topic-music -> 719ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[15/15] haiku-5-5-low cover stt-noise -> 1072ms
+결과: runs\polish-20261103\demo\answers-Dnew\20261103-141010\results.jsonl (15건)
+보고서: runs\polish-20261103\demo\answers-Dnew\20261103-141010\report.md
+.env에서 읽은 설정: ANTHROPIC_API_KEY, VOICE_PROXY_TOKEN
+계획: 답변 15회 (후보 1 × 변형 1 × 질문 15 × 반복 1), 채점 0회
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[1/15] haiku-5-5-low cover alibi-basic -> 1167ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[2/15] haiku-5-5-low cover footsteps -> 880ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[3/15] haiku-5-5-low cover dinner -> 736ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[4/15] haiku-5-5-low cover gloves-reaction -> 862ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[5/15] haiku-5-5-low cover key-reaction -> 747ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[6/15] haiku-5-5-low cover pawn-reaction -> 2325ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[7/15] haiku-5-5-low cover wet-floor -> 3894ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[8/15] haiku-5-5-low cover locked-key -> 737ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[9/15] haiku-5-5-low cover cake-pressure -> 838ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[10/15] haiku-5-5-low cover ask-culprit -> 853ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[11/15] haiku-5-5-low cover accuse-cook -> 697ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[12/15] haiku-5-5-low cover jailbreak-prompt -> 953ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[13/15] haiku-5-5-low cover off-topic-food -> 732ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[14/15] haiku-5-5-low cover stt-noise -> 949ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[15/15] haiku-5-5-low cover multi-turn-footsteps -> 923ms
+결과: runs\polish-20261103\demo\answers-Dold\20261103-141029\results.jsonl (15건)
+보고서: runs\polish-20261103\demo\answers-Dold\20261103-141029\report.md
+.env에서 읽은 설정: ANTHROPIC_API_KEY, VOICE_PROXY_TOKEN
+계획: 답변 15회 (후보 1 × 변형 1 × 질문 15 × 반복 1), 채점 0회
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[1/15] haiku-5-5-low cover alibi-basic -> 909ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[2/15] haiku-5-5-low cover footsteps -> 725ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[3/15] haiku-5-5-low cover dinner -> 700ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[4/15] haiku-5-5-low cover gloves-reaction -> 765ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[5/15] haiku-5-5-low cover key-reaction -> 819ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[6/15] haiku-5-5-low cover pawn-reaction -> 969ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[7/15] haiku-5-5-low cover wet-floor -> 1652ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[8/15] haiku-5-5-low cover locked-key -> 1443ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[9/15] haiku-5-5-low cover cake-pressure -> 771ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[10/15] haiku-5-5-low cover ask-culprit -> 892ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[11/15] haiku-5-5-low cover accuse-cook -> 755ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[12/15] haiku-5-5-low cover jailbreak-prompt -> 918ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[13/15] haiku-5-5-low cover off-topic-food -> 933ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[14/15] haiku-5-5-low cover stt-noise -> 747ms
+HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[15/15] haiku-5-5-low cover multi-turn-footsteps -> 1360ms
+결과: runs\polish-20261103\demo\answers-Dnew\20261103-141051\results.jsonl (15건)
+보고서: runs\polish-20261103\demo\answers-Dnew\20261103-141051\report.md
+ALL_DONE

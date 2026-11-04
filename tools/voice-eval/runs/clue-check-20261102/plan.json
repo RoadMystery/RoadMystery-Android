@@ -1,0 +1,98 @@
+{
+  "experiment": "sentence check (voice_eval.clue_check) replayed on stored judged answers",
+  "registered_before_run": "2026-11-02",
+  "checker": {
+    "model": "claude-haiku-5-5",
+    "effort": "low",
+    "thinking": "disabled",
+    "max_tokens": 64
+  },
+  "clue_check_py_sha256_prefix": "d0dbaa2b0831fb8a",
+  "replay": "every stored answer, sentence by sentence up to 3, earlier sentences as context, stop at first flag",
+  "dataset": {
+    "answers": 1372,
+    "judge_locked_leaks": 29,
+    "judge_solution": 2,
+    "judge_good": 1217,
+    "judge_clean": 1342
+  },
+  "baselines_same_answers": {
+    "R2_block_every_locked_keyword": {
+      "leaks_caught": 27,
+      "clean_cut": 110,
+      "good_cut": 80
+    },
+    "R1_block_unsent_keywords_current_app": {
+      "leaks_caught": 0,
+      "clean_cut": 1,
+      "good_cut": 0
+    }
+  },
+  "criteria": {
+    "C1_recall": "flags a clue in >= 23 of the 29 judged locked-clue leaks (80%)",
+    "C2_false_positives": "flags <= 27 of 1342 clean answers (2%) and <= 24 of 1217 good answers (2%)",
+    "C3_latency": "sequential checks from this PC straight to the API: total p50 <= 800 ms, p90 <= 1200 ms",
+    "C4_format": "unparseable answers <= 1% of checks"
+  },
+  "review": "read every disagreement with the judge by hand before concluding; report raw numbers and reviewed notes separately",
+  "budget_usd": {
+    "smoke": 0.002,
+    "full_replay_upper_bound": 0.82,
+    "sequential_latency_100": 0.02
+  },
+  "registration_update": {
+    "when": "before the full replay",
+    "why": "smoke run (4 stored answers) missed an obvious key leak; prompt and model chosen on a hand-written dev set instead of the stored answers",
+    "dev_set": "scratchpad clue_check_dev.py: 31 hand-written sentences labelled by the judge rules, none copied from stored answers",
+    "dev_results": {
+      "v0 haiku-nothink": "25/27",
+      "v1 haiku-nothink": "29/30",
+      "v1 sonnet-nothink": "26/27 p50 1.4s",
+      "v2 haiku-nothink": "31/31 p50 858ms",
+      "v2b haiku-nothink": "30/31"
+    },
+    "chosen": "prompt v2 (read the new sentence together with what came before; answering the question does not excuse stating clue facts), claude-haiku-5-5 thinking disabled",
+    "criteria_unchanged": true
+  },
+  "result": {
+    "replay": {
+      "answers": 1372,
+      "checks": 3590,
+      "api_errors": 0,
+      "parse_errors": 4,
+      "cost_usd": 0.763
+    },
+    "C1_recall": {
+      "value": "19/29",
+      "pass": false
+    },
+    "C2_false_positives": {
+      "clean": "80/1342 (6.0%)",
+      "good": "73/1217 (6.0%)",
+      "pass": false
+    },
+    "C3_latency": {
+      "sequential_100": "p50 883 ms, p90 1947 ms, max 4939 ms",
+      "pass": false
+    },
+    "C4_format": {
+      "value": "4/3590",
+      "pass": true
+    },
+    "baselines_same_answers": {
+      "R2": "leaks 27/29, clean cut 110, good cut 80, 98 of 137 cuts at sentence 1",
+      "R1": "leaks 0/29, 1 cut"
+    },
+    "hand_review": {
+      "false_positives_read": 80,
+      "public_facts": 51,
+      "found_clue_reactions": 22,
+      "locked_questions": 7,
+      "arguably_real_leaks_among_fp": 2,
+      "misses_read": 10,
+      "clear_misses": 3,
+      "borderline_misses": 7
+    },
+    "verdict": "not adopted; app keeps the topic rule and the unsent-keyword safety net"
+  }
+}

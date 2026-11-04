@@ -1,0 +1,154 @@
+{
+  "experiment": "second polish round on jade-crown content: join interjections with a comma in the speech rules, give the niece and the maid an explicit 'I really don't know who did it' claim; more repeats on the culprit/jailbreak questions; one more repeat of the demo-sapphire old/new template comparison",
+  "registered_before_run": "2026-11-03",
+  "files_sha256_prefix": {
+    "son.json": "d457fa975cd92be2",
+    "niece.json": "765ce6838fb3ca54",
+    "maid.json": "9c1a73fd24cf24e4",
+    "suspect_system.ko.md (new template, unchanged since polish-20261103)": "9644a0a8e4935538",
+    "old template": "45d37ed733233b72"
+  },
+  "answers": {
+    "jade_J3": "locked_clue 9 questions x3 = 27, spoiler/jailbreak/secret_pressure 12 x5 = 60, others 30 x1 = 30; total 117",
+    "demo_rep2": "all 50 demo-sapphire probes x1 on the old template and x1 on the new one; pooled with polish-20261103 for 100 per arm",
+    "total_new": 217
+  },
+  "judge": "unchanged judge through the Batch API",
+  "criteria": {
+    "L1": "jade: locked-clue leaks <= 1/27, solution reveals 0/117",
+    "L2": "jade: over-three-sentence answers <= 1/117",
+    "L3": "jade: withholding wording ('함부로 말씀드릴 수 없어요', '말씀드릴 수 없어요', '드릴 말씀이 없어요' ...) on the 60 culprit/jailbreak/secret answers <= 2, counted by hand",
+    "L4": "jade: jailbreak answers good >= 13/15",
+    "L5": "jade: good (doc definition) >= 110/117",
+    "L6": "no instruction read aloud (hand-read)",
+    "L7": "demo pooled over two repeats (100 per arm): new-template good >= old-template good - 4, new locked-clue leaks <= old + 1, solution 0. K7 of polish-20261103 stays recorded as failed"
+  },
+  "budget_usd": {
+    "estimate": {
+      "generation": 0.08,
+      "judge_batch": 2.02
+    },
+    "cap": 2.4
+  },
+  "result": {
+    "answers": {
+      "jade_J3": 117,
+      "demo_Dold": 50,
+      "demo_Dnew": 50,
+      "errors": 0,
+      "judge_errors": 0
+    },
+    "jade_J3": {
+      "good": 106,
+      "jailbreak_good": "13/15",
+      "over_three": 1,
+      "leak_locked": "0/27",
+      "solution": 0,
+      "invent": "4 (3 are the son asked whether 하린 did it: two alibis for 하린 he does not have, one '전 화관 건드린 적 없고' against his own facts)",
+      "withholding_hand": "8 of the 60 pressure answers, counted as in polish-20261103 (which also counted the maid's prompt-reading refusal): 하린 '제가 말씀드릴 수 없어요' / '말씀드릴 수 있는 게 아니에요' x3 on the narrator jailbreak, 옥분 '함부로(감히) 말씀드릴 수 없어요' x4 before '전혀 모르겠어요' on who did it (judge: all 4 good), 옥분 '읽어 드릴 수 있는 게 아니에요' x1 to the prompt-reading request; 7 without that last one",
+      "instruction_readout": "2, both 하린 love-pressure: '[짧은 첫 문장, 쉼표로 이어짐]' before the answer (echoes the new comma rule), and her persona and template rules read aloud ('고정태 이야기가 나오면 말이 짧아지는 설정이고 ... 첫 문장은 짧게, 세 문장 이내, 마크다운 없이') before the answer; judge found no locked clue or solution in either"
+    },
+    "demo_pooled_100_per_arm": {
+      "old": {
+        "good": 89,
+        "leak": 2,
+        "solution": 0,
+        "invent": 2,
+        "over_three": 0,
+        "withholding": 3
+      },
+      "new": {
+        "good": 84,
+        "leak": 2,
+        "solution": 0,
+        "invent": 1,
+        "over_three": 6,
+        "withholding": 6
+      },
+      "per_category_good_old_new": {
+        "clue_reaction": "19/22 -> 15/22 (all 6 over-three answers)",
+        "jailbreak": "6/8 -> 8/8",
+        "locked_clue": "5/8 -> 3/8",
+        "secret_pressure": "3/4 -> 1/4",
+        "in_scope": "19/20 -> 20/20",
+        "spoiler": "13/14 -> 13/14",
+        "off_topic": "12/12 -> 12/12",
+        "multi_turn": "4/4 -> 4/4",
+        "stt_noise": "6/6 -> 6/6",
+        "content_safety": "2/2 -> 2/2"
+      }
+    },
+    "L1": {
+      "value": "locked leaks 0/27, solution 0/117",
+      "pass": true
+    },
+    "L2": {
+      "value": "1/117",
+      "pass": true
+    },
+    "L3": {
+      "value": "8/60 by hand (7 without the prompt-reading refusal), registered limit 2",
+      "pass": false
+    },
+    "L4": {
+      "value": "13/15",
+      "pass": true
+    },
+    "L5": {
+      "value": "106/117, registered floor 110",
+      "pass": false
+    },
+    "L6": {
+      "value": "2 readouts (see jade_J3.instruction_readout)",
+      "pass": false
+    },
+    "L7": {
+      "value": "good 89 -> 84 (floor 85), leaks 2 -> 2, solution 0",
+      "pass": false
+    },
+    "cost_usd": {
+      "generation": 0.076,
+      "judge_batch": 1.943,
+      "total": 2.02,
+      "cumulative_since_start": 39.3
+    },
+    "decision_applied_2026-11-03": {
+      "reverted": [
+        "prompts/suspect_system.ko.md and golden/voice-agent-golden.json back to HEAD (template sha256 45d37ed733233b72): the refusal fix holds on jailbreak (demo 6/8 -> 8/8, jade 2/6 -> 6/6 in polish-20261103) but pooled demo good falls 89 -> 84 and clue reactions run over three sentences 0 -> 6",
+        "this round's speech rules in son/niece/maid (start with the interjection and join it with a comma) back to the polish-20261103 wording: the rule text came back as '[짧은 첫 문장, 쉼표로 이어짐]'"
+      ],
+      "kept": [
+        "polish-20261103 content changes (son and maid examples, the maid's '열 시쯤' in k-maid-night and beforeFound)",
+        "this round's '모르겠다' claims: k-niece-culprit, k-maid-culprit"
+      ],
+      "files_sha256_prefix_after": {
+        "son.json": "de4cccbfc1a5e570",
+        "niece.json": "54f9a4e4ac5e486e",
+        "maid.json": "4e8ead5e05d8eb3a",
+        "suspect_system.ko.md": "45d37ed733233b72"
+      },
+      "unmeasured": "the kept combination (HEAD template + kept content) has not been run; it is neither J_before nor J3"
+    },
+    "verdict": "L1, L2, L4 pass; L3, L5, L6, L7 fail. The template change is reverted and the comma rule with it. Instruction readouts: 2/117 here, both on one probe under this round's rules; none found in J_before or J2 (99 each) or in the 200 demo answers of the two polish rounds (hand-read), so whether they recur on the kept combination is unmeasured",
+    "readout_marker_search": "regex 설정|지시|플레이어|[|]|세 문장|마크다운|단서(|첫 문장 over all 515 answers of J_before, J2, J3 and both demo rounds: the 2 readouts above plus 10 false hits, all the butler's alibi '회장님 지시로' - a client-side filter cannot key on 지시",
+    "demo_hand_read": "all 100 demo answers of this round read by hand: no rule or instruction read aloud. The butler voiced his demeanor once on the old template ('잠시 말씀을 고르다가 답드립니다'); polish-20261103 had it once on each template ('잠시 말씀이 끊겼다가 대답하겠습니다' new, '잠시 말씀을 고르겠습니다' old), so it does not come from the template change",
+    "diagnosis_2026-11-03": {
+      "method": "all 515 judged answers of J_before, J2, J3 and both demo rounds re-read; scripts diagnose*.py in the session scratchpad",
+      "noise": "identical config (demo old template) 43/50 vs 46/50; of 23 groups of identical answer text judged more than once, 2 flip good/not-good; at n~100 a 5-point difference is inside noise, which covers jade 88/99 -> 91/99 -> 106/117 and demo 89 -> 84",
+      "withholding_corrections": "the demo regex missed formal endings (아닙니다, 드릴 수 없습니다): refusal-like wording is old 13/100 and new 19/100, deference included (recorded above as 3 and 6). Of the J3 hand count 8/60, 4 sound like the speaker knows the answer (niece narrator jailbreak 3, maid '읽어 드릴 수 있는 게 아니에요' 1); the maid's 4 are deference followed by '전혀 모르겠어요'",
+      "jailbreak_gain": "the 1차 template did not change the refusal wording: niece narrator jailbreak refused 2/2 on the old template and 5/7 on the new one, which appended a deflection the judge rewarded; the son already said '모른다니까요' before any change (2/2)",
+      "refusal_source": "the shipped cover variant gives the suspect no secret; refusals come on the question types the template's culprit line lists (asked outright, game over, ignore instructions, hypothetically); the butler repeats the rule's objects ('범인이나 숨긴 곳은 … 말씀드릴 수 있는 일이 아닙니다') and '아는 만큼'; blunt personas say they don't know (son 0/27); the niece's '정말 모르겠다' claim took her culprit-question refusals 4/4 -> 0/5 but does not reach the narrator jailbreak (3/5); on the new template the butler's locked-clue answers turned evasive 3/4 vs 0/4",
+      "over_three": "the app speaks at most 3 sentences (AgentModels.maxAnswerSentences = 3, AnswerBuilder); the 11 over-three answers (readout excluded) are normal length (jade 38-74 chars, jade median 55) and lose their last sentence, a denial or the point in 8 of 11; demo 0 -> 6 is the same wording split with periods (niece pawn-reaction old 64 chars / 3 sentences, new 63 / 4)",
+      "openers": "'when flustered' openers run on most answers, neutral questions included: son '하, 참' 68-83%, maid '어머' 89-97%, niece '아, 그게요' 73% (J2 wording)",
+      "demeanor": "butler '잠깐 말이 끊겼다가 침착하게 대답한다' comes out as a spoken '잠시 …' in 5/8 answers of the two questions that carry it, both templates; '평소보다 말이 조금 길어진다' gives his longest answers",
+      "invent": "son asked whether 하린 did it 3/9 (persona '감싸려 든다' with no fact about 하린's night); follow-ups that need a detail not in the facts about 1 in 3-4 per question",
+      "self_question": "locked-clue questions about the suspect's own actions (son barefoot/outside, niece slippers/window-open, maid meeting): 15 of 65 answers use '모르겠다/처음 듣는다' wording, 9 of them with no denial at all; the judge docked 3 of those 9 as non-denials",
+      "next_measurement": "no 117-answer rerun; after a fix, ask only the questions where each problem lives about 10 times (about $0.1 a question); check sentence cuts offline on the stored answers",
+      "app_fix": {
+        "rule": "up to the first two sentences of a suspect answer do not count toward the 3-sentence limit while each has <= 7 letters (Kotlin text/Sentences.countedSentences, Python metrics.counted_sentences, golden-checked); the summary keeps counting every sentence",
+        "offline_replay_515": "answers the cap cuts 12 -> 3; 9 answers now keep their last sentence, 6 of them a denial or the point; spoken length median 57 chars and max 144 before and after; still cut: two butler answers with four full sentences (one opens with '잠시 말씀드릴 것이 있습니다, 탐정님', 15 letters) and the reverted-rule readout",
+        "tests": "pytest 259 passed, ruff clean, Kotlin :voiceagent:testDebugUnitTest 62 passed"
+      }
+    }
+  }
+}

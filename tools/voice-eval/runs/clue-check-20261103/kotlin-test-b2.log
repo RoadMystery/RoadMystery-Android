@@ -1,0 +1,24 @@
+﻿> Task :voiceagent:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :voiceagent:preBuild UP-TO-DATE
+> Task :voiceagent:preDebugBuild UP-TO-DATE
+> Task :voiceagent:generateDebugResValues UP-TO-DATE
+> Task :voiceagent:generateDebugResources UP-TO-DATE
+> Task :voiceagent:packageDebugResources UP-TO-DATE
+> Task :voiceagent:parseDebugLocalResources UP-TO-DATE
+> Task :voiceagent:generateDebugRFile UP-TO-DATE
+> Task :voiceagent:compileDebugKotlin UP-TO-DATE
+> Task :voiceagent:javaPreCompileDebug UP-TO-DATE
+> Task :voiceagent:compileDebugJavaWithJavac NO-SOURCE
+> Task :voiceagent:bundleLibRuntimeToJarDebug UP-TO-DATE
+> Task :voiceagent:bundleLibCompileToJarDebug UP-TO-DATE
+> Task :voiceagent:preDebugUnitTestBuild UP-TO-DATE
+> Task :voiceagent:generateDebugUnitTestStubRFile UP-TO-DATE
+> Task :voiceagent:compileDebugUnitTestKotlin UP-TO-DATE
+> Task :voiceagent:javaPreCompileDebugUnitTest UP-TO-DATE
+> Task :voiceagent:compileDebugUnitTestJavaWithJavac NO-SOURCE
+> Task :voiceagent:processDebugJavaRes UP-TO-DATE
+> Task :voiceagent:processDebugUnitTestJavaRes UP-TO-DATE
+> Task :voiceagent:testDebugUnitTest
+
+BUILD SUCCESSFUL in 6s
+15 actionable tasks: 1 executed, 14 up-to-date

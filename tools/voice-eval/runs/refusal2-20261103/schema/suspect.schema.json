@@ -1,0 +1,131 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "suspect.schema.json",
+  "title": "용의자 페르소나(Suspect)",
+  "description": "음성 심문(F-05)에서 LLM이 연기할 용의자. 이름·역할·호칭은 case.json의 cast에서 가져온다.",
+  "type": "object",
+  "required": ["id", "voice", "profile", "speechStyle", "knowledge", "relationships", "deflections", "fallbackLines"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "id": { "type": "string", "description": "case.json cast의 id" },
+    "voice": {
+      "type": "object",
+      "required": ["pleosSpeaker"],
+      "additionalProperties": false,
+      "properties": {
+        "pleosSpeaker": {
+          "description": "Pleos TextToSpeech.setSpeakerType 값(한국어 화자 4명)",
+          "enum": ["seoyoon", "eunwoo", "haeun", "sanghyeok"]
+        }
+      }
+    },
+    "profile": {
+      "type": "object",
+      "required": ["age", "background", "personality"],
+      "additionalProperties": false,
+      "properties": {
+        "age": { "type": "integer", "minimum": 1 },
+        "background": { "type": "string" },
+        "personality": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+      }
+    },
+    "speechStyle": {
+      "type": "object",
+      "required": ["register", "rules", "examples"],
+      "additionalProperties": false,
+      "properties": {
+        "register": { "type": "string", "description": "예: 하십시오체, 해요체, 반말" },
+        "rules": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "examples": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+      }
+    },
+    "knowledge": {
+      "type": "object",
+      "required": ["public", "unlockable", "secret"],
+      "additionalProperties": false,
+      "properties": {
+        "public": {
+          "description": "처음부터 말해도 되는 것(주장 포함). 범인이라면 여기에는 거짓 주장을 적는다.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/fact" }
+        },
+        "unlockable": {
+          "description": "플레이어가 unlockedBy 단서를 모두 찾았을 때만 프롬프트에 들어가는 반응",
+          "type": "array",
+          "items": { "$ref": "#/$defs/unlockableFact" }
+        },
+        "secret": {
+          "description": "절대 말하지 않는 진실. '진실 포함' 변형에서만 프롬프트에 들어간다.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/fact" }
+        },
+        "beforeFound": {
+          "description": "플레이어가 clue 단서를 아직 찾지 않았을 때 그 이야기를 물으면 하는 말. 단서의 숨길 사실을 담지 말고, 단서를 찾은 뒤의 반응(unlockable)과 어긋나지 않게 쓴다. '말하지 않는다'고 쓰는 대신 말해도 되는 사실과 성격으로 화제를 돌리는 말로 쓴다. 인물이 당연히 아는 것(집사가 자기 열쇠를 가졌는지)은 어떻게 써도 '드릴 말씀이 없습니다'처럼 피하는 답이 나오므로 단서가 아니라 공개 사실로 두는 편이 낫다. '누구한테 물어보라고 사람을 대지 않는다'처럼 조용히 지킬 수 있는 금지는 남긴다. 넓은 질문(정전 원인)에 대한 말에는 단서 키워드를 넣지 않고, 다른 단서의 키워드도 넣지 않는다(묻지 않은 단서를 먼저 꺼내게 됨). 2026-11-03 측정: docs/voice-agent/llm-evaluation.md",
+          "type": "array",
+          "items": { "$ref": "#/$defs/beforeFoundLine" }
+        }
+      }
+    },
+    "relationships": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["target", "attitude"],
+        "additionalProperties": false,
+        "properties": {
+          "target": { "type": "string", "description": "case.json cast의 id" },
+          "attitude": { "type": "string" }
+        }
+      }
+    },
+    "deflections": {
+      "description": "시나리오 밖 질문에 캐릭터를 유지하며 피하는 대사 예시",
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1
+    },
+    "fallbackLines": {
+      "description": "LLM 없이 기기에서 바로 재생하는 대사(오프라인·인식 실패·대기)",
+      "type": "object",
+      "required": ["offline", "notUnderstood", "filler"],
+      "additionalProperties": false,
+      "properties": {
+        "offline": { "type": "string" },
+        "notUnderstood": { "type": "string" },
+        "filler": { "type": "string" }
+      }
+    }
+  },
+  "$defs": {
+    "fact": {
+      "type": "object",
+      "required": ["id", "text"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "text": { "type": "string", "minLength": 1 }
+      }
+    },
+    "unlockableFact": {
+      "type": "object",
+      "required": ["id", "unlockedBy", "text"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "unlockedBy": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "text": { "type": "string", "minLength": 1 },
+        "demeanor": { "type": "string", "description": "말투에만 드러낼 태도(지문으로 출력하지 않음)" }
+      }
+    },
+    "beforeFoundLine": {
+      "type": "object",
+      "required": ["clue", "text"],
+      "additionalProperties": false,
+      "properties": {
+        "clue": { "type": "string", "description": "case.json clues의 id" },
+        "text": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

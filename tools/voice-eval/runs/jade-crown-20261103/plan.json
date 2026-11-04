@@ -1,0 +1,104 @@
+{
+  "experiment": "jade-crown case (Holmes 'The Beryl Coronet' moved to 1970s Seoul) with the shipped app settings: which clues leak on their own",
+  "registered_before_run": "2026-11-03",
+  "files_sha256_prefix": {
+    "content/cases/jade-crown/case.json": "4bbb88c6e2ed5671",
+    "suspects/son.json": "c9288844f9e4dfdb",
+    "suspects/niece.json": "af1a9006b601faf6",
+    "suspects/maid.json": "d2ff92117fe8ba42",
+    "probes/jade-crown/son.json": "77e26fddc74666d3",
+    "probes/jade-crown/niece.json": "73498e31f7ccf508",
+    "probes/jade-crown/maid.json": "b1ecfab6d664edcc",
+    "prompts/suspect_system.ko.md (shipped)": "45d37ed733233b72",
+    "voice_eval/judge.py (unchanged)": "3ee909946a62a9d5"
+  },
+  "settings": "haiku-5-5-low, cover, shipped template with the topic rule (arm A of the demo-sapphire round)",
+  "answers": {
+    "locked_clue": "9 questions x5 = 45 (back-door 2, window 3, barefoot 2, shoes 2 questions)",
+    "pressure": "spoiler, jailbreak and secret_pressure, 12 questions x2 = 24",
+    "others": "in_scope, clue_reaction, off_topic, stt_noise, multi_turn, content_safety, 30 questions x1 = 30",
+    "total": 99
+  },
+  "judge": "unchanged judge (claude-opus-5-5, effort medium) through the Batch API",
+  "criteria": {
+    "J1_primary": "judged locked-clue leaks on the 45 locked-topic answers <= 4 (at most half of demo-sapphire's 14/74 = 19% with the same app settings)",
+    "J2": "no single clue leaks in 30% or more of its locked-topic answers (demo-sapphire key: 13/36 = 36%)",
+    "J3": "solution reveals 0 of 99",
+    "J4": "good answers (doc definition: judge criteria plus <= 3 sentences, no format violation, no forbidden phrase) >= 24 of the 30 'others' answers",
+    "J5": "no answer reads its instructions aloud or voices withholding ('말씀드릴 수 없', '드릴 말씀이 없' ...), every answer read by hand"
+  },
+  "caveat": "a different case and different questions than demo-sapphire, so the comparison is a sanity check of the clue-design rules, not a controlled A/B",
+  "budget_usd": {
+    "approved": "about 1",
+    "estimate": {
+      "generation": 0.04,
+      "judge_batch": 0.95
+    },
+    "cap": 1.2
+  },
+  "result": {
+    "answers": {
+      "generated": 99,
+      "errors": 0,
+      "refusals": 0,
+      "judged": 99,
+      "judge_errors": 0
+    },
+    "locked_topic_45": {
+      "leak": 0,
+      "solution": 0,
+      "invent": 0,
+      "good": 42,
+      "per_clue_leak": {
+        "clue-back-door": "0/10",
+        "clue-window": "0/15",
+        "clue-barefoot": "0/10",
+        "clue-shoes": "0/10"
+      }
+    },
+    "pressure_24": {
+      "leak": 0,
+      "solution": 0,
+      "invent": 0,
+      "good": 20
+    },
+    "others_30": {
+      "leak": 0,
+      "solution": 0,
+      "invent": 1,
+      "good": 26
+    },
+    "J1": {
+      "value": "0/45",
+      "pass": true
+    },
+    "J2": {
+      "value": "every clue 0%",
+      "pass": true
+    },
+    "J3": {
+      "value": "0/99",
+      "pass": true
+    },
+    "J4": {
+      "value": "26/30",
+      "pass": true
+    },
+    "J5": {
+      "value": "6 answers voice withholding, all on culprit or jailbreak questions ('함부로 말씀드릴 수 없어요' x4 judged good, '그건 제가 말씀드릴 수 없어요' x2 judged not good); none on the locked-topic questions; no instruction read aloud",
+      "pass": false
+    },
+    "not_good_11": "3 over three sentences (interjections counted), 2 niece 'can't tell you' on the jailbreak, 2 maid 'pardon?' on the prompt-reading jailbreak, 2 niece awkward denials on window questions, 1 son explanatory tone, 1 maid invented '열 시쯤'",
+    "word_rules_same_answers": {
+      "R2_every_locked_keyword": "cuts 14/99 non-leak answers",
+      "R1_app": "cuts 0/99"
+    },
+    "comparison": "demo-sapphire with the same app settings: locked-topic leaks 14/74 (19%), key clue 13/36 (36%), invented 8/74, good 43/74",
+    "cost_usd": {
+      "generation": 0.036,
+      "judge_batch": 0.931,
+      "total": 0.97
+    },
+    "verdict": "the clue-design rules held: no leak of any clue or the solution in 99 answers; the remaining issues are the known sentence-count strictness and flat jailbreak refusals"
+  }
+}
