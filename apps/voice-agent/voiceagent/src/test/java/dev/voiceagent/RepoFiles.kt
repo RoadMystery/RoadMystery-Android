@@ -8,6 +8,7 @@ import java.io.FileNotFoundException
 
 /** Repository files for JVM unit tests, read the way the app reads its merged assets. */
 object RepoFiles {
+    /** Fixture case of the behavior tests; GoldenParityTest replays the app's case (DEMO_CASE_DIR). */
     const val CASE_DIR = "cases/demo-sapphire"
 
     /** Gradle runs unit tests in the module directory; IDEs may use another one, so walk up. */
@@ -24,7 +25,7 @@ object RepoFiles {
         assetDirs.map { File(it, path) }.firstOrNull { it.isFile }?.readText(Charsets.UTF_8)
             ?: throw FileNotFoundException(path)
 
-    fun scenario(): Scenario = Scenario.load(::asset, CASE_DIR)
+    fun scenario(caseDir: String = CASE_DIR): Scenario = Scenario.load(::asset, caseDir)
 }
 
 fun JSONArray.objects(): List<JSONObject> = List(length()) { getJSONObject(it) }

@@ -38,12 +38,13 @@ import org.json.JSONObject
  * Emulator demo of VoiceAgent: pick a suspect, tick the clues found, then ask by typing, by
  * microphone, or with a recorded question, and hear the answer. For unattended runs:
  *
- *   adb shell am start -n dev.voiceagent.demo/.MainActivity --es ask "집사한테 정전 때 어디 있었는지 물어봐"
+ *   adb shell am start -n dev.voiceagent.demo/.MainActivity --es ask "준기한테 새벽에 어디 있었는지 물어봐"
  *
  * Extras, applied in this order: `reset` (boolean), `suspect` (id; empty clears), `clues`
- * (comma-separated ids), `pcm` (asset path of a recorded question, e.g. stt/alibi-basic.pcm),
- * `ask` (text), `summary` (boolean). Each reply is logged under the VoiceAgentDemo tag as
- * `DEMO_REPLY {json}`, and every command list ends with `DEMO_DONE`.
+ * (comma-separated ids), `pcm` (asset path of a recorded question, e.g. stt/alibi-basic.pcm; the
+ * recordings ask about the earlier demo-sapphire case), `ask` (text), `summary` (boolean). Each
+ * reply is logged under the VoiceAgentDemo tag as `DEMO_REPLY {json}`, and every command list
+ * ends with `DEMO_DONE`.
  */
 class MainActivity : Activity() {
     private class Services(val agent: VoiceAgent, val output: PleosSpeechOutput, val input: PleosSpeechInput)
@@ -169,7 +170,7 @@ class MainActivity : Activity() {
             setTextIsSelectable(true)
         }
         questionInput = EditText(this).apply {
-            hint = "질문 입력 (예: 집사한테 정전 때 어디 있었는지 물어봐)"
+            hint = "질문 입력 (예: 준기한테 새벽에 어디 있었는지 물어봐)"
             textSize = 18f
             isSingleLine = true
             imeOptions = EditorInfo.IME_ACTION_SEND

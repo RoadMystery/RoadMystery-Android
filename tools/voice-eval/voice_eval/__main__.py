@@ -24,7 +24,7 @@ from voice_eval.content import (
     load_suspect,
 )
 from voice_eval.env import load_env_file
-from voice_eval.golden import build_golden
+from voice_eval.golden import GOLDEN_CASE, build_golden
 from voice_eval.identify import identify_suspect, suspect_aliases
 from voice_eval.judge import ClaudeJudge, Judge, JudgeError
 from voice_eval.prompt import VARIANTS, render_system_prompt
@@ -68,6 +68,9 @@ DEFAULT_ENV_FILE = TOOL_ROOT / ".env"
 DEFAULT_SUMMARY_TEMPLATE = TOOL_ROOT / "prompts" / "summary_system.ko.md"
 DEFAULT_SUMMARY_PROBES = TOOL_ROOT / "probes" / "summary.json"
 DEFAULT_GOLDEN = TOOL_ROOT / "golden" / "voice-agent-golden.json"
+DEFAULT_GOLDEN_CASE_DIR = REPO_ROOT / "content" / "cases" / GOLDEN_CASE
+"""The golden file replays the case the app ships, so it does not follow DEFAULT_CASE_DIR."""
+DEFAULT_GOLDEN_SUMMARY_PROBES = TOOL_ROOT / "probes" / GOLDEN_CASE / "summary.json"
 MOCK_ANSWER = "그 시각에는 지하 저장고에서 와인을 고르고 있었습니다. 다른 것은 보지 못했습니다."
 MOCK_SUMMARY = "지하실 두꺼비집 차단기가 손으로 내려가 있었어요. 집사는 그때 저장고에 있었다고 말했어요."
 EXIT_USAGE_ERROR = 2
@@ -324,7 +327,7 @@ def _cmd_golden(args: argparse.Namespace) -> int:
         args.case_dir,
         args.template.read_text(encoding="utf-8"),
         DEFAULT_SUMMARY_TEMPLATE.read_text(encoding="utf-8"),
-        DEFAULT_SUMMARY_PROBES,
+        args.summary_probes,
     )
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(golden, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
@@ -417,9 +420,11 @@ def _parser() -> argparse.ArgumentParser:
                        help="127.0.0.1 밖의 --host 허용 (토큰이 평문으로 오가므로 권장하지 않음)")
     proxy.set_defaults(handler=_cmd_proxy)
 
-    golden = commands.add_parser(
-        "golden", parents=[common], help="Kotlin VoiceAgent가 맞춰야 할 골든 파일 생성"
-    )
+    # Not parents=[common]: its actions are shared, so a golden default would change them all.
+    golden = commands.add_parser("golden", help="Kotlin VoiceAgent가 맞춰야 할 골든 파일 생성(앱이 쓰는 사건)")
+    golden.add_argument("--case-dir", type=Path, default=DEFAULT_GOLDEN_CASE_DIR)
+    golden.add_argument("--template", type=Path, default=DEFAULT_TEMPLATE)
+    golden.add_argument("--summary-probes", type=Path, default=DEFAULT_GOLDEN_SUMMARY_PROBES)
     golden.add_argument("--out", type=Path, default=DEFAULT_GOLDEN)
     golden.set_defaults(handler=_cmd_golden)
     return parser

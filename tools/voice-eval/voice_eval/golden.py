@@ -1,8 +1,10 @@
 """Golden fixtures the Kotlin VoiceAgent must reproduce exactly.
 
 The evaluation results only carry over to the app if the app renders the same prompts and
-routes questions the same way, so the Kotlin tests replay this file. Regenerate it with
-`python -m voice_eval golden` whenever content or templates change; a test fails if it is stale.
+routes questions the same way, so the Kotlin tests replay this file. It is built from the case
+the app ships (GOLDEN_CASE), and the samples below name that case's suspects, clues and phrases.
+Regenerate it with `python -m voice_eval golden` whenever content or templates change; a test
+fails if it is stale.
 """
 
 from __future__ import annotations
@@ -13,43 +15,51 @@ from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any
 
-from voice_eval.content import load_case, load_suspect
+from voice_eval.content import ContentError, load_case, load_suspect
 from voice_eval.identify import decompose_jamo, identify_suspect, suspect_aliases
 from voice_eval.metrics import counted_sentences, normalize_for_match, phrase_hits, split_sentences
 from voice_eval.prompt import VARIANTS, raised_topics, render_system_prompt
 from voice_eval.summary import load_summary_probes, overview_fallback, render_summary_prompt
 
 GOLDEN_VERSION = 1
+GOLDEN_CASE = "jade-crown"
+"""The case the app ships (Kotlin AndroidAssets.kt DEMO_CASE_DIR)."""
 
 IDENTIFY_UTTERANCES: tuple[tuple[str, str | None], ...] = (
-    ("집사한테 어젯밤 어디 있었는지 물어봐", None),
-    ("한도윤 씨, 정전 때 뭐 했어요?", None),
-    ("서진 씨는 그때 어디 있었어요?", None),
-    ("요리사한테 부엌 얘기 좀 물어봐", None),
-    ("집사한테 서진 아가씨 얘기 물어봐", None),
-    ("서진 아가씨 얘기를 집사한테 물어봐", None),
-    ("지브사한테 어제 정전 때 어디 있었는지 물어봐", None),
-    ("서진씨한테 전당포 영수증 얘기 물어봐", None),
-    ("박여사한테 부엌 얘기 물어봐", None),
-    ("집사님께서 그러시는데 박 여사한테 물어봐", None),
+    ("준기한테 새벽에 어디 있었는지 물어봐", None),
+    ("서준기 씨, 새벽에 서재엔 왜 갔어요?", None),
+    ("하린 씨는 그때 어디 있었어요?", None),
+    ("가정부한테 그날 밤 얘기 물어봐", None),
+    ("준기한테 하린 아가씨 얘기 물어봐", None),
+    ("하린 아가씨 얘기를 가정부한테 물어봐", None),
+    ("서중기한테 새벽에 어디 있었는지 물어봐", None),
+    ("하린씨한테 문단속 얘기 물어봐", None),
+    ("옥분씨한테 부엌 얘기 물어봐", None),
+    ("아드님께서 그러시는데 옥분 씨한테 물어봐", None),
     ("오늘 날씨 어때?", None),
-    ("회장님은 괜찮으세요?", None),
-    ("집사람이 그러는데 정전 됐대", None),
-    ("그것도 윤 회장 생일이었죠", None),
-    ("요리 사진 좀 보여줘", None),
+    ("전무님은 괜찮으세요?", None),
+    ("그럼 가정부터 해 볼게요", None),
+    ("고정태는 어떤 사람이에요?", None),
+    ("조카사위 얘기 좀 해 봐요", None),
     ("미안해요 다시 말할게요", None),
-    ("지브사 어제 정전 때 어디 이써써요", None),
-    ("서진시한테 물어봐", None),
-    ("한도연한테 그날 밤 얘기 물어봐", None),
-    ("박미랑한테 물어봐", None),
-    ("요리싸한테 부엌 얘기 물어봐", None),
-    ("요리사님께 여쭤봐", None),
-    ("집사람한테 물어봐", "niece"),
-    ("그때 뭐 하고 있었어요?", "butler"),
-    ("요리사는 어디 있었어요?", "butler"),
-    ("서진식 코트에서 전당포 영수증이 나왔어요 알고 계셨어요", "butler"),
-    ("요리사한테 어디 있었는지 물어봐", "butler"),
-    ("지브사한테 정전 얘기 물어봐", "cook"),
+    ("윤하인 새벽에 어디 이써써요", None),
+    ("하린시한테 물어봐", None),
+    ("김옥순한테 그날 밤 얘기 물어봐", None),
+    ("가전부한테 물어봐", None),
+    ("옥이분한테 물어봐", None),
+    ("도련님께 여쭤봐", None),
+    ("준기 씨 새벽에 서재엔 왜 갔어요", None),
+    ("하린 아가씨한테 물어봐", None),
+    ("도련님은 왜 화관을 들고 있었어요", None),
+    ("하린씨 문단쏙 돌았어요", None),
+    ("아들딸 얘기는 됐고요", "maid"),
+    ("그때 뭐 하고 있었어요?", "son"),
+    ("가정부는 어디 있었어요?", "son"),
+    ("옥분이 뒷문으로 나갔어요?", "son"),
+    ("아버지랑 왜 다퉜어요?", "son"),
+    ("준기씨한테 맨발 자국 얘기 물어봐", "maid"),
+    ("중기한테 정태 얘기 물어봐", "niece"),
+    ("서중기한테 정태 얘기 물어봐", "niece"),
 )
 
 SENTENCE_SAMPLES: tuple[str, ...] = (
@@ -74,6 +84,10 @@ SIMILARITY_PAIRS: tuple[tuple[str, str], ...] = (
     ("한도윤", "한도연"),
     ("서진", "사진"),
     ("박미란", "미란"),
+    ("서준기", "서중기"),
+    ("윤하린", "윤하인"),
+    ("가정부", "가전부"),
+    ("준기", "중기"),
     ("abcd", "bcde"),
     ("abab", "baba"),
     ("aaaa", "aa"),
@@ -84,26 +98,27 @@ SIMILARITY_PAIRS: tuple[tuple[str, str], ...] = (
 """Jamo-level difflib ratios behind fuzzy addressee matching, the hardest part to port."""
 
 GUARD_SAMPLES: tuple[str, ...] = (
-    "범인은… 집사입니다.",
-    "제가... 훔쳤습니다.",
-    "범인은, 집사입니다!",
-    "정원의 동·백나무 아래요.",
-    "범\u200B인은 집사입니다",
-    "Ｆｕｌｌ\u3000ｗｉｄｔｈ 화분\u3000밑",
-    unicodedata.normalize("NFD", "동백꽃이 피었어요"),
-    "사실은 제가 훔 쳤어요.",
-    "🙂 「화분 밑」에 뒀어요",
-    "저는 저장고에 있었습니다.",
+    "범인은… 하린이에요.",
+    "제가... 화관을 건넸어요.",
+    "범인은, 윤하린입니다!",
+    "창·밖으로 건넸어요.",
+    "범\u200B인은 접니다",
+    "Ｆｕｌｌ\u3000ｗｉｄｔｈ 장물\u3000아비",
+    unicodedata.normalize("NFD", "하린이가 범인이에요"),
+    "사실은 고정태한테 넘 겼어요.",
+    "🙂 「창문으로 건넸」대요",
+    "저는 방에서 자고 있었어요.",
 )
 """Answers the spoiler guard must catch (or pass) the same way in Python and Kotlin."""
 
 TOPIC_QUESTIONS: tuple[tuple[str, tuple[str, ...], str], ...] = (
-    ("butler", (), "지하실 문 열쇠는 누가 갖고 있어요?"),
-    ("butler", ("clue-cellar-key",), "지하실 문 열쇠는 누가 갖고 있어요?"),
-    ("butler", (), "두꺼비집 차단기는 누가 내렸어요?"),
-    ("cook", (), "영수증은요? 고무장갑은 쓰세요?"),
-    ("niece", ("clue-fusebox",), "두꺼비집 차단기 내려간 거 알았어요? 열 쇠는요?"),
-    ("niece", (), "정전 때 어디 있었어요?"),
+    ("maid", (), "부엌 뒷문 발자국은 누구 거예요?"),
+    ("maid", ("clue-back-door",), "부엌 뒷문 발자국은 누구 거예요?"),
+    ("niece", (), "혹시 실내화 신고 서재 쪽에 간 적 있어요?"),
+    ("niece", (), "새벽에 서재 창문 연 적 없어요?"),
+    ("son", ("clue-window",), "창틀 눈은 봤어요? 낡은 구 두는요? 맨발로 나갔어요?"),
+    ("niece", (), "고정태 하숙방에 가 본 적 있어요?"),
+    ("son", (), "새벽에 서재에는 왜 내려갔어요?"),
 )
 """(suspect, clues found, question): questions that do or do not raise a clue not found yet."""
 
@@ -112,6 +127,10 @@ def build_golden(
     case_dir: Path, suspect_template: str, summary_template: str, summary_probes: Path
 ) -> dict[str, Any]:
     case = load_case(case_dir)
+    if case.id != GOLDEN_CASE:
+        raise ContentError(
+            f"{case_dir}: 골든 표본은 {GOLDEN_CASE} 사건용입니다(받은 사건 {case.id})"
+        )
     suspects = [
         load_suspect(case_dir / "suspects" / f"{member.id}.json", case)
         for member in case.cast

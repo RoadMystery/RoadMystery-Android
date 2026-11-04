@@ -1,6 +1,6 @@
 # 「눈 내린 밤의 비취 화관」 사건 초안
 
-2026-11-03, 김준성. 셜록 홈즈 「녹주석 보관(The Adventure of the Beryl Coronet)」의 짜임새를 1970년대 서울로 옮긴 시험용 사건입니다. 원고는 최재령과 함께 다듬기 전의 초안이고(`placeholder: true`), 파일은 `content/cases/jade-crown/`, 질문 세트는 `tools/voice-eval/probes/jade-crown/`에 있습니다.
+2026-11-03, 김준성. 셜록 홈즈 「녹주석 보관(The Adventure of the Beryl Coronet)」의 짜임새를 1970년대 서울로 옮긴 시험용 사건입니다. 원고는 최재령과 함께 다듬기 전의 초안이고(`placeholder: true`), 파일은 `content/cases/jade-crown/`, 질문 세트는 `tools/voice-eval/probes/jade-crown/`에 있습니다. 2026-11-04부터 앱(`DEMO_CASE_DIR`)과 골든 파일이 이 사건을 씁니다.
 
 ## 왜 이 원작인가
 
@@ -263,7 +263,8 @@
   - "곤란하면 '하, 참'으로 시작한다" 같은 규칙은 거의 모든 답에서 쓰입니다. 음성으로 들으면 매번 같은 첫마디가 반복됩니다.
   - 집사의 "잠깐 말이 끊겼다가 침착하게 대답한다"는 "잠시 말씀드릴 것이 있습니다"처럼 긴 대사가 됩니다. 이런 긴 대사는 여전히 한 자리를 차지합니다.
   - 쉼표를 규칙에 직접 적는 방법은 문구가 대사로 새어 나와 되돌렸습니다.
-- **앱은 아직 `demo-sapphire`를 씁니다.** 이 사건으로 바꾸려면 `apps/voice-agent/voiceagent/src/main/java/dev/voiceagent/platform/AndroidAssets.kt`의 `DEMO_CASE_DIR`와 골든 파일 기준 사건을 함께 바꿔야 합니다.
+- **수첩 요약(F-06)은 이 사건으로 재지 않았습니다.** 앱은 2026-11-04부터 이 사건을 씁니다(`AndroidAssets.kt`의 `DEMO_CASE_DIR`, 골든 파일 기준 사건). 지금 수준 판단은 심문(F-05)만 본 것입니다. 골든 파일용 수첩 상황 7개(`tools/voice-eval/probes/jade-crown/summary.json`)는 잰 답 중 채점자가 좋은 답으로 본 것으로만 만들었으므로, 요약 평가에 그대로 쓸 수 있습니다(`summary --case-dir ../../content/cases/jade-crown --probes probes/jade-crown/summary.json`, 유료).
+- **에뮬레이터로는 다시 확인하지 않았습니다.** 사건을 바꾼 뒤 JVM 테스트(골든 파일 비교 포함)와 데모 APK 빌드만 확인했습니다. 데모 앱의 녹음 질문(`stt/*.pcm`)은 demo-sapphire 질문입니다.
 - **최재령과 원고를 맞춰야 합니다.** 인물 이름, 시대, 단서 위치는 StoryEngine 챕터 구성(신준호)에 맞춰 다시 볼 수 있습니다.
 
 ```powershell

@@ -3,6 +3,7 @@ package dev.voiceagent
 import dev.voiceagent.identify.SequenceMatcher
 import dev.voiceagent.identify.SuspectIdentifier
 import dev.voiceagent.identify.decomposeJamo
+import dev.voiceagent.platform.DEMO_CASE_DIR
 import dev.voiceagent.prompt.PromptVariant
 import dev.voiceagent.prompt.SummaryPrompt
 import dev.voiceagent.prompt.SuspectPrompt
@@ -17,18 +18,20 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Replays tools/voice-eval/golden/voice-agent-golden.json. Evaluation results only carry over to
- * the car if the app renders the same prompts and routes questions the same way as Python.
- * After a content or template change, run `python -m voice_eval golden` and commit the file;
- * tools/voice-eval/tests/test_golden.py fails while it is stale.
+ * Replays tools/voice-eval/golden/voice-agent-golden.json, built from the case the app ships
+ * ([DEMO_CASE_DIR]). Evaluation results only carry over to the car if the app renders the same
+ * prompts and routes questions the same way as Python. After a content or template change, run
+ * `python -m voice_eval golden` and commit the file; tools/voice-eval/tests/test_golden.py fails
+ * while it is stale.
  */
 class GoldenParityTest {
     private val golden = JSONObject(RepoFiles.read("tools/voice-eval/golden/voice-agent-golden.json"))
-    private val scenario = RepoFiles.scenario()
+    private val scenario = RepoFiles.scenario(DEMO_CASE_DIR)
 
     @Test
     fun `golden file is the version and case this port implements`() {
         assertEquals(1, golden.getInt("version"))
+        assertEquals(DEMO_CASE_DIR, "cases/${golden.getString("case")}")
         assertEquals(scenario.case.id, golden.getString("case"))
     }
 
