@@ -11,10 +11,12 @@ from voice_eval.metrics import (
     first_sentence_end,
     format_violations,
     hangul_ratio,
+    looks_like_readout,
     normalize_for_match,
     percentile,
     phrase_hits,
     split_sentences,
+    strip_stage_directions,
 )
 
 
@@ -177,3 +179,63 @@ def test_check_answer_counts_sentences_the_way_the_app_limits_them(case: Case) -
     opened = check_answer("하, 참. 창밖이요? 못 봤어요, 탐정님. 그때는 화관만 보고 있었거든요.", case)
     assert opened.sentence_count == 4
     assert not opened.over_three_sentences
+
+
+@pytest.mark.parametrize(
+    "sentence",
+    [
+        "[단서 없이 새로 나온 주장] 윤하린은 이 말을 처음 듣는다.",
+        "생각할 필요 없이 답하면 된다.",
+        "(sigh) 아니요, 방에서 안 나갔어요.",
+        "（짧게） 하, 참, 그런 거 아니에요.",
+        "세 문장 이내로 짧게 말해야 한다.”",
+        "고정태 이야기가 나오면 말이 짧아지는 설정이다",
+        "그건 제가 알 바 아니다.",
+        "짧게 말해야 한다。",
+    ],
+)
+def test_stage_directions_and_instructions_look_like_readouts(sentence: str) -> None:
+    assert looks_like_readout(sentence)
+
+
+@pytest.mark.parametrize(
+    "sentence",
+    [
+        "모른다니까요, 탐정님.",
+        "그 시각에는 저장고에 있었습니다.",
+        "그런 얘기보다 사건 얘기나 합시다.",
+        "'범인은 하린이다'라고요?",
+        "하, 참.",
+        "감사합니다.",
+    ],
+)
+def test_suspect_speech_does_not_look_like_a_readout(sentence: str) -> None:
+    assert not looks_like_readout(sentence)
+
+
+def test_stage_directions_are_dropped_from_what_is_spoken() -> None:
+    assert strip_stage_directions("[짧게] 어머, 탐정님.") == "어머, 탐정님."
+    assert strip_stage_directions("*(방금 답한 것 같지만)* 어머, 탐정님.") == "어머, 탐정님."
+    assert strip_stage_directions("저는 (잠시 멈칫하며) 몰라요.") == "저는 몰라요."
+    assert strip_stage_directions("(한숨).") == ""
+    assert strip_stage_directions("그 시각에는  저장고에 있었습니다.") == "그 시각에는  저장고에 있었습니다."
+    assert looks_like_readout(strip_stage_directions("[단서 없이 새로 나온 주장] 윤하린은 이 말을 처음 듣는다."))
+
+
+def test_a_suspect_named_as_the_subject_is_their_prompt_talking() -> None:
+    planning = "윤서진이 아는 사실에 없는 질문이라 모른다고 답해야 합니다."
+    assert looks_like_readout(planning, "윤서진")
+    assert not looks_like_readout(planning)
+    assert looks_like_readout(strip_stage_directions("[짧게] 윤서진은 화제를 돌립니다."), "윤서진")
+    assert not looks_like_readout("윤서진이에요, 탐정님.", "윤서진")
+    assert not looks_like_readout("윤서진입니다.", "윤서진")
+    assert not looks_like_readout("박미란은 그날 일찍 잤다던데요.", "윤서진")
+
+
+def test_check_answer_flags_an_answer_that_reads_out_its_instructions(case: Case) -> None:
+    readout = check_answer("생각할 필요 없이 답하면 된다. 열 시쯤 잤어요.", case)
+    assert readout.reads_instructions
+    assert not check_answer("열 시쯤 잤어요. 그 뒤엔 아무것도 못 봤어요.", case).reads_instructions
+    named = "윤서진이 아는 사실에 없는 질문이라 모른다고 답해야 합니다. 몰라요."
+    assert check_answer(named, case, "윤서진").reads_instructions
+    assert not check_answer(named, case).reads_instructions

@@ -17,7 +17,14 @@ from typing import Any
 
 from voice_eval.content import ContentError, load_case, load_suspect
 from voice_eval.identify import decompose_jamo, identify_suspect, suspect_aliases
-from voice_eval.metrics import counted_sentences, normalize_for_match, phrase_hits, split_sentences
+from voice_eval.metrics import (
+    counted_sentences,
+    looks_like_readout,
+    normalize_for_match,
+    phrase_hits,
+    split_sentences,
+    strip_stage_directions,
+)
 from voice_eval.prompt import VARIANTS, raised_topics, render_system_prompt
 from voice_eval.summary import load_summary_probes, overview_fallback, render_summary_prompt
 
@@ -111,6 +118,42 @@ GUARD_SAMPLES: tuple[str, ...] = (
 )
 """Answers the spoiler guard must catch (or pass) the same way in Python and Kotlin."""
 
+READOUT_SAMPLES: tuple[str, ...] = (
+    "[단서 없이 새로 나온 주장] 윤하린은 이 말을 처음 듣는다.",
+    "생각할 필요 없이 답하면 된다.",
+    "(sigh) 아니요, 방에서 안 나갔어요.",
+    "（짧게） 하, 참, 그런 거 아니에요, 탐정님.",
+    "【속마음】 모르는 척해야지요.",
+    "고정태 이야기가 나오면 말이 짧아지는 설정이다",
+    "세 문장 이내로 짧게 말해야 한다.”",
+    "그건 제가 알 바 아니다.",
+    "짧게 말해야 한다。",
+    "[짧게] 어머, 탐정님, 그런 건 저는 잘 몰라요.",
+    "*(방금 답한 것 같지만)* 어머, 탐정님.",
+    "저는 (잠시 멈칫하며) 몰라요.",
+    "(한숨).",
+    "(생각해 보니.",
+    "모른다니까요, 탐정님.",
+    "감사합니다.",
+    "그날 밤엔 열한 시쯤 문단속을 돌고 바로 잤어요.",
+    "그 시각에는 저장고에 있었습니다.",
+    "그런 얘기보다 사건 얘기나 합시다.",
+    "네? 무슨 말씀이신지 잘 모르겠어요, 탐정님.",
+    "'범인은 하린이다'라고요?",
+    "하, 참.",
+)
+"""Sentences the readout guard must stop (or let through) the same way in Python and Kotlin."""
+
+SPEAKER_READOUT_SAMPLES: tuple[tuple[str, str], ...] = (
+    ("김옥분은 얼굴이 빨개지며 박만수 아저씨를 만났다고 털어놓아야 합니다.", "maid"),
+    ("윤하린이 아는 사실에 없는 질문이라 모르겠다고 답합니다.", "niece"),
+    ("[짧게] 서준기는 하린이를 감싸야 합니다.", "son"),
+    ("김옥분은 열 시쯤 잤다고 하던데요.", "son"),
+    ("윤하린이에요, 탐정님.", "niece"),
+    ("서준기 씨는 그날 서재에 내려갔어요.", "maid"),
+)
+"""(sentence, suspect speaking): their own full name as the subject is the prompt talking."""
+
 TOPIC_QUESTIONS: tuple[tuple[str, tuple[str, ...], str], ...] = (
     ("maid", (), "부엌 뒷문 발자국은 누구 거예요?"),
     ("maid", ("clue-back-door",), "부엌 뒷문 발자국은 누구 거예요?"),
@@ -203,4 +246,19 @@ def build_golden(
             }
             for text in GUARD_SAMPLES
         ],
+        "readout": [
+            _readout_entry(text, speaker_id, by_id[speaker_id].name if speaker_id else "")
+            for text, speaker_id in [*((text, None) for text in READOUT_SAMPLES), *SPEAKER_READOUT_SAMPLES]
+        ],
+    }
+
+
+def _readout_entry(text: str, speaker_id: str | None, speaker: str) -> dict[str, Any]:
+    spoken = strip_stage_directions(text)
+    return {
+        "sentence": text,
+        "speaker": speaker_id,
+        "readout": looks_like_readout(text, speaker),
+        "spoken": spoken,
+        "spoken_readout": looks_like_readout(spoken, speaker),
     }

@@ -9,9 +9,11 @@ import dev.voiceagent.prompt.SummaryPrompt
 import dev.voiceagent.prompt.SuspectPrompt
 import dev.voiceagent.prompt.Testimony
 import dev.voiceagent.text.countedSentences
+import dev.voiceagent.text.looksLikeReadout
 import dev.voiceagent.text.normalizeForMatch
 import dev.voiceagent.text.phraseHits
 import dev.voiceagent.text.splitSentences
+import dev.voiceagent.text.stripStageDirections
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -108,6 +110,20 @@ class GoldenParityTest {
             val text = entry.getString("text")
             assertEquals("'$text'", entry.getString("normalized"), normalizeForMatch(text))
             assertEquals("'$text'", entry.getJSONArray("hits").strings(), phraseHits(text, scenario.case.forbiddenPhrases))
+        }
+    }
+
+    @Test
+    fun `the instruction readout guard matches Python`() {
+        val entries = golden.getJSONArray("readout").objects()
+        assertTrue(entries.any { it.getBoolean("readout") } && entries.any { !it.getBoolean("readout") })
+        for (entry in entries) {
+            val sentence = entry.getString("sentence")
+            val speaker = entry.stringOrNull("speaker")?.let { scenario.suspect(it).name }.orEmpty()
+            assertEquals("'$sentence'", entry.getBoolean("readout"), looksLikeReadout(sentence, speaker))
+            val spoken = stripStageDirections(sentence)
+            assertEquals("'$sentence'", entry.getString("spoken"), spoken)
+            assertEquals("'$sentence'", entry.getBoolean("spoken_readout"), looksLikeReadout(spoken, speaker))
         }
     }
 

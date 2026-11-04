@@ -18,8 +18,10 @@ import dev.voiceagent.speech.SpeechInput
 import dev.voiceagent.speech.SpeechOutput
 import dev.voiceagent.text.StreamingSentenceSplitter
 import dev.voiceagent.text.countedSentences
+import dev.voiceagent.text.looksLikeReadout
 import dev.voiceagent.text.phraseHits
 import dev.voiceagent.text.pythonStrip
+import dev.voiceagent.text.stripStageDirections
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
@@ -142,7 +144,10 @@ class VoiceAgent(
         )
         val blocked = unsentClueWords(request, state.unlockedClues)
         val answer = try {
-            speakAnswer(progress, request, suspect.speaker, suspect.filler, config.maxAnswerSentences, blocked, countSentences = ::countedSentences)
+            speakAnswer(
+                progress, request, suspect.speaker, suspect.filler, config.maxAnswerSentences, blocked,
+                countSentences = ::countedSentences, clean = ::stripStageDirections, isReadout = { looksLikeReadout(it, suspect.name) },
+            )
         } catch (e: CancellationException) {
             // The player cut in: keep what they heard so a follow-up question has its context.
             remember(progress.game, suspectId, question, progress.snapshot.sentences)
@@ -215,6 +220,10 @@ class VoiceAgent(
         blockedWords: List<String> = emptyList(),
         // Suspects open with "하, 참." or "맨발이요?"; the narrator's summary counts every sentence.
         countSentences: (List<String>) -> Int = List<String>::size,
+        // A suspect's "[짧게]" or "(sigh)" is dropped and read-out rules stop the answer; the narrator
+        // may quote the overview's "-다".
+        clean: (String) -> String = { it },
+        isReadout: (String) -> Boolean = { false },
     ): Answer = coroutineScope {
         val lines = Channel<Line>(Channel.UNLIMITED)
         val talker = launch {
@@ -225,7 +234,7 @@ class VoiceAgent(
             // trySend: on a multi-threaded dispatcher the answer may already have closed the queue.
             lines.trySend(Line(filler, isFiller = true))
         }
-        val builder = AnswerBuilder(maxSentences, scenario.case.forbiddenPhrases + blockedWords, countSentences) { sentence ->
+        val builder = AnswerBuilder(maxSentences, scenario.case.forbiddenPhrases + blockedWords, countSentences, clean, isReadout) { sentence ->
             fillerJob.cancel()
             lines.trySend(Line(sentence, isFiller = false))
         }
@@ -328,6 +337,10 @@ private class AnswerBuilder(
     private val blockedPhrases: List<String>,
     /** How many of the accepted sentences count toward [maxSentences]. */
     private val countSentences: (List<String>) -> Int,
+    /** The sentence as spoken; an empty result is skipped. */
+    private val clean: (String) -> String,
+    /** Sentences never to speak: the answer stops there, as it does at a blocked phrase. */
+    private val isReadout: (String) -> Boolean,
     private val onSentence: (String) -> Unit,
 ) {
     private val splitter = StreamingSentenceSplitter()
@@ -348,8 +361,14 @@ private class AnswerBuilder(
     }
 
     private fun accept(candidates: List<String>): Boolean {
-        for (sentence in candidates) {
+        for (candidate in candidates) {
             if (!isOpen) return false
+            val sentence = clean(candidate)
+            if (sentence.isEmpty()) continue
+            if (isReadout(sentence)) {
+                guarded = true
+                return false
+            }
             // The whole answer so far is checked with punctuation ignored, so a phrase split across
             // two sentences is caught at its second half, which is then not spoken.
             if (phraseHits((accepted + sentence).joinToString(" "), blockedPhrases).isNotEmpty()) {

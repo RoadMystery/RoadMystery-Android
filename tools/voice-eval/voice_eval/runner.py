@@ -61,7 +61,7 @@ def _score(
 ) -> tuple[AnswerChecks | None, JudgeVerdict | None, str | None]:
     if result.error is not None:
         return None, None, None
-    checks = check_answer(result.text, case)
+    checks = check_answer(result.text, case, suspect.name)
     if judge is None or result.stop_reason == "refusal" or not result.text.strip():
         return checks, None, None
     try:

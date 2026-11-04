@@ -132,6 +132,8 @@ def _failure_reasons(record: RunRecord) -> list[tuple[int, str]]:
         reasons.append((1, "미획득 단서 누설"))
     if checks and checks.forbidden_hits:
         reasons.append((2, f"금지어({', '.join(checks.forbidden_hits)})"))
+    if checks and checks.reads_instructions:
+        reasons.append((2, "지시문 읽기"))
     if verdict and verdict.invents_case_facts:
         reasons.append((3, "사실 지어냄"))
     if result.stop_reason == "refusal":

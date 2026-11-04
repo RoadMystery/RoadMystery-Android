@@ -1,6 +1,7 @@
 package dev.voiceagent.text
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.text.Normalizer
@@ -47,6 +48,42 @@ class TextTest {
         assertEquals(2, countedSentences(splitSentences("네? 하, 참. 아니요. 저는 모르는 일이에요.")))
         assertEquals(3, countedSentences(splitSentences("저는 방에 있었어요. 네. 정말이에요.")))
         assertEquals(2, countedSentences(splitSentences("그건 잘 모르겠어요. 저는 방에 있었어요.")))
+    }
+
+    @Test
+    fun `stage directions are dropped from what is spoken`() {
+        assertEquals("어머, 탐정님.", stripStageDirections("[짧게] 어머, 탐정님."))
+        assertEquals("어머, 탐정님.", stripStageDirections("*(방금 답한 것 같지만)* 어머, 탐정님."))
+        assertEquals("저는 몰라요.", stripStageDirections("저는 (잠시 멈칫하며) 몰라요."))
+        assertEquals("", stripStageDirections("(한숨)."))
+        assertEquals("그 시각에는  저장고에 있었습니다.", stripStageDirections("그 시각에는  저장고에 있었습니다."))
+        assertTrue(looksLikeReadout(stripStageDirections("[단서 없이 새로 나온 주장] 윤하린은 이 말을 처음 듣는다.")))
+    }
+
+    @Test
+    fun `a suspect named as the subject is their prompt talking`() {
+        val planning = "윤서진이 아는 사실에 없는 질문이라 모른다고 답해야 합니다."
+        assertTrue(looksLikeReadout(planning, "윤서진"))
+        assertFalse(looksLikeReadout(planning))
+        assertTrue(looksLikeReadout(stripStageDirections("[짧게] 윤서진은 화제를 돌립니다."), "윤서진"))
+        assertFalse(looksLikeReadout("윤서진이에요, 탐정님.", "윤서진"))
+        assertFalse(looksLikeReadout("윤서진입니다.", "윤서진"))
+        assertFalse(looksLikeReadout("박미란은 그날 일찍 잤다던데요.", "윤서진"))
+    }
+
+    @Test
+    fun `stage directions and read-out instructions are caught, suspect speech is not`() {
+        assertTrue(looksLikeReadout("[단서 없이 새로 나온 주장] 윤하린은 이 말을 처음 듣는다."))
+        assertTrue(looksLikeReadout("생각할 필요 없이 답하면 된다."))
+        assertTrue(looksLikeReadout("(sigh) 아니요, 방에서 안 나갔어요."))
+        assertTrue(looksLikeReadout("세 문장 이내로 짧게 말해야 한다.”"))
+        assertTrue(looksLikeReadout("그건 제가 알 바 아니다."))
+        assertTrue(looksLikeReadout("짧게 말해야 한다。"))
+        assertFalse(looksLikeReadout("모른다니까요, 탐정님."))
+        assertFalse(looksLikeReadout("감사합니다."))
+        assertFalse(looksLikeReadout("그 시각에는 저장고에 있었습니다."))
+        assertFalse(looksLikeReadout("그런 얘기보다 사건 얘기나 합시다."))
+        assertFalse(looksLikeReadout("'범인은 하린이다'라고요?"))
     }
 
     @Test

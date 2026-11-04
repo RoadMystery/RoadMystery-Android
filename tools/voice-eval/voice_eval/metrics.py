@@ -69,6 +69,58 @@ def _is_short_opener(sentence: str) -> bool:
     return sum(1 for char in sentence if char.isalpha()) <= OPENER_MAX_LETTERS
 
 
+READOUT_BRACKETS = "[]()（）【】"
+"""Suspects only speak, so brackets in an answer hold a stage direction or a rule label."""
+_READOUT_TRAILING = " .!?。？！…~\"'”’」』"
+_SUBJECT_PARTICLES = "이가은는"
+_HANGUL_FIRST, _HANGUL_COUNT, _FINALS, _FINAL_BIEUP = 0xAC00, 11172, 28, 17
+
+
+def looks_like_readout(sentence: str, speaker: str = "") -> bool:
+    """A sentence no suspect would say aloud, as the app judges it (Kotlin text/Sentences.kt): a
+    bracketed stage direction or label, the speaker's own name as the subject ("윤서진이 아는 사실에
+    없는 질문이라 …"), or the plain '-다' of instructions ("윤하린은 이 말을 처음 듣는다."). Suspects
+    speak 해요체 or 하십시오체, so '-ㅂ니다' and the propositive '-ㅂ시다' are speech."""
+    text = sentence.strip()
+    if any(char in READOUT_BRACKETS for char in text):
+        return True
+    if speaker and _names_speaker(text, speaker):
+        return True
+    core = text.rstrip(_READOUT_TRAILING)
+    return core.endswith("다") and not _is_polite_ending(core)
+
+
+def _names_speaker(text: str, speaker: str) -> bool:
+    """Suspects say 저 or 제가, so their full name and a subject particle is the prompt talking about
+    them. '윤서진이에요' and '윤서진입니다' introduce the speaker: no space follows the particle."""
+    if not text.startswith(speaker):
+        return False
+    rest = text[len(speaker) :]
+    return len(rest) >= 2 and rest[0] in _SUBJECT_PARTICLES and rest[1].isspace()
+
+
+def _is_polite_ending(core: str) -> bool:
+    """'-습니다', '-합니다', '-합시다': the syllable before 니다 or 시다 ends in ㅂ, unlike '아니다'."""
+    if len(core) < 3 or not core.endswith(("니다", "시다")):
+        return False
+    syllable = ord(core[-3]) - _HANGUL_FIRST
+    return 0 <= syllable < _HANGUL_COUNT and syllable % _FINALS == _FINAL_BIEUP
+
+
+_STAGE_DIRECTION = re.compile(r"\[[^\]]*\]|\([^)]*\)|（[^）]*）|【[^】]*】|\*")
+""""[짧게]", "(sigh)", "（한숨）", "【속마음】" and markdown asterisks around them."""
+
+
+def strip_stage_directions(sentence: str) -> str:
+    """The sentence as the app speaks it (Kotlin text/Sentences.kt): bracketed stage directions and
+    asterisks removed and whitespace collapsed, or "" if no word is left. Unchanged if it has none,
+    so "[짧게] 어머, 탐정님." is spoken as "어머, 탐정님." before looks_like_readout judges it."""
+    if not _STAGE_DIRECTION.search(sentence):
+        return sentence
+    rest = " ".join(_STAGE_DIRECTION.sub(" ", sentence).split())
+    return rest if any(char.isalnum() for char in rest) else ""
+
+
 def hangul_ratio(text: str) -> float:
     letters = [char for char in text if char.isalpha()]
     if not letters:
@@ -167,9 +219,12 @@ class AnswerChecks:
     low_hangul: bool
     format_violations: tuple[str, ...]
     forbidden_hits: tuple[str, ...]
+    # Some sentence looks_like_readout as the model wrote it. The app drops stage directions first,
+    # so "[짧게] 어머, 탐정님." is still spoken without them; it stops at the rest.
+    reads_instructions: bool
 
 
-def check_answer(answer: str, case: Case) -> AnswerChecks:
+def check_answer(answer: str, case: Case, speaker: str = "") -> AnswerChecks:
     sentences = split_sentences(answer)
     ratio = hangul_ratio(answer)
     return AnswerChecks(
@@ -180,4 +235,5 @@ def check_answer(answer: str, case: Case) -> AnswerChecks:
         low_hangul=bool(answer.strip()) and ratio < MIN_HANGUL_RATIO,
         format_violations=format_violations(answer),
         forbidden_hits=phrase_hits(answer, case.forbidden_phrases),
+        reads_instructions=any(looks_like_readout(sentence, speaker) for sentence in sentences),
     )

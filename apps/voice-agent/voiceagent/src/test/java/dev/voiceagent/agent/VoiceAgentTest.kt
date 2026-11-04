@@ -143,6 +143,69 @@ class VoiceAgentTest {
     }
 
     @Test
+    fun `an answer that opens by reading out its instructions is replaced by a deflection`() = runTest {
+        val llm = ScriptedLlm(listOf(100L to delta("생각할 필요 없이 답하면 된다. "), 100L to delta("저장고에 있었습니다."), 10L to done()))
+        val speech = speech()
+
+        val reply = agent(llm, speech).ask("집사한테 물어봐")
+
+        assertEquals(ReplyKind.DEFLECTION, reply.kind)
+        assertTrue(reply.sentences.single() in butler.deflections)
+        assertEquals(reply.sentences, speech.spoken.map { it.text })
+        assertEquals(1, llm.cancelled)
+    }
+
+    @Test
+    fun `an answer that opens by talking about the suspect by name is replaced by a deflection`() = runTest {
+        val llm = ScriptedLlm(listOf(100L to delta("${butler.name}은 모르는 일이라고 답해야 합니다. "), 100L to delta("저장고에 있었습니다."), 10L to done()))
+        val speech = speech()
+
+        val reply = agent(llm, speech).ask("집사한테 물어봐")
+
+        assertEquals(ReplyKind.DEFLECTION, reply.kind)
+        assertTrue(reply.sentences.single() in butler.deflections)
+        assertEquals(reply.sentences, speech.spoken.map { it.text })
+    }
+
+    @Test
+    fun `stage directions are dropped and the rest of the answer is spoken`() = runTest {
+        val llm = ScriptedLlm(
+            listOf(100L to delta("[짧게] 저는 저장고에 있었습니다. "), 100L to delta("(한숨). "), 100L to delta("정말입니다."), 10L to done()),
+        )
+        val speech = speech()
+
+        val reply = agent(llm, speech).ask("집사한테 물어봐")
+
+        assertEquals(ReplyKind.ANSWER, reply.kind)
+        assertEquals(listOf("저는 저장고에 있었습니다.", "정말입니다."), reply.sentences)
+        assertEquals(reply.sentences, speech.spoken.map { it.text })
+    }
+
+    @Test
+    fun `a read-out last sentence is not spoken even without a trailing space`() = runTest {
+        val llm = ScriptedLlm(listOf(100L to delta("저는 저장고에 있었습니다. "), 100L to delta("규칙대로 짧게 답한다"), 10L to done()))
+        val speech = speech()
+
+        val reply = agent(llm, speech).ask("집사한테 물어봐")
+
+        assertEquals(ReplyKind.ANSWER, reply.kind)
+        assertEquals(listOf("저는 저장고에 있었습니다."), reply.sentences)
+        assertEquals(listOf("저는 저장고에 있었습니다."), speech.spoken.map { it.text })
+    }
+
+    @Test
+    fun `the narrator's summary may quote the overview's plain endings`() = runTest {
+        val llm = ScriptedLlm(listOf(100L to delta("만찬 도중 정전이 일어났다. 장갑이 젖어 있었어요. "), 10L to done()))
+        val agent = agent(llm, speech())
+        agent.unlockClue("clue-wet-gloves")
+
+        val reply = agent.summarize()
+
+        assertEquals(ReplyKind.SUMMARY, reply.kind)
+        assertEquals(listOf("만찬 도중 정전이 일어났다.", "장갑이 젖어 있었어요."), reply.sentences)
+    }
+
+    @Test
     fun `a question about a clue not found yet keeps the suspect to its own facts`() = runTest {
         val llm = ScriptedLlm(answer("열쇠 말씀이십니까."), answer("열쇠는 제가 챙깁니다."))
         val agent = agent(llm, speech())

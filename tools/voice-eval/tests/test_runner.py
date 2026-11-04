@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from voice_eval.content import Case, Probe, Suspect
 from voice_eval.judge import JudgeError, JudgeVerdict
 from voice_eval.prompt import render_system_prompt
@@ -152,6 +154,32 @@ def test_refusals_are_counted_and_not_judged(
     assert judge.calls == 0
     assert summarize(records)[0].refusals == 1
     assert "거절" in render_markdown(summarize(records), records)
+
+
+@pytest.mark.parametrize(
+    "answer",
+    ["생각할 필요 없이 답하면 된다. 저장고에 있었습니다.", "{name}은 모르는 일이라고 답해야 합니다. 저장고에 있었습니다."],
+)
+def test_answers_that_read_out_instructions_are_listed(
+    answer: str, case: Case, butler: Suspect, template: str, probes: tuple[Probe, ...]
+) -> None:
+    def readout(candidate: Candidate, system: str, messages: list[dict]) -> str:
+        return answer.format(name=butler.name)
+
+    records = run_matrix(
+        case=case,
+        suspect=butler,
+        probes=probes[:1],
+        candidates=CANDIDATES,
+        variants=("cover",),
+        repeats=1,
+        template=template,
+        provider=ScriptedProvider(readout),
+        judge=None,
+    )
+
+    assert all(record.checks.reads_instructions for record in records)
+    assert "지시문 읽기" in render_markdown(summarize(records), records)
 
 
 def test_empty_answers_are_counted_apart_from_quality_rates(
