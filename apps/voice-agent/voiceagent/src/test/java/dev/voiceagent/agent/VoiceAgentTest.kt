@@ -2,6 +2,7 @@ package dev.voiceagent.agent
 
 import dev.voiceagent.RepoFiles
 import dev.voiceagent.agent.FakeSpeech.Spoken
+import dev.voiceagent.content.InvestigationStage
 import dev.voiceagent.llm.ChatMessage
 import dev.voiceagent.llm.LlmEvent
 import dev.voiceagent.llm.LlmTask
@@ -19,6 +20,7 @@ import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
@@ -32,10 +34,18 @@ class VoiceAgentTest {
     private val cook = scenario.suspect("cook")
     private val narrator = AgentConfig().narratorSpeaker
 
+    /** The app's case; unlike the fixture case it has narrator hints, key reactions and pressure lines. */
+    private val jade = RepoFiles.scenario("cases/jade-crown")
+    private val jadeClues = jade.case.clues.map { it.id }.toSet()
+    private val jadeKeyReactions = setOf("k-maid-back-door", "k-niece-window", "k-son-shoes")
+
     private fun TestScope.speech() = FakeSpeech({ testScheduler.currentTime })
 
     private fun TestScope.agent(llm: ScriptedLlm, speech: FakeSpeech, config: AgentConfig = AgentConfig()) =
         VoiceAgent(scenario, llm, speech, config, clock = { testScheduler.currentTime }, random = Random(7))
+
+    private fun TestScope.jadeAgent(llm: ScriptedLlm, speech: FakeSpeech, config: AgentConfig = AgentConfig()) =
+        VoiceAgent(jade, llm, speech, config, clock = { testScheduler.currentTime }, random = Random(7))
 
     @Test
     fun `answer is spoken sentence by sentence in the suspect's voice and remembered`() = runTest {
@@ -112,7 +122,7 @@ class VoiceAgentTest {
     }
 
     @Test
-    fun `a spoiler in the first sentence is replaced by one of the suspect's deflections`() = runTest {
+    fun `a spoiler in the first sentence of a case without hints is replaced by one of the suspect's deflections`() = runTest {
         val llm = ScriptedLlm(listOf(100L to delta("사실 제가 훔쳤습니다. "), 100L to delta("미안합니다."), 10L to done()))
         val speech = speech()
         val agent = agent(llm, speech)
@@ -122,6 +132,7 @@ class VoiceAgentTest {
         assertEquals(ReplyKind.DEFLECTION, reply.kind)
         val line = reply.sentences.single()
         assertTrue(line in butler.deflections)
+        assertNull(reply.narratorLine)
         assertEquals(listOf(line), speech.spoken.map { it.text })
         assertEquals(1, llm.cancelled)
         assertEquals(line, agent.state.value.notebook.single().answer)
@@ -143,6 +154,445 @@ class VoiceAgentTest {
     }
 
     @Test
+    fun `a leak cut at the first sentence gets one of the suspect's deflections, then the narrator's hint`() = runTest {
+        val llm = ScriptedLlm(listOf(100L to delta("제가 화관을 건넸어요. "), 100L to delta("미안해요."), 10L to done()))
+        val speech = speech()
+        val agent = jadeAgent(llm, speech)
+        val niece = jade.suspect("niece")
+
+        val reply = agent.ask("하린 씨한테 범인이 누군지 물어봐")
+
+        // The narrator alone would tell the player the answer was about to come out.
+        val hint = jade.case.clues.firstNotNullOf { it.hint }
+        val deflection = reply.suspectText
+        assertEquals(ReplyKind.HINT, reply.kind)
+        assertEquals("niece", reply.suspectId)
+        assertTrue(deflection in niece.deflections)
+        assertEquals(hint, reply.narratorLine)
+        assertEquals(listOf(niece.speaker to deflection, narrator to hint), speech.spoken.map { it.speaker to it.text })
+        assertEquals(1, llm.cancelled)
+        // The deflection is testimony like any answer; the narrator's line never is.
+        assertEquals(listOf(Testimony("niece", "하린 씨한테 범인이 누군지 물어봐", deflection)), agent.state.value.notebook)
+        assertEquals("niece", agent.state.value.currentSuspect)
+    }
+
+    @Test
+    fun `a clue word leaked mid-answer is cut, and the hint does not follow the word that leaked`() = runTest {
+        val llm = ScriptedLlm(listOf(100L to delta("저는 방에 있었어요. "), 100L to delta("새벽에 누가 맨발로 뛰어나갔어요. "), 10L to done()))
+        val speech = speech()
+        val agent = jadeAgent(llm, speech)
+        val maid = jade.suspect("maid")
+
+        val reply = agent.ask("옥분 씨한테 그날 밤 일 물어봐")
+
+        // The first clue not found, not the barefoot one "맨발" belongs to: that would confirm the leak.
+        val hint = jade.case.clues.firstNotNullOf { it.hint }
+        assertNotEquals(jade.case.clue("clue-barefoot").hint, hint)
+        assertEquals(ReplyKind.HINT, reply.kind)
+        assertEquals("maid", reply.suspectId)
+        assertEquals(listOf(maid.speaker to "저는 방에 있었어요.", narrator to hint), speech.spoken.map { it.speaker to it.text })
+        assertEquals("저는 방에 있었어요.", agent.state.value.notebook.single().answer)
+    }
+
+    @Test
+    fun `once every clue is found a leak points at a key reaction not drawn out, and after them all at the case's own hint`() = runTest {
+        val speech = speech()
+        val agent = jadeAgent(ScriptedLlm(answer("제가 화관을 건넸어요."), answer("제가 화관을 건넸어요.")), speech)
+        val niece = jade.suspect("niece")
+        jade.case.clues.forEach { agent.unlockClue(it.id) }
+
+        val pressing = agent.ask("하린 씨한테 범인이 누군지 물어봐")
+        agent.restore(jadeClues, emptyList(), jadeKeyReactions)
+        val ready = agent.ask("하린 씨한테 범인이 누군지 물어봐")
+
+        val confront = NarratorLines.confrontHint(jade.case.clue("clue-back-door"))
+        assertEquals(listOf(ReplyKind.HINT, ReplyKind.HINT), listOf(pressing.kind, ready.kind))
+        assertEquals(listOf(confront, jade.case.spoilerHint), listOf(pressing.narratorLine, ready.narratorLine))
+        assertEquals(listOf(niece.speaker, narrator, niece.speaker, narrator), speech.spoken.map { it.speaker })
+        assertTrue(listOf(pressing, ready).all { it.suspectText in niece.deflections })
+    }
+
+    @Test
+    fun `reading out instructions still gets a deflection in a case with hints`() = runTest {
+        val llm = ScriptedLlm(listOf(100L to delta("생각할 필요 없이 답하면 된다. "), 100L to delta("방에 있었어요."), 10L to done()))
+
+        val reply = jadeAgent(llm, speech()).ask("옥분 씨한테 그날 밤 일 물어봐")
+
+        assertEquals(ReplyKind.DEFLECTION, reply.kind)
+        assertTrue(reply.sentences.single() in jade.suspect("maid").deflections)
+    }
+
+    @Test
+    fun `a key reaction counts as drawn out only when the player heard the suspect's answer`() = runTest {
+        val llm = ScriptedLlm(
+            answer("장물아비 얘기는 처음 들어요."),
+            listOf(100L to delta("생각할 필요 없이 답하면 된다. "), 10L to done()),
+            answer("박만수 아저씨를 잠깐 만났어요."),
+        )
+        val agent = jadeAgent(llm, speech())
+        agent.unlockClue("clue-back-door")
+
+        val cut = agent.ask("옥분 씨한테 뒷문 얘기 물어봐")
+        val deflected = agent.ask("뒷문에서 누구 만났어요?")
+        val before = agent.state.value.confronted
+        val heard = agent.ask("뒷문에서 누구 만났어요?")
+
+        // The cut answer gets a deflection and a hint, but not "ask about the back door", which was just asked.
+        assertEquals(ReplyKind.HINT, cut.kind)
+        assertTrue(cut.suspectText in jade.suspect("maid").deflections)
+        assertEquals(jade.case.clue("clue-window").hint, cut.narratorLine)
+        assertEquals(ReplyKind.DEFLECTION, deflected.kind)
+        assertTrue(before.isEmpty())
+        assertEquals(ReplyKind.ANSWER, heard.kind)
+        assertEquals(setOf("k-maid-back-door"), agent.state.value.confronted)
+        assertEquals(InvestigationStage.GATHERING, agent.state.value.stage)
+    }
+
+    @Test
+    fun `an opener alone or the not-understood line does not draw a key reaction out`() = runTest {
+        val maid = jade.suspect("maid")
+        val llm = ScriptedLlm(answer("어머, 뒷문이요?"), answer(maid.fallbackNotUnderstood), answer("박만수 아저씨를 잠깐 만났어요."))
+        val agent = jadeAgent(llm, speech())
+        agent.unlockClue("clue-back-door")
+
+        val opener = agent.ask("옥분 씨한테 뒷문 얘기 물어봐")
+        val notUnderstood = agent.ask("뒷문 얘기 해 봐요")
+        val before = agent.state.value.confronted
+        agent.ask("뒷문에서 누구 만났어요?")
+
+        // Both were heard and are testimony, but neither answered the question.
+        assertEquals(listOf(ReplyKind.ANSWER, ReplyKind.ANSWER), listOf(opener.kind, notUnderstood.kind))
+        assertTrue(before.isEmpty())
+        assertEquals(setOf("k-maid-back-door"), agent.state.value.confronted)
+        assertEquals(3, agent.state.value.notebook.size)
+    }
+
+    @Test
+    fun `a key reaction the player heard before cutting in counts as drawn out`() = runTest {
+        val llm = ScriptedLlm(
+            listOf(100L to delta("사실은 그날 밤 박만수 아저씨를 뒷문에서 잠깐 만났어요. "), 5_000L to delta("그게 다예요."), 10L to done()),
+        )
+        val agent = jadeAgent(llm, speech())
+        agent.unlockClue("clue-back-door")
+
+        val pending = async { agent.ask("옥분 씨한테 뒷문 얘기 물어봐") }
+        // The sentence plays from 100 to 600 ms; the rest of the answer is still to come.
+        advanceTimeBy(700)
+        agent.stop()
+
+        assertEquals(ReplyKind.INTERRUPTED, pending.await().kind)
+        assertEquals(setOf("k-maid-back-door"), agent.state.value.confronted)
+        assertEquals(1, agent.state.value.notebook.size)
+    }
+
+    @Test
+    fun `drawing out the last key reaction makes the stage ready, and the narrator nudges to accuse once`() = runTest {
+        val llm = ScriptedLlm(
+            answer("박만수 아저씨를 잠깐 만났어요."),
+            answer("창을 잠깐 열어서 눈을 털었을 뿐이에요."),
+            answer("그날 밤 서재 창밖에 고정태가 있었어요."),
+            answer("다 말씀드렸잖아요."),
+        )
+        val speech = speech()
+        val agent = jadeAgent(llm, speech)
+        val son = jade.suspect("son")
+        val stages = mutableListOf(agent.state.value.stage)
+        for (clue in jade.case.clues) {
+            agent.unlockClue(clue.id)
+            stages += agent.state.value.stage
+        }
+
+        agent.ask("옥분 씨한테 뒷문 얘기 물어봐")
+        agent.ask("하린 씨한테 서재 창문 얘기 물어봐")
+        stages += agent.state.value.stage
+        val ready = agent.ask("준기 씨한테 고정태 구두 얘기 물어봐")
+        val later = agent.ask("구두 얘기 다시 해 봐요")
+
+        val (opening, gathering, pressing) = listOf(InvestigationStage.OPENING, InvestigationStage.GATHERING, InvestigationStage.PRESSING)
+        assertEquals(listOf(opening, gathering, gathering, gathering, pressing, pressing), stages)
+        assertEquals(ReplyKind.HINT, ready.kind)
+        assertEquals("son", ready.suspectId)
+        assertEquals(
+            listOf(son.speaker to "그날 밤 서재 창밖에 고정태가 있었어요.", narrator to NarratorLines.ACCUSE_NUDGE),
+            speech.spoken.drop(2).take(2).map { it.speaker to it.text },
+        )
+        assertEquals(ReplyKind.ANSWER, later.kind)
+        assertEquals(listOf("다 말씀드렸잖아요."), later.sentences)
+        val state = agent.state.value
+        assertEquals(InvestigationStage.READY, state.stage)
+        assertEquals(jadeKeyReactions, state.confronted)
+        assertTrue(state.nudged)
+        // The later turn ended without a narrator line, which ends the run of the last one.
+        assertNull(state.lastHint)
+        assertTrue(state.notebook.none { it.answer.contains(NarratorLines.ACCUSE_NUDGE) })
+    }
+
+    @Test
+    fun `a nudge cut off by barge-in is not counted, so it comes again on the next turn`() = runTest {
+        val llm = ScriptedLlm(answer("그날 밤 서재 창밖에 고정태가 있었어요."), answer("다 말씀드렸잖아요."))
+        val agent = jadeAgent(llm, speech())
+        agent.restore(jadeClues, emptyList(), setOf("k-maid-back-door", "k-niece-window"))
+
+        val pending = async { agent.ask("준기 씨한테 고정태 구두 얘기 물어봐") }
+        // The answer plays from 110 to 610 ms, then the nudge.
+        advanceTimeBy(800)
+        agent.stop()
+        val cut = pending.await()
+        val afterCut = agent.state.value
+        val next = agent.ask("그래서요?")
+
+        assertEquals(ReplyKind.INTERRUPTED, cut.kind)
+        assertEquals(NarratorLines.ACCUSE_NUDGE, cut.narratorLine)
+        assertEquals("그날 밤 서재 창밖에 고정태가 있었어요.", cut.suspectText)
+        assertEquals(InvestigationStage.READY, afterCut.stage)
+        assertFalse(afterCut.nudged)
+        assertNull(afterCut.lastHint)
+        assertEquals(listOf("다 말씀드렸잖아요.", NarratorLines.ACCUSE_NUDGE), next.sentences)
+        assertTrue(agent.state.value.nudged)
+    }
+
+    @Test
+    fun `a case without key reactions is ready with its last clue, and the next answered turn brings the nudge`() = runTest {
+        val llm = ScriptedLlm(listOf(100L to LlmEvent.Failure("upstream_unavailable", "down")), answer("저장고에 있었습니다."))
+        val speech = speech()
+        val agent = agent(llm, speech)
+        scenario.case.clues.forEach { agent.unlockClue(it.id) }
+        val stage = agent.state.value.stage
+
+        val offline = agent.ask("집사한테 정전 때 어디 있었는지 물어봐")
+        val answered = agent.ask("정전 때 어디 있었어요?")
+
+        assertEquals(InvestigationStage.READY, stage)
+        // Unlocking is no turn, and a fallback line is no answer to follow.
+        assertEquals(ReplyKind.FALLBACK, offline.kind)
+        assertEquals(ReplyKind.HINT, answered.kind)
+        assertEquals(listOf("저장고에 있었습니다.", NarratorLines.ACCUSE_NUDGE), answered.sentences)
+        assertEquals(1, speech.spoken.count { it.text == NarratorLines.ACCUSE_NUDGE })
+    }
+
+    @Test
+    fun `a story clue that completes the investigation brings the nudge on the next turn, once`() = runTest {
+        val llm = ScriptedLlm(
+            answer("박만수 아저씨를 잠깐 만났어요."),
+            answer("창을 잠깐 열어서 눈을 털었을 뿐이에요."),
+            answer("그날 밤 서재 창밖에 고정태가 있었어요."),
+            answer("그날 밤엔 열 시쯤 잤어요."),
+            answer("정말이에요."),
+        )
+        val speech = speech()
+        val agent = jadeAgent(llm, speech)
+        (jadeClues - "clue-barefoot").forEach(agent::unlockClue)
+        agent.ask("옥분 씨한테 뒷문 얘기 물어봐")
+        agent.ask("하린 씨한테 서재 창문 얘기 물어봐")
+        agent.ask("준기 씨한테 고정태 구두 얘기 물어봐")
+        val beforeLastClue = agent.state.value.stage
+
+        agent.unlockClue("clue-barefoot")
+        val next = agent.ask("옥분 씨, 그날 밤 어디 있었어요?")
+        val after = agent.ask("정말이에요?")
+
+        assertEquals(InvestigationStage.GATHERING, beforeLastClue)
+        assertEquals(ReplyKind.HINT, next.kind)
+        assertEquals(listOf("그날 밤엔 열 시쯤 잤어요.", NarratorLines.ACCUSE_NUDGE), next.sentences)
+        assertEquals(ReplyKind.ANSWER, after.kind)
+        assertEquals(1, speech.spoken.count { it.text == NarratorLines.ACCUSE_NUDGE })
+    }
+
+    @Test
+    fun `a leak on the turn that reaches READY takes the turn, and the nudge comes on the next one`() = runTest {
+        val llm = ScriptedLlm(answer("그날 밤 서재 창밖에 고정태가 있었어요. 범인은 하린이에요."), answer("다 말씀드렸잖아요."))
+        val agent = jadeAgent(llm, speech())
+        agent.restore(jadeClues, emptyList(), setOf("k-maid-back-door", "k-niece-window"))
+
+        val leaked = agent.ask("준기 씨한테 고정태 구두 얘기 물어봐")
+        val next = agent.ask("그래서요?")
+
+        assertEquals(listOf("그날 밤 서재 창밖에 고정태가 있었어요.", jade.case.spoilerHint), leaked.sentences)
+        assertEquals(listOf("다 말씀드렸잖아요.", NarratorLines.ACCUSE_NUDGE), next.sentences)
+    }
+
+    @Test
+    fun `a confrontation cut by a leak is not suggested straight back`() = runTest {
+        val agent = jadeAgent(ScriptedLlm(answer("제가 화관을 건넸어요.")), speech())
+        agent.unlockClue("clue-back-door")
+
+        val reply = agent.ask("옥분 씨한테 뒷문에서 누구 만났는지 물어봐")
+
+        // The maid's back-door reaction is the only one within reach, so the hint moves on to the clues.
+        assertEquals(ReplyKind.HINT, reply.kind)
+        assertTrue(reply.suspectText in jade.suspect("maid").deflections)
+        assertEquals(jade.case.clue("clue-window").hint, reply.narratorLine)
+        assertTrue(agent.state.value.confronted.isEmpty())
+    }
+
+    @Test
+    fun `an answer-seeking question gets a hint after the suspect's words, but not the same hint twice in a row`() = runTest {
+        val llm = ScriptedLlm(
+            listOf(100L to LlmEvent.Failure("upstream_unavailable", "down")),
+            listOf(100L to delta("생각할 필요 없이 답하면 된다. "), 10L to done()),
+            answer("정말 모르겠어요."),
+            answer("옥분이가 수상해요."),
+        )
+        val speech = speech()
+        val agent = jadeAgent(llm, speech)
+        val niece = jade.suspect("niece")
+        val backDoor = jade.case.clue("clue-back-door")
+
+        val offline = agent.ask("하린 씨는 누가 범인 같아요?")
+        val deflected = agent.ask("하린 씨는 누가 그랬다고 생각해요?")
+        val repeated = agent.ask("그럼 범인이 누구 같아요?")
+        agent.unlockClue(backDoor.id)
+        val next = agent.ask("그래도 범인은 누구일까요?")
+
+        // Without an answer there is nothing to follow, so the fallback line stands alone.
+        assertEquals(ReplyKind.FALLBACK, offline.kind)
+        assertEquals(listOf(niece.fallbackOffline), offline.sentences)
+        assertEquals(ReplyKind.HINT, deflected.kind)
+        assertEquals("niece", deflected.suspectId)
+        assertTrue(deflected.sentences.first() in niece.deflections)
+        assertEquals(backDoor.hint, deflected.sentences.last())
+        assertEquals(listOf(niece.speaker, narrator), speech.spoken.drop(1).take(2).map { it.speaker })
+        assertEquals(ReplyKind.ANSWER, repeated.kind)
+        assertEquals(listOf("정말 모르겠어요."), repeated.sentences)
+        // A new hint is given again: the back door put the maid's reaction within reach.
+        val confront = NarratorLines.confrontHint(backDoor)
+        assertEquals(listOf("옥분이가 수상해요.", confront), next.sentences)
+        assertEquals(confront, agent.state.value.lastHint)
+        // Narrator lines are never testimony.
+        val answers = listOf(deflected.sentences.first(), "정말 모르겠어요.", "옥분이가 수상해요.")
+        assertEquals(answers, agent.state.value.notebook.map { it.answer })
+    }
+
+    @Test
+    fun `a quiet turn ends the run, so the same hint can come again two turns later`() = runTest {
+        val llm = ScriptedLlm(answer("정말 모르겠어요."), answer("방에서 잤어요."), answer("모르겠어요."))
+        val agent = jadeAgent(llm, speech())
+        val hint = jade.case.clues.firstNotNullOf { it.hint }
+
+        val first = agent.ask("하린 씨는 누가 범인 같아요?")
+        val quiet = agent.ask("그날 밤 어디 있었어요?")
+        val cleared = agent.state.value.lastHint
+        val again = agent.ask("그럼 범인이 누구 같아요?")
+
+        assertEquals(listOf("정말 모르겠어요.", hint), first.sentences)
+        assertEquals(ReplyKind.ANSWER, quiet.kind)
+        assertNull(cleared)
+        assertEquals(listOf("모르겠어요.", hint), again.sentences)
+        assertEquals(hint, agent.state.value.lastHint)
+    }
+
+    @Test
+    fun `a reply keeps the suspect's words apart from the narrator's line`() = runTest {
+        val llm = ScriptedLlm(answer("정말 모르겠어요."), answer("방에서 잤어요."))
+        val agent = jadeAgent(llm, speech())
+        val hint = jade.case.clues.firstNotNullOf { it.hint }
+
+        val overview = agent.summarize()
+        val askWho = agent.ask("오늘 날씨 어때?")
+        val hinted = agent.ask("하린 씨는 누가 범인 같아요?")
+        val answered = agent.ask("그날 밤 어디 있었어요?")
+
+        // The narrator alone: nothing of it is the suspect's.
+        for (reply in listOf(overview, askWho)) {
+            assertNull(reply.suspectId)
+            assertNull(reply.narratorLine)
+            assertEquals("", reply.suspectText)
+        }
+        assertEquals(NarratorLines.askWho(jade.case), askWho.text)
+        assertEquals(ReplyKind.HINT, hinted.kind)
+        assertEquals(hint, hinted.narratorLine)
+        assertEquals("정말 모르겠어요.", hinted.suspectText)
+        assertEquals("정말 모르겠어요. $hint", hinted.text)
+        assertEquals(ReplyKind.ANSWER, answered.kind)
+        assertNull(answered.narratorLine)
+        assertEquals("방에서 잤어요.", answered.suspectText)
+        // suspectText is what the notebook keeps.
+        assertEquals(listOf(hinted.suspectText, answered.suspectText), agent.state.value.notebook.map { it.answer })
+    }
+
+    @Test
+    fun `pressure lines follow the stage from before the turn when configured and stay out otherwise`() = runTest {
+        val son = jade.suspect("son")
+        val off = ScriptedLlm(answer("창밖에 고정태가 있었어요."), answer("다 말씀드렸어요."))
+        val on = ScriptedLlm(answer("창밖에 고정태가 있었어요."), answer("다 말씀드렸어요."))
+        for ((llm, config) in listOf(off to AgentConfig(), on to AgentConfig(pressureLines = true))) {
+            val agent = jadeAgent(llm, speech(), config)
+            agent.restore(jadeClues, emptyList(), setOf("k-maid-back-door", "k-niece-window"))
+            // Draws out the last key reaction, so the stage is READY from the next turn on.
+            agent.ask("준기 씨한테 고정태 구두 얘기 물어봐")
+            agent.ask("그날 밤 일 다시 말해 봐요")
+        }
+
+        val template = jade.suspectTemplate
+        val plain = SuspectPrompt.render(jade.case, son, jadeClues, PromptVariant.COVER, template)
+        assertEquals(listOf(plain, plain), off.requests.map { it.system })
+        val staged = listOf(InvestigationStage.PRESSING, InvestigationStage.READY).map {
+            SuspectPrompt.render(jade.case, son, jadeClues, PromptVariant.COVER, template, stage = it)
+        }
+        assertEquals(staged, on.requests.map { it.system })
+        assertTrue(son.pressure.getValue(InvestigationStage.PRESSING) in on.requests[0].system)
+        assertTrue(son.pressure.getValue(InvestigationStage.READY) in on.requests[1].system)
+        assertFalse(son.pressure.getValue(InvestigationStage.PRESSING) in plain)
+    }
+
+    @Test
+    fun `restore resumes a saved game with its progress and rejects unknown ids`() = runTest {
+        val agent = jadeAgent(ScriptedLlm(answer("장물아비요?")), speech())
+        agent.ask("옥분 씨한테 그날 밤 일 물어봐") // A deflection and a hint, and the maid is being questioned.
+        val notebook = listOf(Testimony("maid", "뒷문 얘기 해 봐요", "박만수 아저씨를 잠깐 만났어요."))
+
+        agent.restore(setOf("clue-back-door"), notebook, setOf("k-maid-back-door"))
+        val gathering = agent.state.value
+        agent.restore(jadeClues, notebook, setOf("k-maid-back-door"))
+        val pressing = agent.state.value.stage
+        agent.restore(jadeClues, notebook, jadeKeyReactions)
+
+        val expected = AgentState(
+            unlockedClues = setOf("clue-back-door"), notebook = notebook, game = 1,
+            confronted = setOf("k-maid-back-door"), stage = InvestigationStage.GATHERING,
+        )
+        assertEquals(expected, gathering)
+        assertEquals(InvestigationStage.PRESSING, pressing)
+        assertEquals(InvestigationStage.READY, agent.state.value.stage)
+        assertThrows(IllegalArgumentException::class.java) { agent.restore(setOf("clue-nope"), emptyList()) }
+        // The maid's window reaction is not key, and the banker is in the cast but no suspect.
+        assertThrows(IllegalArgumentException::class.java) { agent.restore(emptySet(), emptyList(), setOf("k-maid-window")) }
+        assertThrows(IllegalArgumentException::class.java) { agent.restore(emptySet(), listOf(Testimony("banker", "질문", "대답"))) }
+        assertEquals(3, agent.state.value.game)
+        assertEquals(jadeKeyReactions, agent.state.value.confronted)
+    }
+
+    @Test
+    fun `restore cuts testimony to the proxy's message limit, as asking does`() = runTest {
+        val llm = ScriptedLlm(answer("네, 탐정님."))
+        val agent = jadeAgent(llm, speech())
+        val long = Testimony("maid", "질".repeat(2_000), "답".repeat(2_000))
+
+        agent.restore(emptySet(), listOf(long))
+        agent.ask("옥분 씨, 그날 밤 일 다시 말해 봐요")
+
+        val restored = agent.state.value.notebook.first()
+        assertEquals(ProxyContract.MAX_MESSAGE_CHARS, restored.question.length)
+        assertEquals(ProxyContract.MAX_MESSAGE_CHARS, restored.answer.length)
+        // So the history sent along with the next question stays within the contract too.
+        assertTrue(llm.requests.single().messages.all { it.content.length <= ProxyContract.MAX_MESSAGE_CHARS })
+    }
+
+    @Test
+    fun `restore stops the turn in progress, which cannot write into the restored game`() = runTest {
+        val llm = ScriptedLlm(listOf(100L to delta("첫 문장이에요. "), 5_000L to done()))
+        val agent = jadeAgent(llm, speech())
+
+        val pending = async { agent.ask("옥분 씨한테 물어봐") }
+        advanceTimeBy(200)
+        agent.restore(setOf("clue-back-door"), emptyList())
+        val reply = pending.await()
+
+        assertEquals(ReplyKind.INTERRUPTED, reply.kind)
+        assertEquals(AgentState(unlockedClues = setOf("clue-back-door"), game = 1, stage = InvestigationStage.GATHERING), agent.state.value)
+    }
+
+    @Test
     fun `an answer that opens by reading out its instructions is replaced by a deflection`() = runTest {
         val llm = ScriptedLlm(listOf(100L to delta("생각할 필요 없이 답하면 된다. "), 100L to delta("저장고에 있었습니다."), 10L to done()))
         val speech = speech()
@@ -158,6 +608,20 @@ class VoiceAgentTest {
     @Test
     fun `an answer that opens by talking about the suspect by name is replaced by a deflection`() = runTest {
         val llm = ScriptedLlm(listOf(100L to delta("${butler.name}은 모르는 일이라고 답해야 합니다. "), 100L to delta("저장고에 있었습니다."), 10L to done()))
+        val speech = speech()
+
+        val reply = agent(llm, speech).ask("집사한테 물어봐")
+
+        assertEquals(ReplyKind.DEFLECTION, reply.kind)
+        assertTrue(reply.sentences.single() in butler.deflections)
+        assertEquals(reply.sentences, speech.spoken.map { it.text })
+    }
+
+    @Test
+    fun `an answer that opens with an English note to itself is replaced by a deflection`() = runTest {
+        val llm = ScriptedLlm(
+            listOf(100L to delta("[think]\nPlayer asks about the night. Keep short, in character.\n[/think]\n\n"), 100L to delta("저장고에 있었습니다."), 10L to done()),
+        )
         val speech = speech()
 
         val reply = agent(llm, speech).ask("집사한테 물어봐")
@@ -341,11 +805,15 @@ class VoiceAgentTest {
         val speech = speech()
         val agent = agent(ScriptedLlm(), speech)
 
-        assertEquals(listOf(NarratorLines.NOT_UNDERSTOOD), agent.ask("   ").sentences)
+        val narrated = agent.ask("   ")
         agent.selectSuspect("cook")
         val reply = agent.ask("")
 
+        assertEquals(listOf(NarratorLines.NOT_UNDERSTOOD), narrated.sentences)
+        assertNull(narrated.suspectId)
         assertEquals(ReplyKind.NOT_UNDERSTOOD, reply.kind)
+        // Said in the cook's voice, so the reply is hers.
+        assertEquals("cook", reply.suspectId)
         assertEquals(listOf(cook.fallbackNotUnderstood), reply.sentences)
         assertEquals(cook.speaker, speech.spoken.last().speaker)
     }

@@ -1,5 +1,6 @@
 package dev.voiceagent
 
+import dev.voiceagent.content.InvestigationStage
 import dev.voiceagent.identify.SequenceMatcher
 import dev.voiceagent.identify.SuspectIdentifier
 import dev.voiceagent.identify.decomposeJamo
@@ -32,21 +33,28 @@ class GoldenParityTest {
 
     @Test
     fun `golden file is the version and case this port implements`() {
-        assertEquals(1, golden.getInt("version"))
+        assertEquals(2, golden.getInt("version"))
         assertEquals(DEMO_CASE_DIR, "cases/${golden.getString("case")}")
         assertEquals(scenario.case.id, golden.getString("case"))
     }
 
     @Test
-    fun `suspect prompts match Python for every suspect, clue set and variant`() {
+    fun `suspect prompts match Python for every suspect, clue set, variant and stage`() {
         val entries = golden.getJSONArray("prompts").objects()
         assertTrue(entries.isNotEmpty())
+        // An entry without a stage is OPENING, which GATHERING renders like; the later stages carry the
+        // personas' pressure lines, so those two must stay covered.
+        val stages = entries.mapNotNull { it.stringOrNull("stage") }.toSet()
+        assertTrue("stages $stages", setOf("gathering", "pressing", "ready").containsAll(stages))
+        assertTrue("stages $stages", stages.containsAll(setOf("pressing", "ready")))
         for (entry in entries) {
             val suspect = scenario.suspect(entry.getString("suspect"))
             val unlocked = entry.getJSONArray("unlocked").strings().toSet()
             val variant = PromptVariant.fromId(entry.getString("variant"))
-            val actual = SuspectPrompt.render(scenario.case, suspect, unlocked, variant, scenario.suspectTemplate)
-            assertEquals("${suspect.id} $unlocked ${variant.id}", entry.getString("prompt"), actual)
+            val stage = entry.stringOrNull("stage")?.let { id -> InvestigationStage.entries.first { it.id == id } }
+                ?: InvestigationStage.OPENING
+            val actual = SuspectPrompt.render(scenario.case, suspect, unlocked, variant, scenario.suspectTemplate, stage = stage)
+            assertEquals("${suspect.id} $unlocked ${variant.id} ${stage.id}", entry.getString("prompt"), actual)
         }
     }
 

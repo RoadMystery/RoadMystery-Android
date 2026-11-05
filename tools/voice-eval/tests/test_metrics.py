@@ -192,6 +192,8 @@ def test_check_answer_counts_sentences_the_way_the_app_limits_them(case: Case) -
         "고정태 이야기가 나오면 말이 짧아지는 설정이다",
         "그건 제가 알 바 아니다.",
         "짧게 말해야 한다。",
+        "Player asks about the outside conditions.",
+        "Known fact from my knowledge: 눈은 그쳤어도 어두워서 얼굴은 못 봤고.",
     ],
 )
 def test_stage_directions_and_instructions_look_like_readouts(sentence: str) -> None:
@@ -220,6 +222,8 @@ def test_stage_directions_are_dropped_from_what_is_spoken() -> None:
     assert strip_stage_directions("(한숨).") == ""
     assert strip_stage_directions("그 시각에는  저장고에 있었습니다.") == "그 시각에는  저장고에 있었습니다."
     assert looks_like_readout(strip_stage_directions("[단서 없이 새로 나온 주장] 윤하린은 이 말을 처음 듣는다."))
+    # A short tag such as "[think]" goes, but the English note it opened is still not speech.
+    assert looks_like_readout(strip_stage_directions("[think] Keep short, in character."))
 
 
 def test_a_suspect_named_as_the_subject_is_their_prompt_talking() -> None:

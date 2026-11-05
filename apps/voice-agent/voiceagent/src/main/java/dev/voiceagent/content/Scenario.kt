@@ -13,7 +13,33 @@ data class Clue(
     val summary: String,
     val chapter: Int,
     val keywords: List<String>,
+    /**
+     * The narrator's hint while this clue is not found: what to watch for in the scenes to come. For a
+     * cut leak or an answer-seeking question with no key reaction within reach left to suggest,
+     * NarratorLines.hint gives the first such hint in case order.
+     */
+    val hint: String? = null,
+    /** Words besides [keywords] and [title] by which a question brings this clue up (confrontations). */
+    val mentions: List<String> = emptyList(),
 )
+
+/**
+ * How far the player's investigation has come (수사 진척도), never shown to the player. [id] is the
+ * key of a persona's pressure lines and of voice-eval's probe stage.
+ */
+enum class InvestigationStage(val id: String) {
+    /** No clue of the case is found yet. */
+    OPENING("opening"),
+
+    /** Some clues are found, not all. */
+    GATHERING("gathering"),
+
+    /** Every clue is found; some key reaction has not been drawn out yet. */
+    PRESSING("pressing"),
+
+    /** Every clue is found and every key reaction drawn out: time to accuse. */
+    READY("ready"),
+}
 
 data class CastMember(
     val id: String,
@@ -36,6 +62,11 @@ data class Case(
     val clues: List<Clue>,
     val solution: Solution,
     val forbiddenPhrases: List<String>,
+    /**
+     * The narrator's hint once every clue is found and no key reaction is pending, each one drawn out
+     * (NarratorLines.hint).
+     */
+    val spoilerHint: String? = null,
 ) {
     /** Suspects in cast order, which is also the order that breaks ties when identifying them. */
     val suspects: List<CastMember> get() = cast.filter { it.isSuspect }
@@ -46,9 +77,32 @@ data class Case(
     fun clue(id: String): Clue = clues.firstOrNull { it.id == id } ?: throw NoSuchElementException("no clue '$id'")
 }
 
-data class Fact(val id: String, val text: String)
+/**
+ * [text] is the answer key the evaluation checks against; [line], when the persona has one, is the
+ * same claim as the suspect says it, and the prompt shows that instead.
+ */
+data class Fact(val id: String, val text: String, val line: String? = null) {
+    val promptText: String get() = line ?: text
+}
 
-data class UnlockableFact(val id: String, val unlockedBy: List<String>, val text: String, val demeanor: String?)
+/** A reaction to found clues; [text] and [line] as in [Fact]. */
+data class UnlockableFact(
+    val id: String,
+    val unlockedBy: List<String>,
+    val text: String,
+    val demeanor: String?,
+    val line: String? = null,
+    /** Needed to solve the case: drawing out every key reaction makes the stage [InvestigationStage.READY]. */
+    val key: Boolean = false,
+    /**
+     * Ids of the suspect's public facts and earlier reactions this reaction supersedes: once it is
+     * unlocked the prompt stops showing them, so a cover story and the confession that ends it do
+     * not sit side by side (voice_eval.content.UnlockableFact.replaces).
+     */
+    val replaces: List<String> = emptyList(),
+) {
+    val promptText: String get() = line ?: text
+}
 
 data class Relationship(val target: String, val attitude: String)
 
@@ -72,6 +126,8 @@ data class Suspect(
     val fallbackOffline: String,
     val fallbackNotUnderstood: String,
     val filler: String,
+    /** First-person lines the prompt adds from [InvestigationStage.PRESSING] on. */
+    val pressure: Map<InvestigationStage, String> = emptyMap(),
 )
 
 /** One case as VoiceAgent uses it: content plus the prompt templates evaluated in tools/voice-eval. */
@@ -99,6 +155,7 @@ data class Scenario(
             val suspects = case.suspects.associate { member ->
                 member.id to ScenarioParser.parseSuspect(text("$caseDir/suspects/${member.id}.json"), case)
             }
+            ScenarioParser.checkCast(suspects.values)
             return Scenario(case, suspects, text(SUSPECT_TEMPLATE), text(SUMMARY_TEMPLATE))
         }
 
@@ -109,12 +166,14 @@ data class Scenario(
 
 /**
  * Parses the formats in content/schema. Full schema validation runs in tools/voice-eval's tests;
- * this checks the cross-references the app relies on, as voice_eval/content.py does.
+ * this checks the cross-references the app relies on, as voice_eval/content.py does, and what
+ * VoiceAgent's investigation progress needs of the key reactions.
  */
 object ScenarioParser {
     fun parseCase(json: String): Case = parsing("case.json") {
         val root = JSONObject(json)
         val solution = root.getJSONObject("solution")
+        val guard = root.getJSONObject("spoilerGuard")
         val case = Case(
             id = root.getString("id"),
             title = root.getString("title"),
@@ -129,7 +188,8 @@ object ScenarioParser {
                 motive = solution.getString("motive"),
                 hidingPlace = solution.getString("hidingPlace"),
             ),
-            forbiddenPhrases = root.getJSONObject("spoilerGuard").getJSONArray("forbiddenPhrases").strings(),
+            forbiddenPhrases = guard.getJSONArray("forbiddenPhrases").strings(),
+            spoilerHint = guard.optionalString("hint"),
         )
         requireUnique(case.cast.map { it.id }, "cast", "case.json")
         requireUnique(case.clues.map { it.id }, "clue", "case.json")
@@ -171,6 +231,7 @@ object ScenarioParser {
             fallbackOffline = fallback.getString("offline"),
             fallbackNotUnderstood = fallback.getString("notUnderstood"),
             filler = fallback.getString("filler"),
+            pressure = root.optJSONObject("pressure")?.let { pressure(it, source) }.orEmpty(),
         )
         checkReferences(suspect, case, source)
         suspect
@@ -182,6 +243,12 @@ object ScenarioParser {
             fact.unlockedBy.firstOrNull { it !in clueIds }?.let {
                 throw ContentException("$source: knowledge '${fact.id}' is unlocked by unknown clue '$it'")
             }
+            // No question could bring it up, so the investigation would never reach READY; any other
+            // reaction would have no clue to sit under in the prompt (the schema's minItems: 1).
+            if (fact.unlockedBy.isEmpty()) {
+                val what = if (fact.key) "key reaction" else "knowledge"
+                throw ContentException("$source: $what '${fact.id}' has no clue in unlockedBy")
+            }
         }
         val castIds = case.cast.map { it.id }.toSet()
         suspect.relationships.firstOrNull { it.target !in castIds }?.let {
@@ -189,6 +256,44 @@ object ScenarioParser {
         }
         val knowledgeIds = suspect.public.map { it.id } + suspect.unlockable.map { it.id } + suspect.secret.map { it.id }
         requireUnique(knowledgeIds, "knowledge", source)
+        checkReplaces(suspect, source)
+    }
+
+    /**
+     * voice_eval.content._check_replaces: a reaction hides only lines the prompt already shows when
+     * it unlocks, the suspect's public facts and its reactions to a subset of the same clues. A key
+     * reaction is never hidden, because the investigation counts it as something to draw out.
+     */
+    private fun checkReplaces(suspect: Suspect, source: String) {
+        val publicIds = suspect.public.map { it.id }.toSet()
+        val reactions = suspect.unlockable.associateBy { it.id }
+        for (fact in suspect.unlockable) {
+            for (target in fact.replaces) {
+                if (target == fact.id) throw ContentException("$source: knowledge '${fact.id}' replaces itself")
+                if (target !in publicIds && target !in reactions) {
+                    throw ContentException("$source: knowledge '${fact.id}' replaces unknown fact '$target'")
+                }
+                val replaced = reactions[target] ?: continue
+                if (replaced.key) throw ContentException("$source: knowledge '${fact.id}' replaces key reaction '$target'")
+                if (!fact.unlockedBy.containsAll(replaced.unlockedBy)) {
+                    throw ContentException("$source: knowledge '${fact.id}' replaces '$target', which needs clues '${fact.id}' does not")
+                }
+            }
+        }
+    }
+
+    /**
+     * What only the whole cast shows, once every persona is parsed: VoiceAgent counts confrontations
+     * by key reaction id alone, so an id two suspects share would be drawn out of both at once.
+     */
+    internal fun checkCast(suspects: Collection<Suspect>) {
+        val owners = suspects
+            .flatMap { suspect -> suspect.unlockable.filter { it.key }.map { it.id to suspect.id } }
+            .groupBy({ it.first }, { it.second })
+        owners.entries.firstOrNull { it.value.size > 1 }?.let { (id, cast) ->
+            val files = cast.joinToString(" and ") { "suspects/$it.json" }
+            throw ContentException("duplicate key reaction id '$id' in $files")
+        }
     }
 
     private fun castMember(item: JSONObject) = CastMember(
@@ -206,17 +311,36 @@ object ScenarioParser {
         summary = item.getString("summary"),
         chapter = item.getInt("chapter"),
         keywords = item.getJSONArray("keywords").strings(),
+        hint = item.optionalString("hint"),
+        mentions = item.optJSONArray("mentions")?.strings().orEmpty(),
     )
 
-    private fun fact(item: JSONObject) = Fact(item.getString("id"), item.getString("text"))
+    /** The schema allows lines for these stages only; earlier stages never get one. */
+    private val PRESSURE_STAGES = listOf(InvestigationStage.PRESSING, InvestigationStage.READY)
+
+    /** An empty line is no line, so READY falls back to PRESSING as Python's `or` does. */
+    private fun pressure(item: JSONObject, source: String): Map<InvestigationStage, String> =
+        item.keys().asSequence().mapNotNull { id ->
+            val stage = PRESSURE_STAGES.firstOrNull { it.id == id }
+                ?: throw ContentException("$source: unknown pressure stage '$id' (pressing or ready only)")
+            item.optionalString(id)?.let { stage to it }
+        }.toMap()
+
+    private fun fact(item: JSONObject) = Fact(item.getString("id"), item.getString("text"), item.optionalString("line"))
 
     private fun unlockableFact(item: JSONObject) = UnlockableFact(
         id = item.getString("id"),
         unlockedBy = item.getJSONArray("unlockedBy").strings(),
         text = item.getString("text"),
-        // isNull covers a missing key and JSON null; Android's optString would turn null into "null".
-        demeanor = if (item.isNull("demeanor")) null else item.getString("demeanor"),
+        demeanor = item.optionalString("demeanor"),
+        line = item.optionalString("line"),
+        key = item.optBoolean("key", false),
+        replaces = item.optJSONArray("replaces")?.strings().orEmpty(),
     )
+
+    // isNull covers a missing key and JSON null; Android's optString would turn null into "null".
+    // An empty string is absent too: Python reads "" as no value (`line or text`, `if demeanor`).
+    private fun JSONObject.optionalString(key: String): String? = if (isNull(key)) null else getString(key).ifEmpty { null }
 
     private fun requireUnique(ids: List<String>, what: String, source: String) {
         val seen = HashSet<String>()

@@ -55,13 +55,16 @@ private const val FINAL_BIEUP = 17
 
 /**
  * voice_eval.metrics.looks_like_readout: a sentence no suspect would say aloud, a bracketed stage
- * direction or label, the [speaker]'s own name as the subject ("윤서진이 아는 사실에 없는 질문이라 …"),
- * or the plain "-다" of instructions ("윤하린은 이 말을 처음 듣는다."). Suspects speak 해요체 or
- * 하십시오체, so "-ㅂ니다" and the propositive "-ㅂ시다" are speech.
+ * direction or label, Latin letters, the [speaker]'s own name as the subject ("윤서진이 아는 사실에
+ * 없는 질문이라 …"), or the plain "-다" of instructions ("윤하린은 이 말을 처음 듣는다."). Suspects
+ * speak Korean, so English is a note the model wrote to itself ("Player asks about …", often after a
+ * tag such as "[think]"). They speak 해요체 or 하십시오체, so "-ㅂ니다" and the propositive "-ㅂ시다"
+ * are speech.
  */
 fun looksLikeReadout(sentence: String, speaker: String = ""): Boolean {
     val text = pythonStrip(sentence)
     if (text.any { it in READOUT_BRACKETS }) return true
+    if (text.any { it in 'a'..'z' || it in 'A'..'Z' }) return true
     if (speaker.isNotEmpty() && namesSpeaker(text, speaker)) return true
     val core = text.trimEnd { it in READOUT_TRAILING }
     return core.endsWith("다") && !isPoliteEnding(core)

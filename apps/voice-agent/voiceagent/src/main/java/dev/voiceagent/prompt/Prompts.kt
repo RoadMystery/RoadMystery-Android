@@ -1,6 +1,8 @@
 package dev.voiceagent.prompt
 
 import dev.voiceagent.content.Case
+import dev.voiceagent.content.Fact
+import dev.voiceagent.content.InvestigationStage
 import dev.voiceagent.content.Suspect
 import dev.voiceagent.content.UnlockableFact
 import dev.voiceagent.text.phraseHits
@@ -86,10 +88,21 @@ object SuspectPrompt {
             "플레이어가 아직 찾지 않은 증거를 먼저 꺼내지 마라. 추궁을 받아도 '네가 말할 수 있는 사실'의 " +
             "주장을 지켜라."
     private const val NO_CLUES_YET = "- 아직 플레이어가 찾은 단서가 없다."
+    private const val PRESSURE_HEADING = "# 수사가 깊어진 지금 하게 되는 말 (어울릴 때만)"
 
     /** Reactions whose required clues have all been found. */
     fun unlockedFacts(suspect: Suspect, unlocked: Set<String>): List<UnlockableFact> =
         suspect.unlockable.filter { unlocked.containsAll(it.unlockedBy) }
+
+    /**
+     * voice_eval.prompt.shown_facts: the public facts and reactions the prompt shows, an unlocked
+     * reaction hiding the lines it [UnlockableFact.replaces]. Prompt only; the answer keys stay.
+     */
+    fun shownFacts(suspect: Suspect, unlocked: Set<String>): Pair<List<Fact>, List<UnlockableFact>> {
+        val reactions = unlockedFacts(suspect, unlocked)
+        val replaced = reactions.flatMap { it.replaces }.toSet()
+        return suspect.public.filter { it.id !in replaced } to reactions.filter { it.id !in replaced }
+    }
 
     /** Keywords of the clues not found yet, in clue order. */
     fun lockedKeywords(case: Case, unlocked: Set<String>): List<String> =
@@ -99,7 +112,10 @@ object SuspectPrompt {
     fun raisedTopics(case: Case, unlocked: Set<String>, question: String): List<String> =
         phraseHits(question, lockedKeywords(case, unlocked))
 
-    /** [topics]: from [raisedTopics] for the question being answered; none leaves the prompt unchanged. */
+    /**
+     * [topics]: from [raisedTopics] for the question being answered; none leaves the prompt unchanged.
+     * [stage]: from [InvestigationStage.PRESSING] on, the persona's pressure line is added, if it has one.
+     */
     fun render(
         case: Case,
         suspect: Suspect,
@@ -107,6 +123,7 @@ object SuspectPrompt {
         variant: PromptVariant,
         template: String,
         topics: List<String> = emptyList(),
+        stage: InvestigationStage = InvestigationStage.OPENING,
     ): String {
         PromptText.requireKnownClues(case, unlocked)
         val values = mapOf(
@@ -121,8 +138,9 @@ object SuspectPrompt {
             "public_facts" to PromptText.caseOverview(case),
             "profile" to PromptText.bullets(listOf("${suspect.age}세. ${suspect.background}") + suspect.personality),
             "speech_style" to speechSection(suspect),
-            "public_knowledge" to PromptText.bullets(suspect.public.map { it.text }),
+            "public_knowledge" to PromptText.bullets(shownFacts(suspect, unlocked).first.map { it.promptText }),
             "unlocked_knowledge" to unlockedSection(case, suspect, unlocked),
+            "pressure" to pressureSection(suspect, stage),
             "relationships" to relationshipSection(case, suspect),
             "deflections" to PromptText.bullets(suspect.deflections),
             "secret_section" to secretSection(suspect, variant),
@@ -130,15 +148,39 @@ object SuspectPrompt {
         return PromptText.fillTemplate(template, values)
     }
 
+    /**
+     * voice_eval.prompt._unlocked_section: each found clue, then the reactions it brings up. The label
+     * names a reaction's clues, since a first-person line does not say when it is said; a reaction to
+     * several clues goes once, under the last of them in case order, the clue the narrator's hint names.
+     */
     private fun unlockedSection(case: Case, suspect: Suspect, unlocked: Set<String>): String {
         val clues = case.clues.filter { it.id in unlocked }
         if (clues.isEmpty()) return NO_CLUES_YET
-        val reactions = unlockedFacts(suspect, unlocked).map { fact ->
-            val demeanor = if (fact.demeanor.isNullOrEmpty()) "" else " (태도: ${fact.demeanor})"
-            "[너의 반응] ${fact.text}$demeanor"
+        val order = case.clues.map { it.id }
+        val reactions = shownFacts(suspect, unlocked).second
+        val lines = clues.flatMap { clue ->
+            listOf("[단서] ${clue.title}: ${clue.summary}") +
+                reactions.filter { fact -> fact.unlockedBy.maxBy(order::indexOf) == clue.id }.map { reactionLine(case, it, order) }
         }
-        return PromptText.bullets(clues.map { "[단서] ${it.title}: ${it.summary}" } + reactions)
+        return PromptText.bullets(lines)
     }
+
+    private fun reactionLine(case: Case, fact: UnlockableFact, order: List<String>): String {
+        val titles = fact.unlockedBy.sortedBy(order::indexOf).joinToString("·") { id -> case.clues.first { it.id == id }.title }
+        val demeanor = if (fact.demeanor.isNullOrEmpty()) "" else " (태도: ${fact.demeanor})"
+        return "[$titles 이야기에 너의 반응] ${fact.promptText}$demeanor"
+    }
+
+    /** The persona's line for [stage]: READY falls back to PRESSING, earlier stages have none. */
+    fun pressureLine(suspect: Suspect, stage: InvestigationStage): String? = when (stage) {
+        InvestigationStage.READY -> suspect.pressure[InvestigationStage.READY] ?: suspect.pressure[InvestigationStage.PRESSING]
+        InvestigationStage.PRESSING -> suspect.pressure[InvestigationStage.PRESSING]
+        InvestigationStage.OPENING, InvestigationStage.GATHERING -> null
+    }
+
+    /** Follows the found-clue section directly, so it brings its own blank line; empty without a line. */
+    private fun pressureSection(suspect: Suspect, stage: InvestigationStage): String =
+        pressureLine(suspect, stage)?.let { "\n\n$PRESSURE_HEADING\n- $it" } ?: ""
 
     private fun speechSection(suspect: Suspect): String {
         val examples = suspect.speechExamples.joinToString("\n") { "  - $it" }

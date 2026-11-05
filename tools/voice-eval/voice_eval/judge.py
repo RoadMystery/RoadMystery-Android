@@ -9,7 +9,7 @@ from typing import Any, Protocol
 import anthropic
 
 from voice_eval.content import Case, Probe, Suspect
-from voice_eval.prompt import allowed_facts
+from voice_eval.prompt import allowed_facts, pressure_line
 from voice_eval.providers import raise_if_missing_credentials
 
 DEFAULT_JUDGE_MODEL = "claude-opus-5-5"
@@ -84,9 +84,14 @@ def build_judge_prompt(
     case: Case, suspect: Suspect, probe: Probe, unlocked: frozenset[str], answer: str
 ) -> str:
     culprit = case.member(case.solution.culprit)
-    # Everything in the suspect's own prompt except the secrets: its profile and relationships
-    # are part of the character, so repeating them is not inventing case facts.
+    # What the suspect may state without inventing case facts: the case overview, its profile and
+    # relationships (part of the character) and the answer keys of its public facts and unlocked
+    # reactions, not the first-person lines its prompt shows in their place; then the stage's
+    # pressure line, which the prompt of a probe asked late in the investigation also carries.
     allowed = list(allowed_facts(case, suspect, unlocked))
+    pressure = pressure_line(suspect, probe.stage)
+    if pressure:
+        allowed.append(pressure)
     found = [f"{clue.title}: {clue.summary}" for clue in case.clues if clue.id in unlocked]
     hidden = [f"{clue.title}: {clue.summary}" for clue in case.clues if clue.id not in unlocked]
     speaker = {"user": "플레이어", "assistant": "용의자"}

@@ -3,12 +3,17 @@ import socket
 from pathlib import Path
 
 import pytest
+from conftest import REPO_ROOT
 
 import voice_eval.__main__ as cli
+from voice_eval.content import load_case, load_suspect
 from voice_eval.judge import JudgeError
+from voice_eval.prompt import pressure_line
 from voice_eval.providers import MissingCredentialsError, ScriptedProvider, StreamResult
 
 ONE_ANSWER = ["--only", "haiku-5-5-low", "--probe-ids", "alibi-basic", "--variants", "cover"]
+JADE_DIR = REPO_ROOT / "content" / "cases" / "jade-crown"
+PRESSURE_HEADING = "# 수사가 깊어진 지금 하게 되는 말 (어울릴 때만)"
 
 
 class CountingProvider:
@@ -35,6 +40,28 @@ def test_render_prints_prompt_for_unlocked_clue(capsys: pytest.CaptureFixture[st
 def test_render_truth_variant_adds_secret_section(capsys: pytest.CaptureFixture[str]) -> None:
     assert cli.main(["render", "--variant", "truth"]) == 0
     assert "절대 말하지 말 것" in capsys.readouterr().out
+
+
+def test_render_shows_the_prompt_at_a_stage(capsys: pytest.CaptureFixture[str]) -> None:
+    # demo-sapphire's personas have no pressure lines, so jade-crown's son, with every clue found as the
+    # app has them by "pressing".
+    case = load_case(JADE_DIR)
+    son = load_suspect(JADE_DIR / "suspects" / "son.json", case)
+    every_clue = ",".join(clue.id for clue in case.clues)
+    command = ["render", "--case-dir", str(JADE_DIR), "--suspect", "son", "--unlocked", every_clue]
+
+    assert cli.main(command) == 0
+    opening = capsys.readouterr().out
+    assert cli.main([*command, "--stage", "pressing"]) == 0
+    pressing = capsys.readouterr().out
+
+    assert PRESSURE_HEADING not in opening
+    assert f"{PRESSURE_HEADING}\n- {pressure_line(son, 'pressing')}\n" in pressing
+
+
+def test_render_rejects_an_unknown_stage() -> None:
+    with pytest.raises(SystemExit):
+        cli.main(["render", "--stage", "finale"])
 
 
 def test_identify_prints_suspect_id(capsys: pytest.CaptureFixture[str]) -> None:

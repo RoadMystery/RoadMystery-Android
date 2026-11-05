@@ -28,9 +28,16 @@ from voice_eval.metrics import (
 from voice_eval.prompt import VARIANTS, raised_topics, render_system_prompt
 from voice_eval.summary import load_summary_probes, overview_fallback, render_summary_prompt
 
-GOLDEN_VERSION = 1
+GOLDEN_VERSION = 2
+"""What the Kotlin parity test expects; 2 added the "gathering" prompt entry."""
 GOLDEN_CASE = "jade-crown"
 """The case the app ships (Kotlin AndroidAssets.kt DEMO_CASE_DIR)."""
+PRESSURE_STAGES = ("pressing", "ready")
+"""Stages whose prompts can carry a persona's pressure line. A prompt entry without "stage" is
+rendered at "opening"; the one "gathering" entry (GATHERING_SAMPLE) must render the same."""
+GATHERING_SAMPLE: tuple[str, tuple[str, ...]] = ("son", ("clue-window",))
+"""(suspect, clues found) of the "gathering" entry: a persona with pressure lines and some clues but
+not all found, so the prompt is that of the stage-less entry for the same clues."""
 
 IDENTIFY_UTTERANCES: tuple[tuple[str, str | None], ...] = (
     ("준기한테 새벽에 어디 있었는지 물어봐", None),
@@ -133,6 +140,8 @@ READOUT_SAMPLES: tuple[str, ...] = (
     "저는 (잠시 멈칫하며) 몰라요.",
     "(한숨).",
     "(생각해 보니.",
+    "[think] Player asks about the outside conditions.",
+    "Keep short, in character.",
     "모른다니까요, 탐정님.",
     "감사합니다.",
     "그날 밤엔 열한 시쯤 문단속을 돌고 바로 잤어요.",
@@ -179,7 +188,8 @@ def build_golden(
         for member in case.cast
         if member.is_suspect
     ]
-    clue_sets = [(), *((clue.id,) for clue in case.clues), tuple(clue.id for clue in case.clues)]
+    every_clue = tuple(clue.id for clue in case.clues)
+    clue_sets = [(), *((clue_id,) for clue_id in every_clue), every_clue]
     prompts = [
         {
             "suspect": suspect.id,
@@ -191,7 +201,33 @@ def build_golden(
         for unlocked in clue_sets
         for variant in VARIANTS
     ]
+    # The app reaches these stages only with every clue found, so that is the one clue set they need.
+    staged_prompts = [
+        {
+            "suspect": suspect.id,
+            "unlocked": list(every_clue),
+            "variant": "cover",
+            "stage": stage,
+            "prompt": render_system_prompt(
+                case, suspect, frozenset(every_clue), "cover", suspect_template, stage=stage
+            ),
+        }
+        for suspect in suspects
+        if suspect.pressure
+        for stage in PRESSURE_STAGES
+    ]
     by_id = {suspect.id: suspect for suspect in suspects}
+    gathering_suspect, gathering_clues = GATHERING_SAMPLE
+    gathering_prompt = {
+        "suspect": gathering_suspect,
+        "unlocked": list(gathering_clues),
+        "variant": "cover",
+        "stage": "gathering",
+        "prompt": render_system_prompt(
+            case, by_id[gathering_suspect], frozenset(gathering_clues), "cover", suspect_template,
+            stage="gathering",
+        ),
+    }
     topics = []
     for suspect_id, unlocked, question in TOPIC_QUESTIONS:
         raised = raised_topics(case, frozenset(unlocked), question)
@@ -223,7 +259,7 @@ def build_golden(
         "version": GOLDEN_VERSION,
         "case": case.id,
         "overview": overview_fallback(case),
-        "prompts": prompts,
+        "prompts": [*prompts, gathering_prompt, *staged_prompts],
         "topics": topics,
         "summaries": summaries,
         "identify": [

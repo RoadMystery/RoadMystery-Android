@@ -4,12 +4,15 @@ from pathlib import Path
 import pytest
 from conftest import CASE_DIR, REPO_ROOT, TEMPLATE_PATH, TOOL_ROOT
 
-from voice_eval.content import ContentError
-from voice_eval.golden import GOLDEN_CASE, build_golden
+import voice_eval.__main__ as cli
+from voice_eval.content import ContentError, load_case, load_suspect
+from voice_eval.golden import GOLDEN_CASE, GOLDEN_VERSION, PRESSURE_STAGES, build_golden
+from voice_eval.prompt import pressure_line
 from voice_eval.summary import MAX_TESTIMONIES
 
 GOLDEN_PATH = TOOL_ROOT / "golden" / "voice-agent-golden.json"
 GOLDEN_CASE_DIR = REPO_ROOT / "content" / "cases" / GOLDEN_CASE
+PRESSURE_HEADING = "# 수사가 깊어진 지금 하게 되는 말 (어울릴 때만)"
 
 
 def _fresh(case_dir: Path = GOLDEN_CASE_DIR) -> dict:
@@ -26,6 +29,23 @@ def test_committed_golden_file_matches_current_content() -> None:
     assert json.loads(GOLDEN_PATH.read_text(encoding="utf-8")) == _fresh()
 
 
+def test_the_golden_command_writes_the_committed_file_byte_for_byte(tmp_path: Path) -> None:
+    # Through the parser rather than main(), so nothing reads a .env file.
+    out = tmp_path / "golden.json"
+    args = cli._parser().parse_args(["golden", "--out", str(out)])
+
+    assert args.handler(args) == 0
+    written = out.read_bytes()
+    assert b"\r" not in written
+    # Git may check the committed file out with CRLF (core.autocrlf); that is not the command's doing.
+    assert written == GOLDEN_PATH.read_bytes().replace(b"\r\n", b"\n")
+
+
+def test_the_golden_version_is_the_one_the_kotlin_port_checks() -> None:
+    # Kotlin GoldenParityTest checks the same number; version 2 added the "gathering" prompt.
+    assert json.loads(GOLDEN_PATH.read_text(encoding="utf-8"))["version"] == GOLDEN_VERSION == 2
+
+
 def test_golden_samples_only_build_for_the_case_the_app_ships() -> None:
     with pytest.raises(ContentError, match=GOLDEN_CASE):
         _fresh(CASE_DIR)
@@ -35,7 +55,8 @@ def test_golden_covers_every_suspect_variant_and_routing_case() -> None:
     golden = _fresh()
     assert {entry["suspect"] for entry in golden["prompts"]} == {"son", "niece", "maid"}
     assert {entry["variant"] for entry in golden["prompts"]} == {"cover", "truth"}
-    assert len(golden["prompts"]) == 3 * 6 * 2
+    # Suspects x (no clue, each clue alone, every clue) x variants; staged entries come on top.
+    assert len([entry for entry in golden["prompts"] if "stage" not in entry]) == 3 * 6 * 2
     assert {entry["expected"] for entry in golden["identify"]} == {"son", "niece", "maid", None}
     assert golden["summaries"] and golden["sentences"]
     assert any(len(entry["testimonies"]) > MAX_TESTIMONIES for entry in golden["summaries"])
@@ -52,3 +73,52 @@ def test_golden_covers_every_suspect_variant_and_routing_case() -> None:
     topics = golden["topics"]
     assert any(entry["topics"] for entry in topics) and any(not entry["topics"] for entry in topics)
     assert all(("지금 꺼낸" in entry["prompt"]) == bool(entry["topics"]) for entry in topics)
+
+
+def test_golden_has_the_late_stage_prompts_of_every_suspect_with_pressure_lines() -> None:
+    golden = _fresh()
+    case = load_case(GOLDEN_CASE_DIR)
+    every_clue = [clue.id for clue in case.clues]
+    staged = [entry for entry in golden["prompts"] if entry.get("stage") in PRESSURE_STAGES]
+    every_clue_cover = {
+        entry["suspect"]: entry["prompt"]
+        for entry in golden["prompts"]
+        if "stage" not in entry and entry["unlocked"] == every_clue and entry["variant"] == "cover"
+    }
+
+    assert {(entry["suspect"], entry["stage"]) for entry in staged} == {
+        (suspect, stage) for suspect in ("son", "niece", "maid") for stage in ("pressing", "ready")
+    }
+    assert not any(
+        PRESSURE_HEADING in entry["prompt"]
+        for entry in golden["prompts"]
+        if entry.get("stage") not in PRESSURE_STAGES
+    )
+    for entry in staged:
+        suspect = load_suspect(GOLDEN_CASE_DIR / "suspects" / f"{entry['suspect']}.json", case)
+        section = f"\n\n{PRESSURE_HEADING}\n- {pressure_line(suspect, entry['stage'])}"
+        # The app gets this far only with every clue found, and the stage adds nothing but its line.
+        assert (entry["unlocked"], entry["variant"]) == (every_clue, "cover")
+        assert section in entry["prompt"]
+        assert entry["prompt"].replace(section, "", 1) == every_clue_cover[entry["suspect"]]
+
+
+def test_golden_has_one_gathering_prompt_and_it_is_the_stage_less_one() -> None:
+    # A persona's pressure lines stay out until "pressing", so with some clues but not all found the stage
+    # changes nothing; the Kotlin port renders this entry at its stage too.
+    golden = _fresh()
+    case = load_case(GOLDEN_CASE_DIR)
+    every_clue = {clue.id for clue in case.clues}
+    (entry,) = [entry for entry in golden["prompts"] if entry.get("stage") == "gathering"]
+    suspect = load_suspect(GOLDEN_CASE_DIR / "suspects" / f"{entry['suspect']}.json", case)
+    stage_less = [
+        other["prompt"]
+        for other in golden["prompts"]
+        if "stage" not in other
+        and (other["suspect"], other["unlocked"], other["variant"]) == (entry["suspect"], entry["unlocked"], "cover")
+    ]
+
+    assert suspect.pressure and entry["variant"] == "cover"
+    assert entry["unlocked"] and set(entry["unlocked"]) < every_clue
+    assert stage_less == [entry["prompt"]]
+    assert PRESSURE_HEADING not in entry["prompt"]

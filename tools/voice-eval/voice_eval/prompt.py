@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from collections.abc import Iterable, Mapping
 
-from voice_eval.content import Case, Probe, Suspect, UnlockableFact, history_error
+from voice_eval.content import STAGES, Case, Fact, Probe, Suspect, UnlockableFact, history_error
 from voice_eval.metrics import phrase_hits
 
 VARIANTS = ("cover", "truth")
@@ -29,6 +29,7 @@ _TOPIC_RULE = (
     "적힌 {name}의 성격대로 짧게 받아넘겨라."
 )
 _BEFORE_FOUND_HEADING = "# 플레이어가 아직 찾지 않은 단서를 물을 때 (먼저 꺼내지 말 것)"
+_PRESSURE_HEADING = "# 수사가 깊어진 지금 하게 되는 말 (어울릴 때만)"
 
 
 def _final_consonant(word: str) -> int | None:
@@ -61,6 +62,17 @@ def unlocked_facts(suspect: Suspect, unlocked: frozenset[str]) -> tuple[Unlockab
     return tuple(fact for fact in suspect.unlockable if set(fact.unlocked_by) <= unlocked)
 
 
+def shown_facts(suspect: Suspect, unlocked: frozenset[str]) -> tuple[tuple[Fact, ...], tuple[UnlockableFact, ...]]:
+    """The public facts and reactions the prompt shows: an unlocked reaction hides the lines it
+    [replaces]. Prompt only; allowed_facts keeps every answer key."""
+    reactions = unlocked_facts(suspect, unlocked)
+    replaced = {target for fact in reactions for target in fact.replaces}
+    return (
+        tuple(fact for fact in suspect.public if fact.id not in replaced),
+        tuple(fact for fact in reactions if fact.id not in replaced),
+    )
+
+
 def require_known_clues(case: Case, unlocked: frozenset[str]) -> None:
     unknown = sorted(unlocked - {clue.id for clue in case.clues})
     if unknown:
@@ -70,7 +82,8 @@ def require_known_clues(case: Case, unlocked: frozenset[str]) -> None:
 def allowed_facts(case: Case, suspect: Suspect, unlocked: frozenset[str]) -> tuple[str, ...]:
     """What the suspect may state as fact: the case overview, its own profile and relationships,
     its public knowledge and the reactions the found clues unlocked. The judge and the sentence
-    check both treat these as already public."""
+    check both treat these as already public. Facts come as their answer-key text, not the
+    first-person line the suspect's prompt shows."""
     relationships = (
         f"{case.member(relationship.target).name}에 대해: {relationship.attitude}"
         for relationship in suspect.relationships
@@ -85,14 +98,29 @@ def allowed_facts(case: Case, suspect: Suspect, unlocked: frozenset[str]) -> tup
 
 
 def _unlocked_section(case: Case, suspect: Suspect, unlocked: frozenset[str]) -> str:
+    """Each found clue, then the reactions it brings up. A first-person line does not say when it is
+    said, as the answer key's "…이야기에" did, so its label names its clues; a reaction to several
+    clues goes once, under the last of them in case order, the clue the narrator's hint names."""
     clues = [clue for clue in case.clues if clue.id in unlocked]
     if not clues:
         return "- 아직 플레이어가 찾은 단서가 없다."
-    lines = [f"[단서] {clue.title}: {clue.summary}" for clue in clues]
-    for fact in unlocked_facts(suspect, unlocked):
-        demeanor = f" (태도: {fact.demeanor})" if fact.demeanor else ""
-        lines.append(f"[너의 반응] {fact.text}{demeanor}")
+    order = [clue.id for clue in case.clues]
+    _, reactions = shown_facts(suspect, unlocked)
+    lines: list[str] = []
+    for clue in clues:
+        lines.append(f"[단서] {clue.title}: {clue.summary}")
+        lines.extend(
+            _reaction_line(case, fact, order)
+            for fact in reactions
+            if max(fact.unlocked_by, key=order.index) == clue.id
+        )
     return bullets(lines)
+
+
+def _reaction_line(case: Case, fact: UnlockableFact, order: list[str]) -> str:
+    titles = "·".join(case.clue(clue_id).title for clue_id in sorted(fact.unlocked_by, key=order.index))
+    demeanor = f" (태도: {fact.demeanor})" if fact.demeanor else ""
+    return f"[{titles} 이야기에 너의 반응] {fact.prompt_text}{demeanor}"
 
 
 def _speech_section(suspect: Suspect) -> str:
@@ -124,6 +152,21 @@ def _before_found_section(case: Case, suspect: Suspect, unlocked: frozenset[str]
     if not lines:
         return ""
     return f"\n\n{_BEFORE_FOUND_HEADING}\n{bullets(lines)}"
+
+
+def pressure_line(suspect: Suspect, stage: str) -> str | None:
+    """The persona's line for [stage]: "ready" falls back to "pressing", earlier stages have none."""
+    lines = dict(suspect.pressure)
+    if stage == "ready":
+        return lines.get("ready") or lines.get("pressing")
+    return lines.get("pressing") if stage == "pressing" else None
+
+
+def _pressure_section(suspect: Suspect, stage: str) -> str:
+    """{{pressure}} follows the found-clue section directly, so the value brings its own blank line;
+    without a line for the stage it is empty and the prompt is as before."""
+    line = pressure_line(suspect, stage)
+    return f"\n\n{_PRESSURE_HEADING}\n- {line}" if line else ""
 
 
 def _secret_section(suspect: Suspect, variant: str) -> str:
@@ -159,9 +202,12 @@ def render_system_prompt(
     template: str,
     *,
     topics: tuple[str, ...] = (),
+    stage: str = "opening",
 ) -> str:
     if variant not in VARIANTS:
         raise ValueError(f"unknown variant '{variant}' (expected one of {', '.join(VARIANTS)})")
+    if stage not in STAGES:
+        raise ValueError(f"unknown stage '{stage}' (expected one of {', '.join(STAGES)})")
     require_known_clues(case, unlocked)
 
     values = {
@@ -178,8 +224,9 @@ def render_system_prompt(
             [f"{suspect.age}세. {suspect.background}", *suspect.personality]
         ),
         "speech_style": _speech_section(suspect),
-        "public_knowledge": bullets(fact.text for fact in suspect.public),
+        "public_knowledge": bullets(fact.prompt_text for fact in shown_facts(suspect, unlocked)[0]),
         "unlocked_knowledge": _unlocked_section(case, suspect, unlocked),
+        "pressure": _pressure_section(suspect, stage),
         "before_found": _before_found_section(case, suspect, unlocked),
         "relationships": _relationship_section(case, suspect),
         "deflections": bullets(suspect.deflections),

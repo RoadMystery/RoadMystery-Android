@@ -31,7 +31,7 @@
 
 # 플레이어가 찾은 단서와 그에 대한 너의 태도
 태도는 말투와 문장 길이로만 드러내고, 그 때문에 문장 수를 늘리지 마라. 자기 태도나 머뭇거림을 설명하는 말도, 지문도 쓰지 마라.
-{{unlocked_knowledge}}
+{{unlocked_knowledge}}{{pressure}}
 
 # 다른 인물에 대해
 {{relationships}}

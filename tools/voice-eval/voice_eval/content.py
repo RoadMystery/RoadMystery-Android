@@ -25,6 +25,13 @@ PROBE_CATEGORIES = frozenset(
         "secret_pressure",
     }
 )
+PROBE_KEYS = frozenset({"id", "category", "unlocked", "question", "history", "stage"})
+"""What a probe question may hold; anything else, such as a misspelt "stage", is an error rather than
+silently dropped."""
+STAGES = ("opening", "gathering", "pressing", "ready")
+"""수사 진척도, never shown to the player (Kotlin content.InvestigationStage): no clue found, some
+found, all found with a key reaction still to draw out, everything drawn out. Prompts change only
+from "pressing" on, through a persona's pressure lines."""
 
 
 class ContentError(ValueError):
@@ -40,6 +47,15 @@ class Clue:
     keywords: tuple[str, ...]
     hidden_facts: tuple[str, ...] = ()
     """What the clue gives away, one fact a sentence, none of it public. Empty: only the summary."""
+    hint: str | None = None
+    """What the app's narrator says while this clue is not found and no key reaction is within reach:
+    for a leak the spoiler guard cut (the hint of the clue whose keyword leaked, else of the first
+    unfound clue that has one) or after a question asking for the culprit or the solution. With no
+    hint on any unfound clue, only a turn cut at its first sentence gets a deflection instead. Never
+    sent to the LLM."""
+    mentions: tuple[str, ...] = ()
+    """Words besides the keywords and title by which a question brings the clue up; the app counts
+    confrontations with them. Never sent to the LLM."""
 
 
 @dataclass(frozen=True)
@@ -75,6 +91,10 @@ class Case:
     solution: Solution
     forbidden_phrases: tuple[str, ...]
     schema_dir: Path = field(compare=False)
+    spoiler_hint: str | None = None
+    """The narrator's hint (spoilerGuard.hint) for a leak the spoiler guard cut or after a question
+    asking for the culprit or the solution, used only once every clue is found and no key reaction is
+    left to point the player to."""
 
     def clue(self, clue_id: str) -> Clue:
         for clue in self.clues:
@@ -91,16 +111,37 @@ class Case:
 
 @dataclass(frozen=True)
 class Fact:
+    """[text] is the answer key the judge and the sentence check read; [line], when the persona has
+    one, is the same claim as the suspect says it, and the prompt shows that instead."""
+
     id: str
     text: str
+    line: str | None = None
+
+    @property
+    def prompt_text(self) -> str:
+        return self.line or self.text
 
 
 @dataclass(frozen=True)
 class UnlockableFact:
+    """A reaction to found clues; [text] and [line] as in Fact."""
+
     id: str
     unlocked_by: tuple[str, ...]
     text: str
     demeanor: str | None
+    line: str | None = None
+    key: bool = False
+    """Needed to solve the case: drawing out every key reaction makes the stage "ready"."""
+    replaces: tuple[str, ...] = ()
+    """Ids of the suspect's public facts and earlier reactions this reaction supersedes: once it is
+    unlocked the prompt stops showing them, so a cover story and the confession that ends it do not
+    sit side by side. The judge still reads every answer key."""
+
+    @property
+    def prompt_text(self) -> str:
+        return self.line or self.text
 
 
 @dataclass(frozen=True)
@@ -138,6 +179,8 @@ class Suspect:
     fallback_not_understood: str
     filler: str
     before_found: tuple[BeforeFound, ...] = ()
+    pressure: tuple[tuple[str, str], ...] = ()
+    """(stage, first-person line) pairs for "pressing" and "ready", in STAGES order."""
 
 
 @dataclass(frozen=True)
@@ -147,6 +190,8 @@ class Probe:
     unlocked: tuple[str, ...]
     question: str
     history: tuple[dict[str, str], ...] = ()
+    stage: str = "opening"
+    """The investigation stage the question is asked at; it only matters for pressure lines."""
 
 
 def _read_json(path: Path) -> Any:
@@ -209,6 +254,8 @@ def load_case(case_dir: Path, schema_dir: Path | None = None) -> Case:
             chapter=item["chapter"],
             keywords=tuple(item["keywords"]),
             hidden_facts=tuple(item.get("hiddenFacts", ())),
+            hint=item.get("hint"),
+            mentions=tuple(item.get("mentions", ())),
         )
         for item in data["clues"]
     )
@@ -240,11 +287,12 @@ def load_case(case_dir: Path, schema_dir: Path | None = None) -> Case:
         ),
         forbidden_phrases=tuple(data["spoilerGuard"]["forbiddenPhrases"]),
         schema_dir=resolved_schema_dir,
+        spoiler_hint=data["spoilerGuard"].get("hint"),
     )
 
 
 def _facts(items: list[dict[str, str]]) -> tuple[Fact, ...]:
-    return tuple(Fact(id=item["id"], text=item["text"]) for item in items)
+    return tuple(Fact(id=item["id"], text=item["text"], line=item.get("line")) for item in items)
 
 
 def load_suspect(path: Path, case: Case) -> Suspect:
@@ -268,6 +316,9 @@ def load_suspect(path: Path, case: Case) -> Suspect:
             unlocked_by=tuple(item["unlockedBy"]),
             text=item["text"],
             demeanor=item.get("demeanor"),
+            line=item.get("line"),
+            key=item.get("key", False),
+            replaces=tuple(item.get("replaces", ())),
         )
         for item in knowledge["unlockable"]
     )
@@ -299,6 +350,7 @@ def load_suspect(path: Path, case: Case) -> Suspect:
     _unique(
         [fact.id for fact in (*public, *unlockable, *secret)], "knowledge", path
     )
+    _check_replaces(path, public, unlockable)
 
     profile = data["profile"]
     style = data["speechStyle"]
@@ -323,7 +375,33 @@ def load_suspect(path: Path, case: Case) -> Suspect:
         fallback_not_understood=fallback["notUnderstood"],
         filler=fallback["filler"],
         before_found=before_found,
+        pressure=tuple(
+            (stage, data["pressure"][stage]) for stage in STAGES if stage in data.get("pressure", {})
+        ),
     )
+
+
+def _check_replaces(path: Path, public: tuple[Fact, ...], unlockable: tuple[UnlockableFact, ...]) -> None:
+    """A reaction hides only lines the prompt already shows when it unlocks: the suspect's public
+    facts and its reactions to a subset of the same clues. A key reaction is never hidden, because
+    the investigation counts it as something to draw out."""
+    public_ids = {fact.id for fact in public}
+    reactions = {fact.id: fact for fact in unlockable}
+    for fact in unlockable:
+        for target in fact.replaces:
+            _require(target != fact.id, f"{path}: knowledge '{fact.id}' replaces itself")
+            _require(
+                target in public_ids or target in reactions,
+                f"{path}: knowledge '{fact.id}' replaces unknown fact '{target}'",
+            )
+            replaced = reactions.get(target)
+            if replaced is None:
+                continue
+            _require(not replaced.key, f"{path}: knowledge '{fact.id}' replaces key reaction '{target}'")
+            _require(
+                set(replaced.unlocked_by) <= set(fact.unlocked_by),
+                f"{path}: knowledge '{fact.id}' replaces '{target}', which needs clues '{fact.id}' does not",
+            )
 
 
 def history_error(history: Sequence[Mapping[str, str]]) -> str | None:
@@ -349,6 +427,12 @@ def load_probes(path: Path, case: Case) -> tuple[Probe, ...]:
     clue_ids = {clue.id for clue in case.clues}
     probes = []
     for item in data["probes"]:
+        unknown_keys = sorted(set(item) - PROBE_KEYS)
+        _require(
+            not unknown_keys,
+            f"{path}: probe '{item.get('id')}' has unknown key(s): "
+            + ", ".join(f"'{key}'" for key in unknown_keys),
+        )
         probe = Probe(
             id=item["id"],
             category=item["category"],
@@ -358,10 +442,18 @@ def load_probes(path: Path, case: Case) -> tuple[Probe, ...]:
                 {"role": turn["role"], "content": turn["content"]}
                 for turn in item.get("history", ())
             ),
+            stage=item.get("stage", "opening"),
         )
         _require(
             probe.category in PROBE_CATEGORIES,
             f"{path}: probe '{probe.id}' has unknown category '{probe.category}'",
+        )
+        _require(probe.stage in STAGES, f"{path}: probe '{probe.id}' has unknown stage '{probe.stage}'")
+        # The app reaches these stages only once every clue is found; anything else measures a prompt
+        # it never sends.
+        _require(
+            probe.stage not in ("pressing", "ready") or set(probe.unlocked) == clue_ids,
+            f"{path}: probe '{probe.id}' is asked at stage '{probe.stage}' without every clue unlocked",
         )
         for clue_id in probe.unlocked:
             _require(

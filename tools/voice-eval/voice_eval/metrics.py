@@ -78,11 +78,15 @@ _HANGUL_FIRST, _HANGUL_COUNT, _FINALS, _FINAL_BIEUP = 0xAC00, 11172, 28, 17
 
 def looks_like_readout(sentence: str, speaker: str = "") -> bool:
     """A sentence no suspect would say aloud, as the app judges it (Kotlin text/Sentences.kt): a
-    bracketed stage direction or label, the speaker's own name as the subject ("윤서진이 아는 사실에
-    없는 질문이라 …"), or the plain '-다' of instructions ("윤하린은 이 말을 처음 듣는다."). Suspects
-    speak 해요체 or 하십시오체, so '-ㅂ니다' and the propositive '-ㅂ시다' are speech."""
+    bracketed stage direction or label, Latin letters, the speaker's own name as the subject
+    ("윤서진이 아는 사실에 없는 질문이라 …"), or the plain '-다' of instructions ("윤하린은 이 말을 처음
+    듣는다."). Suspects speak Korean, so English is a note the model wrote to itself ("Player asks
+    about …", often after a tag such as "[think]"). They speak 해요체 or 하십시오체, so '-ㅂ니다' and the
+    propositive '-ㅂ시다' are speech."""
     text = sentence.strip()
     if any(char in READOUT_BRACKETS for char in text):
+        return True
+    if any(char.isascii() and char.isalpha() for char in text):
         return True
     if speaker and _names_speaker(text, speaker):
         return True

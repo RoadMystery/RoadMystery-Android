@@ -1,5 +1,6 @@
 package dev.voiceagent.agent
 
+import dev.voiceagent.content.InvestigationStage
 import dev.voiceagent.content.Scenario
 import dev.voiceagent.content.Suspect
 import dev.voiceagent.identify.SuspectIdentifier
@@ -50,6 +51,9 @@ import kotlin.random.Random
  *
  * One turn runs at a time. A new [ask] or [summarize], or [stop], cuts off the turn in progress
  * (barge-in). [state] is immutable and observable.
+ *
+ * It also keeps the investigation's hidden progress ([AgentState.stage], see [Investigation]) from the
+ * clues found and the key reactions drawn out; the narrator's hints and the nudge to accuse follow it.
  */
 class VoiceAgent(
     private val scenario: Scenario,
@@ -61,6 +65,7 @@ class VoiceAgent(
 ) {
     private val identifier = SuspectIdentifier.forCase(scenario.case)
     private val clueIds = scenario.case.clues.map { it.id }.toSet()
+    private val keyReactionIds = scenario.suspects.values.flatMap { it.unlockable }.filter { it.key }.map { it.id }.toSet()
     private val mutableState = MutableStateFlow(AgentState())
     private val activeTurn = AtomicReference<Job?>(null)
 
@@ -68,7 +73,7 @@ class VoiceAgent(
 
     fun unlockClue(clueId: String) {
         require(clueId in clueIds) { "unknown clue id: $clueId" }
-        mutableState.update { it.copy(unlockedClues = it.unlockedClues + clueId) }
+        mutableState.update { staged(it.copy(unlockedClues = it.unlockedClues + clueId)) }
     }
 
     /** Sets the suspect being questioned, e.g. from a touch on the suspect list; null clears it. */
@@ -77,13 +82,34 @@ class VoiceAgent(
         mutableState.update { it.copy(currentSuspect = suspectId) }
     }
 
-    /** Starts over: stops speaking and forgets the suspect, the clues and the notebook. */
+    /** Starts over: stops speaking and forgets the suspect, the clues, the notebook and the progress. */
     fun reset() {
-        stop()
-        mutableState.update { AgentState(game = it.game + 1) }
+        startGame(AgentState())
     }
 
-    /** F-05: answers [utterance] in the voice of the suspect it is addressed to. */
+    /**
+     * Resumes a saved game (StoryEngine persists these): the clues found, the notebook and the key
+     * reactions drawn out ([AgentState.confronted]). Like [reset] it stops the turn in progress; no
+     * suspect is being questioned and no hint or nudge has been given yet. Each testimony's question
+     * and answer are cut to the proxy's message limit, as [ask] records them. An unknown id throws
+     * [IllegalArgumentException] before anything changes.
+     */
+    fun restore(unlockedClues: Set<String>, notebook: List<Testimony>, confronted: Set<String> = emptySet()) {
+        unlockedClues.forEach { require(it in clueIds) { "unknown clue id: $it" } }
+        confronted.forEach { require(it in keyReactionIds) { "unknown key reaction id: $it" } }
+        notebook.forEach { require(it.suspect in scenario.suspects) { "unknown suspect id: ${it.suspect}" } }
+        // The notebook goes out again as conversation history, which must stay within the contract.
+        val testimonies = notebook.map {
+            it.copy(question = it.question.take(ProxyContract.MAX_MESSAGE_CHARS), answer = it.answer.take(ProxyContract.MAX_MESSAGE_CHARS))
+        }
+        // Copies, so a caller's mutable collection cannot change the state afterwards.
+        startGame(AgentState(unlockedClues = unlockedClues.toSet(), notebook = testimonies, confronted = confronted.toSet()))
+    }
+
+    /**
+     * F-05: answers [utterance] in the voice of the suspect it is addressed to. The narrator may end
+     * the turn with one line of its own ([ReplyKind.HINT]).
+     */
     suspend fun ask(utterance: String): AgentReply = runTurn { progress -> askTurn(utterance, progress) }
 
     /**
@@ -136,9 +162,12 @@ class VoiceAgent(
         mutableState.update { if (it.game == progress.game) it.copy(currentSuspect = suspectId) else it }
         progress.update { it.copy(suspectId = suspectId) }
         val topics = SuspectPrompt.raisedTopics(scenario.case, state.unlockedClues, question)
+        // The stage only adds pressure lines, and how the LLM answers with them is not measured yet, so
+        // off every turn gets the OPENING prompt. Either way the golden file pins it to Python's.
+        val stage = if (config.pressureLines) state.stage else InvestigationStage.OPENING
         val request = LlmRequest(
             task = LlmTask.INTERROGATION,
-            system = SuspectPrompt.render(scenario.case, suspect, state.unlockedClues, config.variant, scenario.suspectTemplate, topics),
+            system = SuspectPrompt.render(scenario.case, suspect, state.unlockedClues, config.variant, scenario.suspectTemplate, topics, stage),
             messages = conversation(state.notebook, suspectId, question),
             requestId = UUID.randomUUID().toString(),
         )
@@ -149,20 +178,59 @@ class VoiceAgent(
                 countSentences = ::countedSentences, clean = ::stripStageDirections, isReadout = { looksLikeReadout(it, suspect.name) },
             )
         } catch (e: CancellationException) {
-            // The player cut in: keep what they heard so a follow-up question has its context.
-            remember(progress.game, suspectId, question, progress.snapshot.sentences)
+            // The player cut in: keep what they heard so a follow-up question has its context, and
+            // count a reaction they heard as drawn out.
+            val heard = progress.snapshot.sentences
+            remember(progress.game, suspectId, question, heard)
+            confront(progress.game, suspect, state.unlockedClues, question, heard)
             throw e
         }
-        if (answer.sentences.isNotEmpty()) {
-            remember(progress.game, suspectId, question, answer.sentences)
-            return progress.reply(ReplyKind.ANSWER)
+        return endTurn(progress, suspect, state.unlockedClues, question, answer)
+    }
+
+    /**
+     * Records what the player heard of [answer], then ends the turn with at most one narrator line: the
+     * hint for a leak the guard cut, else the nudge on the first turn that ends at READY, else, after an
+     * answer-seeking question, a hint unless it is the one last given. An answer cut before its first
+     * sentence is replaced by one of the suspect's deflections, with or without a line after it.
+     * [unlocked]: the clues the prompt was made with.
+     */
+    private suspend fun endTurn(progress: TurnProgress, suspect: Suspect, unlocked: Set<String>, question: String, answer: Answer): AgentReply {
+        val heard = answer.sentences.isNotEmpty()
+        if (heard) remember(progress.game, suspect.id, question, answer.sentences)
+        val drawn = confront(progress.game, suspect, unlocked, question, answer.sentences)
+        // A reaction the question went after but did not draw out stays pending; "ask about it" would
+        // only repeat the question just asked, so the hint moves on. That holds when the answer was
+        // heard but did not count (only an opener, or asking to repeat) as much as when it was cut.
+        val tried = Investigation.drawnOut(scenario.case, suspect, unlocked, question) - drawn
+        val kind = when {
+            heard -> ReplyKind.ANSWER
+            answer.guarded -> {
+                // Even before a leak hint: the narrator alone would tell the player the answer was coming.
+                val line = suspect.deflections.randomOrNull(random) ?: suspect.fallbackNotUnderstood
+                remember(progress.game, suspect.id, question, listOf(line))
+                say(progress, line, suspect.speaker, isFiller = false)
+                ReplyKind.DEFLECTION
+            }
+            else -> return speakLine(progress, ReplyKind.FALLBACK, suspect, suspect.fallbackOffline)
         }
-        if (answer.guarded) {
-            val line = suspect.deflections.randomOrNull(random) ?: suspect.fallbackNotUnderstood
-            remember(progress.game, suspectId, question, listOf(line))
-            return speakLine(progress, ReplyKind.DEFLECTION, suspect, line)
+        val now = mutableState.value
+        val leakHint = if (answer.leaked.isEmpty()) null else hint(tried)
+        val line = when {
+            leakHint != null -> leakHint
+            // READY may have come with a clue the story unlocked, or a leak hint may have taken the turn
+            // that got there: the nudge waits for the first turn free for it.
+            now.stage == InvestigationStage.READY && !now.nudged -> NarratorLines.ACCUSE_NUDGE
+            Investigation.isAnswerSeeking(question) -> hint(tried)?.takeIf { it != now.lastHint }
+            else -> null
         }
-        return speakLine(progress, ReplyKind.FALLBACK, suspect, suspect.fallbackOffline)
+        if (line == null) {
+            // "Not twice in a row" counts answered turns: one without a narrator line ends the run.
+            mutableState.update { if (it.game == progress.game) it.copy(lastHint = null) else it }
+            return progress.reply(kind)
+        }
+        narrate(progress, line)
+        return progress.reply(ReplyKind.HINT)
     }
 
     private suspend fun summaryTurn(progress: TurnProgress): AgentReply {
@@ -206,7 +274,51 @@ class VoiceAgent(
         mutableState.update { if (it.game == game) it.copy(notebook = it.notebook + testimony) else it }
     }
 
-    private data class Answer(val sentences: List<String>, val guarded: Boolean)
+    /**
+     * Adds the key reactions [question] drew out of [suspect] if what the player [heard] answers it
+     * ([Investigation.isAnswer]), and returns them. [unlocked] is what the prompt was made with: it had
+     * a reaction only if all its clues were in it.
+     */
+    private fun confront(game: Int, suspect: Suspect, unlocked: Set<String>, question: String, heard: List<String>): Set<String> {
+        if (!Investigation.isAnswer(suspect, heard)) return emptySet()
+        val drawn = Investigation.drawnOut(scenario.case, suspect, unlocked, question)
+        if (drawn.isNotEmpty()) {
+            mutableState.update { if (it.game == game) staged(it.copy(confronted = it.confronted + drawn)) else it }
+        }
+        return drawn
+    }
+
+    /** The narrator's hint for the game as it stands now, including what this turn drew out. */
+    private fun hint(tried: Set<String>): String? = mutableState.value.let {
+        NarratorLines.hint(scenario.case, scenario.suspects.values, it.unlockedClues, it.confronted, tried)
+    }
+
+    /**
+     * Speaks a hint or the nudge in the narrator's voice, never testimony. Only once it has been spoken
+     * is it the last hint and the nudge given: a barge-in that cuts it off leaves the one nudge of the
+     * game for the next turn.
+     */
+    private suspend fun narrate(progress: TurnProgress, line: String) {
+        // Marked before say() adds it to the sentences, so a reply cut off here still keeps it apart.
+        progress.update { it.copy(narratorLine = line) }
+        say(progress, line, config.narratorSpeaker, isFiller = false)
+        mutableState.update {
+            if (it.game == progress.game) it.copy(lastHint = line, nudged = it.nudged || line == NarratorLines.ACCUSE_NUDGE) else it
+        }
+    }
+
+    /** [state] with its stage worked out again from its clues and confrontations. */
+    private fun staged(state: AgentState): AgentState =
+        state.copy(stage = Investigation.stage(scenario.case, scenario.suspects.values, state.unlockedClues, state.confronted))
+
+    /** Replaces the game with [start] in a new [AgentState.game], so a turn cut off here cannot write into it. */
+    private fun startGame(start: AgentState) {
+        stop()
+        mutableState.update { staged(start.copy(game = it.game + 1)) }
+    }
+
+    /** [leaked]: the blocked phrases that stopped the answer, if a leak is what stopped it. */
+    private data class Answer(val sentences: List<String>, val guarded: Boolean, val leaked: List<String>)
 
     private data class Line(val text: String, val isFiller: Boolean)
 
@@ -250,7 +362,7 @@ class VoiceAgent(
             lines.close()
         }
         talker.join()
-        Answer(builder.sentences, builder.guarded)
+        Answer(builder.sentences, builder.guarded, builder.leaked)
     }
 
     /** Feeds streamed text to [builder] until the answer is complete; returns a failure code or null. */
@@ -281,7 +393,9 @@ class VoiceAgent(
         }
     }
 
+    /** Ends the turn with one fixed line, in [suspect]'s voice or, when null, the narrator's; the reply is theirs. */
     private suspend fun speakLine(progress: TurnProgress, kind: ReplyKind, suspect: Suspect?, line: String): AgentReply {
+        progress.update { it.copy(suspectId = suspect?.id) }
         say(progress, line, suspect?.speaker ?: config.narratorSpeaker, isFiller = false)
         return progress.reply(kind)
     }
@@ -316,6 +430,8 @@ private class TurnProgress(val game: Int) {
         val firstTextMs: Long? = null,
         val failure: String? = null,
         val speechError: String? = null,
+        /** Set as the narrator's line is handed to speech, so it is always the last of [sentences]. */
+        val narratorLine: String? = null,
     )
 
     private val current = AtomicReference(Snapshot())
@@ -327,7 +443,7 @@ private class TurnProgress(val game: Int) {
     }
 
     fun reply(kind: ReplyKind): AgentReply = snapshot.let {
-        AgentReply(kind, it.suspectId, it.sentences, it.fillerPlayed, it.firstTextMs, it.failure, it.speechError)
+        AgentReply(kind, it.suspectId, it.sentences, it.fillerPlayed, it.firstTextMs, it.failure, it.speechError, it.narratorLine)
     }
 }
 
@@ -351,6 +467,10 @@ private class AnswerBuilder(
     var guarded = false
         private set
 
+    /** The blocked phrases the answer was about to say, when they are what stopped it. */
+    var leaked: List<String> = emptyList()
+        private set
+
     private val isOpen: Boolean get() = !guarded && countSentences(accepted) < maxSentences
 
     /** Adds streamed text; false once the answer is complete (limit reached or guard tripped). */
@@ -371,8 +491,10 @@ private class AnswerBuilder(
             }
             // The whole answer so far is checked with punctuation ignored, so a phrase split across
             // two sentences is caught at its second half, which is then not spoken.
-            if (phraseHits((accepted + sentence).joinToString(" "), blockedPhrases).isNotEmpty()) {
+            val hits = phraseHits((accepted + sentence).joinToString(" "), blockedPhrases)
+            if (hits.isNotEmpty()) {
                 guarded = true
+                leaked = hits
                 return false
             }
             accepted += sentence

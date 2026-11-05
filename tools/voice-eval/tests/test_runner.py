@@ -1,3 +1,4 @@
+import dataclasses
 import json
 from pathlib import Path
 
@@ -68,6 +69,40 @@ def test_a_question_raising_an_unfound_clue_gets_the_topic_rule(
     assert "'열쇠' 이야기는" in systems[key.question]
     # A question without such a topic gets exactly the prompt it got before topic rules existed.
     assert systems[alibi.question] == render_system_prompt(case, butler, frozenset(), "cover", template)
+
+
+def test_a_probe_asked_late_in_the_investigation_gets_the_pressure_line(
+    case: Case, butler: Suspect, template: str, probes: tuple[Probe, ...]
+) -> None:
+    systems: list[str] = []
+
+    def remember(candidate: Candidate, system: str, messages: list[dict]) -> str:
+        systems.append(system)
+        return "저장고에 있었습니다."
+
+    line = "회장님께는 정말 면목이 없습니다."
+    pressed = dataclasses.replace(butler, pressure=(("pressing", line),))
+    every_clue = tuple(clue.id for clue in case.clues)
+    early = dataclasses.replace(next(p for p in probes if p.id == "alibi-basic"), unlocked=every_clue)
+    late = dataclasses.replace(early, id="alibi-basic-pressing", stage="pressing")
+    records = run_matrix(
+        case=case,
+        suspect=pressed,
+        probes=(early, late),
+        candidates=CANDIDATES[:1],
+        variants=("cover",),
+        repeats=1,
+        template=template,
+        provider=ScriptedProvider(remember),
+    )
+
+    found = frozenset(every_clue)
+    assert systems == [
+        render_system_prompt(case, pressed, found, "cover", template),
+        render_system_prompt(case, pressed, found, "cover", template, stage="pressing"),
+    ]
+    assert line in systems[1]
+    assert [record.to_json()["stage"] for record in records] == ["opening", "pressing"]
 
 
 def test_run_matrix_covers_every_combination_and_writes_jsonl(

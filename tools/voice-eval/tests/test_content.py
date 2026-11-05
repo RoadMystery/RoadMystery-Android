@@ -17,6 +17,8 @@ from voice_eval.content import (
 from voice_eval.prompt import allowed_facts
 
 BUTLER_PATH = CASE_DIR / "suspects" / "butler.json"
+JADE_DIR = CASE_DIR.parent / "jade-crown"
+SCHEMA_DIR = CASE_DIR.parent.parent / "schema"
 
 
 def _write_variant(tmp_path: Path, source: Path, mutate) -> Path:
@@ -78,6 +80,58 @@ def test_before_found_has_one_line_per_clue(tmp_path: Path, case: Case) -> None:
         load_suspect(path, case)
 
 
+def _reaction(data: dict, fact_id: str) -> dict:
+    return next(fact for fact in data["knowledge"]["unlockable"] if fact["id"] == fact_id)
+
+
+def _add_reaction_to_both_clues(data: dict, *replaces: str) -> None:
+    data["knowledge"]["unlockable"].append(
+        {
+            "id": "k-both",
+            "unlockedBy": ["clue-fusebox", "clue-wet-gloves"],
+            "text": "두 단서를 다 보고 털어놓는 말",
+            "replaces": list(replaces),
+        }
+    )
+
+
+def _replacing(fact_id: str, *targets: str):
+    def mutate(data: dict) -> None:
+        _reaction(data, fact_id)["replaces"] = list(targets)
+
+    return mutate
+
+
+def _replacing_a_key_reaction(data: dict) -> None:
+    _reaction(data, "k-fusebox")["key"] = True
+    _add_reaction_to_both_clues(data, "k-fusebox")
+
+
+@pytest.mark.parametrize(
+    ("mutate", "message"),
+    [
+        (_replacing("k-fusebox", "k-nope"), "unknown fact 'k-nope'"),
+        (_replacing("k-fusebox", "k-fusebox"), "replaces itself"),
+        (_replacing("k-fusebox", "k-gloves"), "needs clues"),
+        (_replacing_a_key_reaction, "replaces key reaction 'k-fusebox'"),
+    ],
+)
+def test_a_reaction_replaces_only_lines_already_shown_that_no_key_reaction_needs(
+    tmp_path: Path, case: Case, mutate, message: str
+) -> None:
+    path = _write_variant(tmp_path, BUTLER_PATH, mutate)
+    with pytest.raises(ContentError, match=message):
+        load_suspect(path, case)
+
+
+def test_a_reaction_may_replace_public_facts_and_reactions_shown_before_it(tmp_path: Path, case: Case) -> None:
+    path = _write_variant(tmp_path, BUTLER_PATH, lambda data: _add_reaction_to_both_clues(data, "k-alibi-claim", "k-fusebox"))
+    suspect = load_suspect(path, case)
+
+    assert {fact.id: fact.replaces for fact in suspect.unlockable}["k-both"] == ("k-alibi-claim", "k-fusebox")
+    assert all(fact.replaces == () for fact in suspect.unlockable if fact.id != "k-both")
+
+
 def test_hidden_facts_and_before_found_are_optional(tmp_path: Path, case: Case) -> None:
     case_dir = tmp_path / "case"
     case_dir.mkdir()
@@ -94,6 +148,125 @@ def test_hidden_facts_and_before_found_are_optional(tmp_path: Path, case: Case) 
     assert all(clue.hidden_facts == () for clue in plain_case.clues)
     assert plain_case.solution.hidden_facts == ()
     assert load_suspect(path, case).before_found == ()
+
+
+def test_a_fact_line_is_what_the_prompt_shows_and_its_text_stays_the_answer_key(
+    tmp_path: Path, case: Case
+) -> None:
+    def mutate(data: dict) -> None:
+        data["knowledge"]["public"][0]["line"] = "정전 직전에 회장님 지시로 생신용 와인을 가지러 내려갔습니다."
+        data["knowledge"]["unlockable"][0]["line"] = "두꺼비집이 저장고 바로 옆에 있는 건 맞습니다."
+
+    butler = load_suspect(_write_variant(tmp_path, BUTLER_PATH, mutate), case)
+    alibi, unchanged = butler.public[0], butler.public[1]
+
+    assert alibi.prompt_text == "정전 직전에 회장님 지시로 생신용 와인을 가지러 내려갔습니다."
+    assert alibi.text.endswith("말한다.")
+    assert unchanged.line is None and unchanged.prompt_text == unchanged.text
+    assert butler.unlockable[0].prompt_text == "두꺼비집이 저장고 바로 옆에 있는 건 맞습니다."
+
+
+def test_narrator_hints_load_and_are_optional(case: Case) -> None:
+    jade = load_case(JADE_DIR)
+
+    assert all(clue.hint for clue in jade.clues) and jade.spoiler_hint
+    assert all(clue.hint is None for clue in case.clues) and case.spoiler_hint is None
+
+
+def test_mentions_key_reactions_and_pressure_lines_load_and_are_optional(case: Case) -> None:
+    jade = load_case(JADE_DIR)
+    jade_suspects = [
+        load_suspect(JADE_DIR / "suspects" / f"{member.id}.json", jade) for member in jade.cast if member.is_suspect
+    ]
+    demo_suspects = [load_suspect(CASE_DIR / "suspects" / f"{sid}.json", case) for sid in ("butler", "niece", "cook")]
+
+    assert jade.clue("clue-window").mentions == ("창문", "서재 창", "창밖", "창 아래", "창가", "창을 열", "창 열")
+    assert {fact.id for suspect in jade_suspects for fact in suspect.unlockable if fact.key} == {
+        "k-son-shoes",
+        "k-niece-window",
+        "k-maid-back-door",
+    }
+    assert all([stage for stage, _ in suspect.pressure] == ["pressing", "ready"] for suspect in jade_suspects)
+    assert all(clue.mentions == () for clue in case.clues)
+    assert not any(fact.key for suspect in demo_suspects for fact in suspect.unlockable)
+    assert all(suspect.pressure == () for suspect in demo_suspects)
+
+
+def test_pressure_lines_load_in_stage_order(tmp_path: Path, case: Case) -> None:
+    path = _write_variant(
+        tmp_path,
+        BUTLER_PATH,
+        lambda data: data.update(pressure={"ready": "다 말씀드렸습니다.", "pressing": "면목이 없습니다."}),
+    )
+
+    assert load_suspect(path, case).pressure == (("pressing", "면목이 없습니다."), ("ready", "다 말씀드렸습니다."))
+
+
+@pytest.mark.parametrize("stage", ["opening", "gathering", "finale"])
+def test_pressure_lines_are_only_for_pressing_and_ready(tmp_path: Path, case: Case, stage: str) -> None:
+    # Nothing is added to the prompt before "pressing", so a line for an earlier stage would never be used.
+    path = _write_variant(tmp_path, BUTLER_PATH, lambda data: data.update(pressure={stage: "면목이 없습니다."}))
+    with pytest.raises(ContentError, match=rf"pressure: .*'{stage}'"):
+        load_suspect(path, case)
+
+
+def test_a_one_letter_mention_is_rejected(tmp_path: Path) -> None:
+    # Matched with spacing ignored and inside longer words, so 창 would also find 창고.
+    case_dir = tmp_path / "case"
+    case_dir.mkdir()
+    _write_variant(case_dir, CASE_DIR / "case.json", lambda data: data["clues"][0].update(mentions=["창"]))
+    with pytest.raises(ContentError, match="clues/0/mentions/0"):
+        load_case(case_dir, schema_dir=CASE_DIR.parent.parent / "schema")
+
+
+def test_a_clue_lists_each_mention_once(tmp_path: Path) -> None:
+    case_dir = tmp_path / "case"
+    case_dir.mkdir()
+    _write_variant(case_dir, CASE_DIR / "case.json", lambda data: data["clues"][0].update(mentions=["뒷문", "뒷문"]))
+    with pytest.raises(ContentError, match="clues/0/mentions: .*non-unique"):
+        load_case(case_dir, schema_dir=SCHEMA_DIR)
+
+
+@pytest.mark.parametrize(
+    ("mutate", "where"),
+    [
+        pytest.param(lambda data: data["clues"][0].update(hint=""), "clues/0/hint", id="clue"),
+        pytest.param(lambda data: data["spoilerGuard"].update(hint=""), "spoilerGuard/hint", id="spoiler-guard"),
+    ],
+)
+def test_an_empty_hint_is_rejected(tmp_path: Path, mutate, where: str) -> None:
+    case_dir = tmp_path / "case"
+    case_dir.mkdir()
+    _write_variant(case_dir, CASE_DIR / "case.json", mutate)
+    with pytest.raises(ContentError, match=f"{where}: '' should be non-empty"):
+        load_case(case_dir, schema_dir=SCHEMA_DIR)
+
+
+@pytest.mark.parametrize(
+    "line",
+    ["", " 앞에 빈칸이 있습니다.", "뒤에 빈칸이 있습니다. ", "가운데서\n줄이 바뀝니다.", "끝에서 줄이 바뀝니다.\n"],
+)
+def test_a_fact_line_is_one_line_without_surrounding_whitespace(tmp_path: Path, case: Case, line: str) -> None:
+    # The prompt shows a line after "- " on a line of its own. A final line break is the case a '$' in the
+    # schema's pattern would let through, since Python's '$' also matches before one.
+    path = _write_variant(tmp_path, BUTLER_PATH, lambda data: data["knowledge"]["public"][0].update(line=line))
+    with pytest.raises(ContentError, match="knowledge/public/0/line: "):
+        load_suspect(path, case)
+
+
+@pytest.mark.parametrize("value", ["", " 면목이 없습니다.", "면목이 없습니다.\n"])
+def test_a_pressure_line_is_one_line_without_surrounding_whitespace(tmp_path: Path, case: Case, value: str) -> None:
+    path = _write_variant(tmp_path, BUTLER_PATH, lambda data: data.update(pressure={"pressing": value}))
+    with pytest.raises(ContentError, match="pressure/pressing: "):
+        load_suspect(path, case)
+
+
+def test_a_secret_takes_no_line(tmp_path: Path, case: Case) -> None:
+    path = _write_variant(
+        tmp_path, BUTLER_PATH, lambda data: data["knowledge"]["secret"][0].update(line="말씀드릴 수 없습니다.")
+    )
+    with pytest.raises(ContentError, match=r"knowledge/secret/0: .*'line'"):
+        load_suspect(path, case)
 
 
 def test_suspect_takes_name_and_role_from_cast(butler: Suspect) -> None:
@@ -165,6 +338,38 @@ def test_probe_with_unknown_clue_is_rejected(tmp_path: Path, case: Case) -> None
 
     path = _write_variant(tmp_path, PROBES_PATH, mutate)
     with pytest.raises(ContentError, match="clue-nope"):
+        load_probes(path, case)
+
+
+def test_a_probe_stage_loads_and_defaults_to_opening(tmp_path: Path, case: Case) -> None:
+    every_clue = [clue.id for clue in case.clues]
+    path = _write_variant(
+        tmp_path, PROBES_PATH, lambda data: data["probes"][0].update(stage="pressing", unlocked=every_clue)
+    )
+    first, *rest = load_probes(path, case)
+
+    assert first.stage == "pressing"
+    assert rest and all(probe.stage == "opening" for probe in rest)
+
+
+def test_a_late_stage_probe_must_unlock_every_clue(tmp_path: Path, case: Case) -> None:
+    path = _write_variant(
+        tmp_path, PROBES_PATH, lambda data: data["probes"][0].update(stage="ready", unlocked=["clue-fusebox"])
+    )
+    with pytest.raises(ContentError, match="without every clue unlocked"):
+        load_probes(path, case)
+
+
+def test_probe_with_unknown_stage_is_rejected(tmp_path: Path, case: Case) -> None:
+    path = _write_variant(tmp_path, PROBES_PATH, lambda data: data["probes"][0].update(stage="finale"))
+    with pytest.raises(ContentError, match="unknown stage 'finale'"):
+        load_probes(path, case)
+
+
+def test_probe_with_unknown_key_is_rejected(tmp_path: Path, case: Case) -> None:
+    # Dropped quietly, a misspelt "stage" would ask a probe meant for "pressing" at "opening".
+    path = _write_variant(tmp_path, PROBES_PATH, lambda data: data["probes"][0].update(stgae="pressing"))
+    with pytest.raises(ContentError, match=r"unknown key\(s\): 'stgae'"):
         load_probes(path, case)
 
 

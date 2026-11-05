@@ -43,8 +43,9 @@ import org.json.JSONObject
  * Extras, applied in this order: `reset` (boolean), `suspect` (id; empty clears), `clues`
  * (comma-separated ids), `pcm` (asset path of a recorded question, e.g. stt/alibi-basic.pcm; the
  * recordings ask about the earlier demo-sapphire case), `ask` (text), `summary` (boolean). Each
- * reply is logged under the VoiceAgentDemo tag as `DEMO_REPLY {json}`, and every command list
- * ends with `DEMO_DONE`.
+ * reply is logged under the VoiceAgentDemo tag as `DEMO_REPLY {json}`, with the suspect's words
+ * (`suspectText`) and the narrator's line (`narratorLine`) apart, and every command list ends with
+ * `DEMO_DONE`.
  */
 class MainActivity : Activity() {
     private class Services(val agent: VoiceAgent, val output: PleosSpeechOutput, val input: PleosSpeechInput)
@@ -139,6 +140,9 @@ class MainActivity : Activity() {
             .put("kind", reply.kind.name)
             .put("suspect", reply.suspectId ?: JSONObject.NULL)
             .put("sentences", JSONArray(reply.sentences))
+            // Testimony is the suspect's words only, never the narrator's hint after them.
+            .put("suspectText", reply.suspectText)
+            .put("narratorLine", reply.narratorLine ?: JSONObject.NULL)
             .put("fillerPlayed", reply.fillerPlayed)
             .put("firstTextMs", reply.firstTextMs ?: JSONObject.NULL)
             .put("elapsedMs", SystemClock.elapsedRealtime() - startedAt)
@@ -146,7 +150,14 @@ class MainActivity : Activity() {
             .put("speechError", reply.speechError ?: JSONObject.NULL)
         // Debug builds only: these lines are the player's conversation (llm-proxy-contract.md).
         if (BuildConfig.DEBUG) Log.i(TAG, "DEMO_REPLY $json")
-        log("[${reply.kind}] ${speakerName(reply.suspectId)}: ${reply.text}")
+        logReply(reply)
+    }
+
+    /** One line per voice: the suspect's words, then the narrator's line after them, if any. */
+    private fun logReply(reply: AgentReply) {
+        reply.suspectId?.let { log("[${reply.kind}] ${speakerName(it)}: ${reply.suspectText}") }
+        val narrator = if (reply.suspectId == null) reply.text else reply.narratorLine
+        narrator?.let { log("[${reply.kind}] ${speakerName(null)}: $it") }
     }
 
     private fun withServices(alwaysLogDone: Boolean = false, block: suspend (Services) -> Unit) = scope.launch {

@@ -1,6 +1,9 @@
 package dev.voiceagent.agent
 
 import dev.voiceagent.content.Case
+import dev.voiceagent.content.Clue
+import dev.voiceagent.content.InvestigationStage
+import dev.voiceagent.content.Suspect
 import dev.voiceagent.llm.ProxyContract
 import dev.voiceagent.prompt.KoreanParticles
 import dev.voiceagent.prompt.PromptVariant
@@ -23,6 +26,13 @@ data class AgentConfig(
     val maxSummarySentences: Int = 5,
     /** Earlier exchanges with the same suspect sent along with a new question. */
     val historyExchanges: Int = MAX_HISTORY_EXCHANGES,
+    /**
+     * Adds the suspect's pressure line ([Suspect.pressure]) to the prompt from
+     * [InvestigationStage.PRESSING] on. Off until measured (see docs/voice-agent/investigation-progress.md):
+     * the golden file pins how the prompt renders with the lines, but how the LLM answers them is not
+     * measured yet.
+     */
+    val pressureLines: Boolean = false,
 ) {
     init {
         require(historyExchanges in 0..MAX_HISTORY_EXCHANGES) { "historyExchanges must be 0..$MAX_HISTORY_EXCHANGES" }
@@ -42,16 +52,45 @@ data class AgentState(
     val unlockedClues: Set<String> = emptySet(),
     /** What suspects have said, in order: conversation history and the F-06 수사 수첩. */
     val notebook: List<Testimony> = emptyList(),
-    /** Counts [VoiceAgent.reset]s, so a turn cut off by a reset cannot write into the new game. */
+    /** Counts [VoiceAgent.reset]s and [VoiceAgent.restore]s, so a turn they cut off cannot write into the new game. */
     val game: Int = 0,
+    /**
+     * Ids of the key reactions drawn out: the player heard the suspect answer a question bringing up
+     * their clue ([Investigation.isAnswer]).
+     */
+    val confronted: Set<String> = emptySet(),
+    /** 수사 진척도 from [unlockedClues] and [confronted] ([Investigation.stage]); never shown to the player. */
+    val stage: InvestigationStage = InvestigationStage.OPENING,
+    /**
+     * The narrator's line (a hint or the nudge) if the latest turn the suspect answered ended with one,
+     * so an answer-seeking question does not get the same hint on two such turns in a row. A turn the
+     * suspect answered without a narrator line clears it; other turns leave it, and a line cut off by
+     * barge-in is not recorded.
+     */
+    val lastHint: String? = null,
+    /**
+     * The narrator has nudged the player toward the accusation in this game: once, on the first
+     * question turn that ends at READY. A nudge cut off by barge-in does not count and comes again.
+     */
+    val nudged: Boolean = false,
 )
 
 enum class ReplyKind {
     /** The suspect answered; the answer may have been cut at the spoiler guard or sentence limit. */
     ANSWER,
 
-    /** The spoiler guard caught the first sentence, so one of the suspect's deflections was spoken. */
+    /**
+     * Nothing of the answer could be spoken (its first sentence read out instructions or leaked), so
+     * one of the suspect's deflections was, and no narrator line followed.
+     */
     DEFLECTION,
+
+    /**
+     * The suspect's answer or deflection was followed by a narrator line ([AgentReply.narratorLine]):
+     * a hint, for a leak the spoiler guard cut or after an answer-seeking question, or the nudge toward
+     * the accusation. Narrator lines are never recorded as testimony.
+     */
+    HINT,
 
     /** No answer came (offline, error, timeout), so the suspect's fallback line was spoken. */
     FALLBACK,
@@ -77,7 +116,7 @@ enum class ReplyKind {
 
 data class AgentReply(
     val kind: ReplyKind,
-    /** The suspect who spoke, or null for the narrator. */
+    /** The suspect who spoke, or null when the narrator spoke alone. */
     val suspectId: String?,
     /** Lines handed to speech output, in order, without the filler. */
     val sentences: List<String>,
@@ -88,18 +127,83 @@ data class AgentReply(
     val failure: String? = null,
     /** Set when the TTS engine failed; the text can still be shown on screen. */
     val speechError: String? = null,
+    /**
+     * The narrator's line after the suspect's words: the one that ended a [ReplyKind.HINT] turn, or
+     * one a barge-in cut off ([ReplyKind.INTERRUPTED]). It is also the last of [sentences].
+     */
+    val narratorLine: String? = null,
 ) {
+    /** Everything spoken, the narrator's line included: for subtitles, never for testimony. */
     val text: String get() = sentences.joinToString(" ")
+
+    /**
+     * What the suspect said: [sentences] without the narrator's line, "" when the narrator spoke alone
+     * ([suspectId] null). As testimony StoryEngine must store [AgentState.notebook] or this, never
+     * [text], which ends with the narrator's hint on a HINT turn. (The notebook also leaves out
+     * [ReplyKind.FALLBACK] and [ReplyKind.NOT_UNDERSTOOD] lines.)
+     */
+    val suspectText: String
+        get() {
+            if (suspectId == null) return ""
+            val own = if (narratorLine != null && sentences.lastOrNull() == narratorLine) sentences.dropLast(1) else sentences
+            return own.joinToString(" ")
+        }
 }
 
-/** Fixed narrator (진행자) lines, spoken without an LLM. */
+/**
+ * Fixed narrator (진행자) lines, spoken without an LLM. They skip the spoiler guard, so what they quote
+ * must be public by then: a confront hint names only a clue already found, and no suspect.
+ */
 object NarratorLines {
     const val NOT_UNDERSTOOD = "잘 듣지 못했어요. 다시 한번 말씀해 주세요."
     const val SUMMARY_FILLER = "수첩을 펼쳐 볼게요."
 
+    /**
+     * Once a game, at the end of the first question turn that ends at [InvestigationStage.READY]. It
+     * only says the evidence is in: StoryEngine takes the accusation after arrival, so "accuse now"
+     * would promise a choice the player does not have yet.
+     */
+    const val ACCUSE_NUDGE = "탐정님, 이제 범인을 가려낼 단서와 증언이 다 모인 것 같아요."
+
     fun askWho(case: Case): String {
         val suspects = case.suspects.joinToString(", ") { "${it.role} ${it.name}" }
         return "누구에게 물어볼까요? $suspects 중에서 골라 주세요."
+    }
+
+    /**
+     * Points at a key reaction within reach by [clue], the last one it needs, without saying whose:
+     * naming the suspect gave the culprit away whenever theirs was the reaction left.
+     */
+    fun confrontHint(clue: Clue): String = "탐정님, ${clue.title} 이야기를 아직 물어보지 않은 사람이 있어요."
+
+    /**
+     * The narrator's hint, for a leak the spoiler guard cut or after an answer-seeking question. First
+     * the key reaction within reach that the story offered first ([Investigation.pendingKeyReactions]):
+     * clues arrive with the story scenes, so "find the next clue" is nothing the player can act on,
+     * while a reaction they can draw out now is. Else, while some clue is not found, the hint of the
+     * first such clue that has one, whatever a cut answer was about to say: following the word that
+     * leaked would confirm it. Once every clue is found and no key reaction is pending, the case's own.
+     * Null when there is none to give, so a case without hints keeps its deflections.
+     * [tried]: key reactions the question just went after without drawing them out, which the hint
+     * must not suggest straight back; with every clue found and only they pending, there is nothing
+     * to say.
+     */
+    fun hint(
+        case: Case,
+        suspects: Collection<Suspect>,
+        unlocked: Set<String>,
+        confronted: Set<String>,
+        tried: Set<String> = emptySet(),
+    ): String? {
+        val pending = Investigation.pendingKeyReactions(case, suspects, unlocked, confronted)
+        val confront = pending.filter { (_, fact) -> fact.id !in tried }.firstNotNullOfOrNull { (_, fact) ->
+            case.clues.lastOrNull { it.id in fact.unlockedBy }?.let { confrontHint(it) }
+        }
+        if (confront != null) return confront
+        val locked = case.clues.filter { it.id !in unlocked }
+        if (locked.isNotEmpty()) return locked.firstNotNullOfOrNull { it.hint }
+        // The case's hint is for an investigation that is done, not one waiting on the reaction just tried.
+        return if (pending.isEmpty()) case.spoilerHint else null
     }
 
     fun offlineSummary(case: Case, unlocked: Set<String>): String {

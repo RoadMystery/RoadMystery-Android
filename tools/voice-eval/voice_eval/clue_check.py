@@ -71,7 +71,9 @@ def hidden_facts(case: Case, unlocked: frozenset[str]) -> tuple[tuple[str, str],
 
 
 def known_facts(case: Case, suspect: Suspect, unlocked: frozenset[str]) -> tuple[str, ...]:
-    """What the sentence may repeat: the facts the judge treats as public, then the found clues."""
+    """What the sentence may repeat: the allowed facts the judge also gets, then the found clues."""
+    # Unlike build_judge_prompt, this leaves out the stage's pressure line: the app does not run this
+    # check (dormant code), and a port that runs it with pressure lines on must add the line here.
     found = (f"찾은 단서 {clue.title}: {clue.summary}" for clue in case.clues if clue.id in unlocked)
     return (*allowed_facts(case, suspect, unlocked), *found)
 

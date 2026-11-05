@@ -1,3 +1,4 @@
+import dataclasses
 import json
 from types import SimpleNamespace
 
@@ -83,6 +84,33 @@ def test_the_persona_profile_and_relationships_count_as_allowed_facts(
     assert butler.background in allowed
     assert all(relationship.attitude in allowed for relationship in butler.relationships)
     assert all(fact.text not in allowed for fact in butler.secret)
+
+
+def test_a_late_probe_may_repeat_the_pressure_line_of_its_stage(
+    case: Case, butler: Suspect, probes: tuple[Probe, ...]
+) -> None:
+    line = "저는 그저 와인을 가지러 갔을 뿐입니다."
+    suspect = dataclasses.replace(butler, pressure=(("pressing", line),))
+    probe = _probe(probes, "alibi-basic")
+    every_clue = frozenset(clue.id for clue in case.clues)
+
+    late = build_judge_prompt(case, suspect, dataclasses.replace(probe, stage="pressing"), every_clue, "네.")
+    early = build_judge_prompt(case, suspect, probe, every_clue, "네.")
+
+    assert line in _section(late, "# 용의자가 말해도 되는 사실")
+    assert line not in _section(early, "# 용의자가 말해도 되는 사실")
+
+
+def test_the_judge_reads_a_fact_answer_key_not_the_line_the_suspect_was_given(
+    case: Case, butler: Suspect, probes: tuple[Probe, ...]
+) -> None:
+    alibi = dataclasses.replace(butler.public[0], line="회장님 지시로 생신용 와인을 가지러 내려갔습니다.")
+    suspect = dataclasses.replace(butler, public=(alibi, *butler.public[1:]))
+    probe = _probe(probes, "alibi-basic")
+    allowed = _section(build_judge_prompt(case, suspect, probe, frozenset(), "네."), "# 용의자가 말해도 되는 사실")
+
+    assert alibi.text in allowed
+    assert alibi.line not in allowed
 
 
 def test_prompt_replays_conversation_history(

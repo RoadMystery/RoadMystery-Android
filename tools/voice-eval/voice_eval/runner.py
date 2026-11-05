@@ -38,6 +38,7 @@ class RunRecord:
             "category": self.probe.category,
             "repeat": self.repeat,
             "unlocked": list(self.probe.unlocked),
+            "stage": self.probe.stage,
             "question": self.probe.question,
             "answer": result.text,
             "timing": asdict(result.timing),
@@ -88,7 +89,8 @@ def run_matrix(
 
     Every prompt and message list is built before the first (paid) call, so bad content fails fast.
     """
-    # Per probe, because a question that raises a clue not found yet adds a topic rule.
+    # Per probe, because a question that raises a clue not found yet adds a topic rule and a question
+    # asked late in the investigation adds the persona's pressure line.
     systems = {
         (variant, probe.id): render_system_prompt(
             case,
@@ -97,6 +99,7 @@ def run_matrix(
             variant,
             template,
             topics=raised_topics(case, frozenset(probe.unlocked), probe.question),
+            stage=probe.stage,
         )
         for variant in variants
         for probe in probes

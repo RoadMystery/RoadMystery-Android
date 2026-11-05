@@ -79,6 +79,8 @@ class TextTest {
         assertTrue(looksLikeReadout("세 문장 이내로 짧게 말해야 한다.”"))
         assertTrue(looksLikeReadout("그건 제가 알 바 아니다."))
         assertTrue(looksLikeReadout("짧게 말해야 한다。"))
+        assertTrue(looksLikeReadout("Player asks about the outside conditions."))
+        assertTrue(looksLikeReadout(stripStageDirections("[think] Keep short, in character.")))
         assertFalse(looksLikeReadout("모른다니까요, 탐정님."))
         assertFalse(looksLikeReadout("감사합니다."))
         assertFalse(looksLikeReadout("그 시각에는 저장고에 있었습니다."))

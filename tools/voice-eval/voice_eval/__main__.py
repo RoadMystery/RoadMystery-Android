@@ -15,6 +15,7 @@ from typing import Protocol, TextIO, TypeVar
 import anthropic
 
 from voice_eval.content import (
+    STAGES,
     Case,
     ContentError,
     Probe,
@@ -330,7 +331,8 @@ def _cmd_golden(args: argparse.Namespace) -> int:
         args.summary_probes,
     )
     args.out.parent.mkdir(parents=True, exist_ok=True)
-    args.out.write_text(json.dumps(golden, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+    # LF on every OS: the committed file is LF and the Kotlin parity test reads it as is.
+    args.out.write_text(json.dumps(golden, ensure_ascii=False, indent=1) + "\n", encoding="utf-8", newline="\n")
     logger.info("골든 파일: %s (프롬프트 %d개, 판별 %d개)", args.out, len(golden["prompts"]),
                 len(golden["identify"]))
     return 0
@@ -340,7 +342,9 @@ def _cmd_render(args: argparse.Namespace) -> int:
     case, suspect = _load_case_and_suspect(args)
     template = args.template.read_text(encoding="utf-8")
     sys.stdout.write(
-        render_system_prompt(case, suspect, frozenset(args.unlocked), args.variant, template)
+        render_system_prompt(
+            case, suspect, frozenset(args.unlocked), args.variant, template, stage=args.stage
+        )
     )
     return 0
 
@@ -382,6 +386,9 @@ def _parser() -> argparse.ArgumentParser:
     render = commands.add_parser("render", parents=[common], help="시스템 프롬프트 출력")
     render.add_argument("--unlocked", type=_csv, default=(), help="찾은 단서 id (쉼표 구분)")
     render.add_argument("--variant", choices=VARIANTS, default="cover")
+    render.add_argument(
+        "--stage", choices=STAGES, default="opening", help="수사 진척도 (pressing·ready면 단계별 대사가 붙음)"
+    )
     render.set_defaults(handler=_cmd_render)
 
     identify = commands.add_parser(

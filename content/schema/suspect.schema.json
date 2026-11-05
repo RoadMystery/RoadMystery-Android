@@ -48,7 +48,7 @@
         "public": {
           "description": "처음부터 말해도 되는 것(주장 포함). 범인이라면 여기에는 거짓 주장을 적는다.",
           "type": "array",
-          "items": { "$ref": "#/$defs/fact" }
+          "items": { "$ref": "#/$defs/publicFact" }
         },
         "unlockable": {
           "description": "플레이어가 unlockedBy 단서를 모두 찾았을 때만 프롬프트에 들어가는 반응",
@@ -85,6 +85,15 @@
       "items": { "type": "string" },
       "minItems": 1
     },
+    "pressure": {
+      "description": "이 인물이 그대로 소리 내어 해도 되는 1인칭 대사 한 줄. 속마음이나 태도 설명은 쓰지 않는다. pressing은 단서를 모두 찾았지만 핵심 반응이 남았을 때, ready는 핵심 반응까지 모두 끌어냈을 때(ready가 없으면 pressing). 고백이 되지 않게 한다. 앱 설정(AgentConfig.pressureLines)이 켜져 있을 때만 쓴다.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "pressing": { "$ref": "#/$defs/line" },
+        "ready": { "$ref": "#/$defs/line" }
+      }
+    },
     "fallbackLines": {
       "description": "LLM 없이 기기에서 바로 재생하는 대사(오프라인·인식 실패·대기)",
       "type": "object",
@@ -107,6 +116,16 @@
         "text": { "type": "string", "minLength": 1 }
       }
     },
+    "publicFact": {
+      "type": "object",
+      "required": ["id", "text"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "text": { "$ref": "#/$defs/answerKey" },
+        "line": { "$ref": "#/$defs/line" }
+      }
+    },
     "unlockableFact": {
       "type": "object",
       "required": ["id", "unlockedBy", "text"],
@@ -114,9 +133,32 @@
       "properties": {
         "id": { "type": "string" },
         "unlockedBy": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
-        "text": { "type": "string", "minLength": 1 },
-        "demeanor": { "type": "string", "description": "말투에만 드러낼 태도(지문으로 출력하지 않음)" }
+        "text": { "$ref": "#/$defs/answerKey" },
+        "line": { "$ref": "#/$defs/line" },
+        "demeanor": { "type": "string", "description": "말투에만 드러낼 태도(지문으로 출력하지 않음)" },
+        "key": {
+          "type": "boolean",
+          "description": "사건을 풀려면 들어야 하는 반응. 단서를 모두 찾고 핵심 반응을 모두 끌어내면 수사 진척도가 '지목할 때'가 된다. 플레이어가 unlockedBy 단서를 모두 찾은 뒤 이 용의자에게 그 단서를 꺼내 물으면 끌어낸 것으로 센다."
+        },
+        "replaces": {
+          "description": "이 반응이 열리면 프롬프트에서 빼는 같은 인물의 대사 id(public 또는 unlockable). 둘러대기와 그것을 뒤집는 고백이 나란히 놓이지 않게 한다. 대신할 반응은 이 반응의 unlockedBy 단서만으로 열려 있어야 하고, 핵심 반응(key)은 대신할 수 없다. 프롬프트만 바뀌고 채점용 답지는 그대로다.",
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "minItems": 1,
+          "uniqueItems": true
+        }
       }
+    },
+    "answerKey": {
+      "description": "답지: 채점(judge)과 문장 검사가 '말해도 되는 사실'로 읽는 진술. '~라고 말한다'처럼 3인칭으로 써서 주장인지 사실인지 드러낸다. line이 있으면 모델 프롬프트에는 들어가지 않는다.",
+      "type": "string",
+      "minLength": 1
+    },
+    "line": {
+      "description": "모델 프롬프트에 text 대신 들어가는, 인물이 직접 하는 말(1인칭, 인물의 말투). text와 같은 내용만 담는다. 앞뒤 공백이나 줄바꿈 없이 한 줄로 쓴다. 3인칭 지문을 그대로 주면 모델이 그 문장을 자기 말로 바꾸는 속셈까지 소리 내어 말한 일이 있다(2026-11-04, docs/voice-agent/scenario-jade-crown.md).",
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^\\S([^\\n\\r]*\\S)?(?![\\s\\S])"
     },
     "beforeFoundLine": {
       "type": "object",
