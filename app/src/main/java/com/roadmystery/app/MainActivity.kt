@@ -1,17 +1,22 @@
 package com.roadmystery.app
 
 import ai.pleos.playground.vehicle.Vehicle
+import android.content.Intent
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.material3.Button
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -42,18 +47,15 @@ import com.roadmystery.app.ui.theme.RoadMysteryTheme
 import com.roadmystery.app.vehicle.DemoAutoplay
 import com.roadmystery.app.vehicle.FakeVehicleState
 import com.roadmystery.app.vehicle.PleosVehicleState
-import com.roadmystery.app.vehicle.VehicleEvent
-import com.roadmystery.app.vehicle.VehicleState
+import com.roadmystery.app.vehicle.SelectedVehicleState
+import com.roadmystery.app.vehicle.VehicleSource
 import com.roadmystery.app.voice.PleosSpeechInput
 import com.roadmystery.app.voice.ScriptedVoiceAgent
 import com.roadmystery.app.voice.SpeechInput
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.filterNotNull
-import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.launch
 
 private const val DEMO_SCENARIO_ID = "midnight_rest_area"
@@ -65,6 +67,11 @@ private const val TAG = "MainActivity"
  */
 class MainActivity : ComponentActivity() {
     private val simulated = FakeVehicleState()
+    private lateinit var selectedVehicle: SelectedVehicleState
+    private val motionPermissions = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+        // Re-subscribe after the permission result; missing permission stays conservatively Driving.
+        selectedVehicle.select(VehicleSource.REAL)
+    }
     private var vehicleSdk: Vehicle? = null
     private lateinit var audio: AudioPlayer
     private var speech: SpeechInput? = null
@@ -80,13 +87,11 @@ class MainActivity : ComponentActivity() {
         val clientSecret = BuildConfig.PLEOS_CLIENT_SECRET
 
         vehicleSdk = attempt("Vehicle SDK") { Vehicle(this).apply { initialize() } }
-        val realVehicle: Flow<VehicleEvent> =
-            vehicleSdk?.let { sdk -> attempt("PleosVehicleState") { PleosVehicleState(this, sdk).events } } ?: emptyFlow()
-        val vehicle =
-            object : VehicleState {
-                // 실제 차량 신호와 시뮬레이션 패널 입력을 함께 받는다. 시연 중에는 패널이 마지막 입력을 덮어쓴다.
-                override val events = merge(simulated.events, realVehicle)
-            }
+        selectedVehicle = SelectedVehicleState(
+            real = PleosVehicleState(this).events,
+            simulated = simulated.events,
+            initial = if (BuildConfig.DEBUG) VehicleSource.SIMULATION else VehicleSource.REAL
+        )
 
         audio = attempt("TTS") { PleosTtsAudioPlayer(this, lifecycleScope, clientId, clientSecret) } ?: FakeAudioPlayer(lifecycleScope)
         speech = attempt("STT") { PleosSpeechInput(this, clientId, clientSecret) }
@@ -98,9 +103,9 @@ class MainActivity : ComponentActivity() {
                 audio = audio,
                 voice = ScriptedVoiceAgent(),
                 director = director,
-                scope = lifecycleScope,
+                scope = lifecycleScope
             )
-        engine.bind(vehicle, lifecycleScope)
+        engine.bind(selectedVehicle, lifecycleScope)
         autoplay = DemoAutoplay(simulated, engine)
 
         lifecycleScope.launch { savedProgress.value = store.load(DEMO_SCENARIO_ID) }
@@ -123,6 +128,7 @@ class MainActivity : ComponentActivity() {
 
     @androidx.compose.runtime.Composable
     private fun AppContent() {
+        val source by selectedVehicle.source.collectAsState()
         val mode by engine.mode.collectAsState()
         val scenario by engine.scenario.collectAsState()
         val nowPlaying by engine.nowPlaying.collectAsState()
@@ -152,7 +158,7 @@ class MainActivity : ComponentActivity() {
                 canInteract = canInteract,
                 testimonies = testimonies,
                 interrogation = interrogation,
-                listening = listening,
+                listening = listening
             )
         val gameActions =
             GameActions(
@@ -166,7 +172,7 @@ class MainActivity : ComponentActivity() {
                         if (text != null) engine.ask(suspectId, text)
                     }
                 },
-                onSummary = { engine.requestSummary() },
+                onSummary = { engine.requestSummary() }
             )
         val panelState =
             PanelState(
@@ -176,12 +182,12 @@ class MainActivity : ComponentActivity() {
                 canResume = saved != null,
                 autoplayStep = autoplayStep,
                 audioLabel =
-                    when (ttsReady) {
-                        true -> "Pleos TTS"
-                        null -> "TTS 준비 중"
-                        false -> "무음 + 자막"
-                    },
-                lastEffect = lastEffect?.label,
+                when (ttsReady) {
+                    true -> "Pleos TTS"
+                    null -> "TTS 준비 중"
+                    false -> "무음 + 자막"
+                },
+                lastEffect = lastEffect?.label
             )
         val panelActions =
             PanelActions(
@@ -196,16 +202,33 @@ class MainActivity : ComponentActivity() {
                         is PleosTtsAudioPlayer -> player.fallbackSpeed = speed
                         is FakeAudioPlayer -> player.speed = speed
                     }
-                },
+                }
             )
 
         Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
             Row(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
-                SimulationPanel(
-                    state = panelState,
-                    actions = panelActions,
-                    modifier = Modifier.width(280.dp).fillMaxHeight(),
-                )
+                if (BuildConfig.DEBUG) {
+                    Column(Modifier.width(280.dp).fillMaxHeight()) {
+                        Button(onClick = {
+                            if (source == VehicleSource.REAL) {
+                                selectedVehicle.select(VehicleSource.SIMULATION)
+                            } else {
+                                motionPermissions.launch(
+                                    arrayOf(
+                                        "android.car.permission.CAR_SPEED",
+                                        "android.car.permission.CAR_POWERTRAIN"
+                                    )
+                                )
+                            }
+                        }) { Text(if (source == VehicleSource.REAL) "실제 입력 → 시뮬레이션" else "시뮬레이션 → 실제 입력") }
+                        Button(onClick = {
+                            startActivity(Intent().setClassName(packageName, "$packageName.vehicle.MotionTestActivity"))
+                        }) { Text("F-01 단독 판정 테스트") }
+                        if (source == VehicleSource.SIMULATION) {
+                            SimulationPanel(state = panelState, actions = panelActions, modifier = Modifier.weight(1f))
+                        }
+                    }
+                }
                 VerticalDivider()
                 GameScreen(state = gameState, actions = gameActions, modifier = Modifier.weight(1f))
             }
@@ -221,9 +244,8 @@ class MainActivity : ComponentActivity() {
 
     private fun <T> attempt(
         name: String,
-        block: () -> T,
-    ): T? =
-        runCatching(block)
-            .onFailure { Log.w(TAG, "$name 사용 불가, 대체 구현으로 진행: ${it.message}") }
-            .getOrNull()
+        block: () -> T
+    ): T? = runCatching(block)
+        .onFailure { Log.w(TAG, "$name 사용 불가, 대체 구현으로 진행: ${it.message}") }
+        .getOrNull()
 }
