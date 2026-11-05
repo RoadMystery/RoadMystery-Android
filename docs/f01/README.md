@@ -3,6 +3,8 @@
 작업 기준: `main`의 `5a0520b` (스토리 엔진 병합본). 브랜치: `feat/f01-vehicle-state`.
 이번 변경은 F-01과 그 검증 화면에 한정한다. AudioPlayer, Director, VoiceAgent, StoryEngine 구현 및 시나리오는 수정하지 않는다.
 
+실행 화면은 [에뮬레이터 연동 확인 기록](verification/README.md)에서 확인할 수 있다.
+
 ## 판정 규칙
 
 | 입력 | 차량 판정 | 앱으로 전달하는 이벤트 |
