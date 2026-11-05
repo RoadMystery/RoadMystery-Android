@@ -46,7 +46,7 @@ class DemoAutoplay(
 
             step("급제동 — 낭독 정지")
             vehicle.send(VehicleEvent.Hazard(HazardReason.HARD_BRAKE))
-            delay(3_000)
+            delay(1_500)
             vehicle.send(VehicleEvent.Stopped)
             delay(stopViewMs)
 
