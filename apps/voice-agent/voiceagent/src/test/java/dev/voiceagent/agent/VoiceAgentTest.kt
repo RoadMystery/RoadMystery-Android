@@ -72,7 +72,7 @@ class VoiceAgentTest {
         assertEquals(100L, reply.firstTextMs)
         val request = llm.requests.single()
         assertEquals(LlmTask.INTERROGATION, request.task)
-        assertEquals(SuspectPrompt.render(scenario.case, butler, emptySet(), PromptVariant.COVER, scenario.suspectTemplate), request.system)
+        assertEquals(SuspectPrompt.render(scenario.case, butler, emptySet(), PromptVariant.AWARE, scenario.suspectTemplate), request.system)
         assertEquals(listOf(ChatMessage(Role.USER, "집사한테 정전 때 어디 있었는지 물어봐")), request.messages)
         assertEquals("butler", agent.state.value.currentSuspect)
         assertEquals(
@@ -524,15 +524,70 @@ class VoiceAgentTest {
         }
 
         val template = jade.suspectTemplate
-        val plain = SuspectPrompt.render(jade.case, son, jadeClues, PromptVariant.COVER, template)
+        val plain = SuspectPrompt.render(jade.case, son, jadeClues, PromptVariant.AWARE, template)
         assertEquals(listOf(plain, plain), off.requests.map { it.system })
         val staged = listOf(InvestigationStage.PRESSING, InvestigationStage.READY).map {
-            SuspectPrompt.render(jade.case, son, jadeClues, PromptVariant.COVER, template, stage = it)
+            SuspectPrompt.render(jade.case, son, jadeClues, PromptVariant.AWARE, template, stage = it)
         }
         assertEquals(staged, on.requests.map { it.system })
         assertTrue(son.pressure.getValue(InvestigationStage.PRESSING) in on.requests[0].system)
         assertTrue(son.pressure.getValue(InvestigationStage.READY) in on.requests[1].system)
         assertFalse(son.pressure.getValue(InvestigationStage.PRESSING) in plain)
+    }
+
+    @Test
+    fun `a culprit cornered at READY by the clue that broke its story confesses unguarded, and stays cornered`() = runTest {
+        val llm = ScriptedLlm(answer("제가 화관을 건넸어요."), answer("같이 떠나자는 그 사람 말을 믿었어요."))
+        val agent = jadeAgent(llm, speech())
+        agent.restore(jadeClues, emptyList(), jadeKeyReactions)
+        val confession = jade.suspect("niece").confession!!
+
+        val cornered = agent.ask("하린 씨, 창 안쪽 실내화 자국 당신 거잖아요. 당신이 범인이죠?")
+        val after = agent.ask("하린 씨, 왜 그랬어요?")
+
+        // The confession is meant to give her away, so the forbidden phrases do not cut it, and the narrator stays quiet.
+        assertEquals(ReplyKind.ANSWER, cornered.kind)
+        assertEquals(listOf("제가 화관을 건넸어요."), cornered.sentences)
+        assertNull(cornered.narratorLine)
+        assertTrue(llm.requests[0].system.contains(confession))
+        // Once the player heard her answer, a question that brings up no clue keeps the confession.
+        assertTrue(agent.state.value.cornered)
+        assertTrue(llm.requests[1].system.contains(confession))
+        assertEquals(ReplyKind.ANSWER, after.kind)
+    }
+
+    @Test
+    fun `accused without the clue, or before READY, the culprit stays guarded`() = runTest {
+        val llm = ScriptedLlm(answer("제가 화관을 건넸어요."), answer("제가 화관을 건넸어요."))
+        val agent = jadeAgent(llm, speech())
+        val confession = jade.suspect("niece").confession!!
+
+        agent.restore(jadeClues, emptyList(), jadeKeyReactions)
+        val bare = agent.ask("하린 씨, 당신이 범인이죠?")
+        agent.restore(jadeClues, emptyList(), emptySet())
+        val early = agent.ask("하린 씨, 창 안쪽 실내화 자국 당신 거잖아요. 당신이 범인이죠?")
+
+        assertEquals(InvestigationStage.PRESSING, agent.state.value.stage)
+        assertTrue(llm.requests.none { it.system.contains(confession) })
+        assertTrue(llm.requests.all { it.system.contains("# 너만 아는 것") })
+        // The guard cut both admissions, as it does any leak.
+        assertTrue((bare.sentences + early.sentences).none { it.contains("화관을 건넸") })
+        assertFalse(agent.state.value.cornered)
+    }
+
+    @Test
+    fun `an answer does not open with the interjections the suspect's previous answer opened with`() = runTest {
+        val llm = ScriptedLlm(answer("아이고, 저는 저장고에 있었습니다."), answer("아이고, 그 뒤로는 모릅니다."), answer("아이고. 정말 모릅니다."))
+        val agent = agent(llm, speech())
+
+        val first = agent.ask("집사한테 정전 때 어디 있었는지 물어봐")
+        val second = agent.ask("집사님, 그 뒤에는요?")
+        val third = agent.ask("집사님, 정말요?")
+
+        assertEquals(listOf("아이고, 저는 저장고에 있었습니다."), first.sentences)
+        assertEquals(listOf("그 뒤로는 모릅니다."), second.sentences)
+        // The notebook keeps what was heard, so the third answer's opening is not a repeat and stays.
+        assertEquals(listOf("아이고.", "정말 모릅니다."), third.sentences)
     }
 
     @Test
@@ -679,11 +734,11 @@ class VoiceAgentTest {
         agent.ask("지하실 열쇠 누가 갖고 있어요?")
 
         val template = scenario.suspectTemplate
-        val noted = SuspectPrompt.render(scenario.case, butler, emptySet(), PromptVariant.COVER, template, listOf("열쇠"))
+        val noted = SuspectPrompt.render(scenario.case, butler, emptySet(), PromptVariant.AWARE, template, listOf("열쇠"))
         assertTrue("'열쇠' 이야기는" in noted)
         assertEquals(noted, llm.requests[0].system)
         // Once the key is found it is part of the suspect's own facts, so no rule is added.
-        val found = SuspectPrompt.render(scenario.case, butler, setOf("clue-cellar-key"), PromptVariant.COVER, template)
+        val found = SuspectPrompt.render(scenario.case, butler, setOf("clue-cellar-key"), PromptVariant.AWARE, template)
         assertEquals(found, llm.requests[1].system)
     }
 
@@ -826,7 +881,7 @@ class VoiceAgentTest {
         agent.unlockClue("clue-fusebox")
         agent.ask("집사한테 두꺼비집 얘기 물어봐")
 
-        val expected = SuspectPrompt.render(scenario.case, butler, setOf("clue-fusebox"), PromptVariant.COVER, scenario.suspectTemplate)
+        val expected = SuspectPrompt.render(scenario.case, butler, setOf("clue-fusebox"), PromptVariant.AWARE, scenario.suspectTemplate)
         assertEquals(expected, llm.requests.single().system)
         assertThrows(IllegalArgumentException::class.java) { agent.unlockClue("clue-nope") }
         assertThrows(IllegalArgumentException::class.java) { agent.selectSuspect("chairman") }

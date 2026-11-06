@@ -12,6 +12,9 @@ internal fun isPythonWhitespace(char: Char): Boolean = char.isWhitespace() || ch
 /** `str.strip()`. */
 internal fun pythonStrip(text: String): String = text.trim(::isPythonWhitespace)
 
+/** `str.lstrip()`. */
+internal fun pythonLstrip(text: String): String = text.trimStart(::isPythonWhitespace)
+
 /** `str.split()` without a separator: whitespace runs separate words, empty words are dropped. */
 internal fun pythonSplit(text: String): List<String> = buildList {
     var start = -1

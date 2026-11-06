@@ -12,17 +12,20 @@ import dev.voiceagent.text.pythonStrip
 // send exactly the prompts that were evaluated, so GoldenParityTest replays the Python output.
 
 /**
- * COVER: the suspect knows only its cover story. TRUTH: the hidden truth is included so the model
- * can lie consistently; tools/voice-eval measures which one leaks less.
+ * COVER: the suspect knows only its cover story. AWARE: the culprit also knows it hides something, and its
+ * confession joins the prompt only once it is cornered (agent/Confession); the app's default
+ * (docs/voice-agent/game-rules.md). TRUTH: the hidden truth is included so the model can lie consistently;
+ * tools/voice-eval measures which one leaks less.
  */
 enum class PromptVariant(val id: String) {
     COVER("cover"),
+    AWARE("aware"),
     TRUTH("truth"),
     ;
 
     companion object {
         fun fromId(id: String): PromptVariant = entries.firstOrNull { it.id == id }
-            ?: throw IllegalArgumentException("unknown variant '$id' (expected one of cover, truth)")
+            ?: throw IllegalArgumentException("unknown variant '$id' (expected one of cover, aware, truth)")
     }
 }
 
@@ -89,6 +92,30 @@ object SuspectPrompt {
             "주장을 지켜라."
     private const val NO_CLUES_YET = "- 아직 플레이어가 찾은 단서가 없다."
     private const val PRESSURE_HEADING = "# 수사가 깊어진 지금 하게 되는 말 (어울릴 때만)"
+    private const val BELONGINGS_HEADING = "# 네가 가진 것"
+    private const val HIDING_SECTION =
+        "# 너만 아는 것\n" +
+            "- 너는 이 사건에서 숨기는 일이 있다. '네가 말할 수 있는 사실'의 이야기는 그 일을 감추려는 너의 주장이다. " +
+            "무엇을 숨기는지는 플레이어가 찾은 단서가 드러낸 만큼만 떠오른다.\n" +
+            "- 들키면 곤란하니 그 주장을 지켜라. 불리한 이야기는 짧게 넘기되 물은 것에는 답하라. " +
+            "숨기는 일이 있다는 것은 말로 인정하지 말고, 말투에만 드러나게 하라.\n" +
+            "- 거짓말은 그 주장 안에서만 하라. 새 알리바이를 만들거나 남에게 덮어씌우지 마라."
+
+    /** When to confess; the words are under the key clue ([reactionLines]). */
+    private const val CONFESSION_SECTION =
+        "# 다 들킨 지금\n" +
+            "- 플레이어가 단서를 다 찾아 너의 주장이 무너졌다. 플레이어가 그 증거를 들이밀며 너를 범인으로 몰아붙이면, " +
+            "더 버티지 말고 '플레이어가 찾은 단서'에서 '너를 범인으로 몰아붙일 때 너의 반응'에 적힌 말대로 털어놓아라. " +
+            "그 말에 없는 것은 보태지 마라.\n" +
+            "- 아직 털어놓지 않았고 너를 몰아붙이는 말도 아니면, 지금까지처럼 주장을 지켜라."
+
+    /**
+     * Ends the rule on who did it once the culprit is cornered: it confesses before it would hold out with a
+     * clue's reaction, as rule 3 comes before rule 6 in docs/voice-agent/game-rules.md.
+     */
+    private const val CONFESSION_RULE =
+        "다만 플레이어가 찾은 증거를 들이밀며 너를 범인으로 몰아붙이면, 단서에 대한 반응으로 버티지 말고 " +
+            "아래 '다 들킨 지금'의 말대로 털어놓아라."
 
     /** Reactions whose required clues have all been found. */
     fun unlockedFacts(suspect: Suspect, unlocked: Set<String>): List<UnlockableFact> =
@@ -115,6 +142,8 @@ object SuspectPrompt {
     /**
      * [topics]: from [raisedTopics] for the question being answered; none leaves the prompt unchanged.
      * [stage]: from [InvestigationStage.PRESSING] on, the persona's pressure line is added, if it has one.
+     * [confession]: from agent/Confession; only the culprit of [PromptVariant.AWARE] with a confession line can
+     * have it, and it takes the pressure line's place.
      */
     fun render(
         case: Case,
@@ -124,7 +153,11 @@ object SuspectPrompt {
         template: String,
         topics: List<String> = emptyList(),
         stage: InvestigationStage = InvestigationStage.OPENING,
+        confession: Boolean = false,
     ): String {
+        require(!confession || (variant == PromptVariant.AWARE && suspect.id == case.solution.culprit && suspect.confession != null)) {
+            "'${suspect.id}' cannot confess in the '${variant.id}' variant"
+        }
         PromptText.requireKnownClues(case, unlocked)
         val values = mapOf(
             "case_title" to case.title,
@@ -135,40 +168,69 @@ object SuspectPrompt {
             "not_understood" to suspect.fallbackNotUnderstood,
             "theme_rule" to PromptText.themeRule(case),
             "topic_rule" to topicRule(suspect, topics),
+            "confession_rule" to if (confession) " $CONFESSION_RULE" else "",
             "public_facts" to PromptText.caseOverview(case),
-            "profile" to PromptText.bullets(listOf("${suspect.age}세. ${suspect.background}") + suspect.personality),
+            "profile" to PromptText.bullets(listOf("${suspect.age}세. ${suspect.background}") + suspect.personality + stanceLines(suspect)),
             "speech_style" to speechSection(suspect),
             "public_knowledge" to PromptText.bullets(shownFacts(suspect, unlocked).first.map { it.promptText }),
-            "unlocked_knowledge" to unlockedSection(case, suspect, unlocked),
-            "pressure" to pressureSection(suspect, stage),
+            "belongings" to belongingsSection(suspect),
+            "unlocked_knowledge" to unlockedSection(case, suspect, unlocked, confession),
+            // Once cornered the confession takes the stage line's place: the culprit's READY line holds out.
+            "pressure" to if (confession) "" else pressureSection(suspect, stage),
             "relationships" to relationshipSection(case, suspect),
             "deflections" to PromptText.bullets(suspect.deflections),
-            "secret_section" to secretSection(suspect, variant),
+            "secret_section" to secretSection(case, suspect, variant, confession),
         )
         return PromptText.fillTemplate(template, values)
     }
+
+    /** voice_eval.prompt._stance_lines: what the suspect wants and how it treats the detective, for its profile. */
+    fun stanceLines(suspect: Suspect): List<String> = listOfNotNull(
+        suspect.goal?.let { "이 심문에서 바라는 것: $it" },
+        suspect.towardDetective?.let { "탐정을 대하는 태도: $it" },
+    )
+
+    /** Follows the public facts directly, so it brings its own blank line; empty without belongings. */
+    private fun belongingsSection(suspect: Suspect): String =
+        if (suspect.belongings.isEmpty()) "" else "\n\n$BELONGINGS_HEADING\n${PromptText.bullets(suspect.belongings)}"
 
     /**
      * voice_eval.prompt._unlocked_section: each found clue, then the reactions it brings up. The label
      * names a reaction's clues, since a first-person line does not say when it is said; a reaction to
      * several clues goes once, under the last of them in case order, the clue the narrator's hint names.
      */
-    private fun unlockedSection(case: Case, suspect: Suspect, unlocked: Set<String>): String {
+    private fun unlockedSection(case: Case, suspect: Suspect, unlocked: Set<String>, confession: Boolean): String {
         val clues = case.clues.filter { it.id in unlocked }
         if (clues.isEmpty()) return NO_CLUES_YET
         val order = case.clues.map { it.id }
         val reactions = shownFacts(suspect, unlocked).second
         val lines = clues.flatMap { clue ->
             listOf("[단서] ${clue.title}: ${clue.summary}") +
-                reactions.filter { fact -> fact.unlockedBy.maxBy(order::indexOf) == clue.id }.map { reactionLine(case, it, order) }
+                reactions.filter { fact -> fact.unlockedBy.maxBy(order::indexOf) == clue.id }
+                    .flatMap { reactionLines(case, suspect, it, order, confession) }
         }
         return PromptText.bullets(lines)
     }
 
-    private fun reactionLine(case: Case, fact: UnlockableFact, order: List<String>): String {
+    /**
+     * voice_eval.prompt._reaction_lines: a reaction's line. Once the culprit is cornered, each key reaction
+     * splits in two: the reaction when it is only asked about, and the confession when that clue is used to
+     * accuse it, so the line the question's clue points at already holds the confession.
+     */
+    private fun reactionLines(
+        case: Case,
+        suspect: Suspect,
+        fact: UnlockableFact,
+        order: List<String>,
+        confession: Boolean,
+    ): List<String> {
         val titles = fact.unlockedBy.sortedBy(order::indexOf).joinToString("·") { id -> case.clues.first { it.id == id }.title }
         val demeanor = if (fact.demeanor.isNullOrEmpty()) "" else " (태도: ${fact.demeanor})"
-        return "[$titles 이야기에 너의 반응] ${fact.promptText}$demeanor"
+        if (!(confession && fact.key)) return listOf("[$titles 이야기에 너의 반응] ${fact.promptText}$demeanor")
+        return listOf(
+            "[$titles 이야기에 너의 반응 (몰아붙이지 않을 때)] ${fact.promptText}$demeanor",
+            "[$titles 이야기로 너를 범인으로 몰아붙일 때 너의 반응] ${suspect.confession}",
+        )
     }
 
     /** The persona's line for [stage]: READY falls back to PRESSING, earlier stages have none. */
@@ -183,6 +245,8 @@ object SuspectPrompt {
         pressureLine(suspect, stage)?.let { "\n\n$PRESSURE_HEADING\n- $it" } ?: ""
 
     private fun speechSection(suspect: Suspect): String {
+        // Examples go in as written: a repeated opening exclamation is dropped as the answer is spoken
+        // (text/dropRepeatedOpening), since cutting it here only moved the habit to another one.
         val examples = suspect.speechExamples.joinToString("\n") { "  - $it" }
         return listOf(
             "- 말투: ${suspect.register}",
@@ -207,10 +271,17 @@ object SuspectPrompt {
             "적힌 ${suspect.name}의 성격대로 짧게 받아넘겨라."
     }
 
-    private fun secretSection(suspect: Suspect, variant: PromptVariant): String {
-        if (variant != PromptVariant.TRUTH) return ""
-        val facts = PromptText.bullets(suspect.secret.map { it.text })
-        return "\n# 너만 아는 진실 (절대 말하지 말 것)\n$SECRET_INTRO\n$facts"
+    /**
+     * TRUTH: the hidden truth. AWARE: for the culprit only, that it hides something, or once it is cornered
+     * when to confess in place of that; the words are under the key clue ([reactionLines]). Empty otherwise.
+     */
+    private fun secretSection(case: Case, suspect: Suspect, variant: PromptVariant, confession: Boolean): String {
+        if (variant == PromptVariant.TRUTH) {
+            val facts = PromptText.bullets(suspect.secret.map { it.text })
+            return "\n# 너만 아는 진실 (절대 말하지 말 것)\n$SECRET_INTRO\n$facts"
+        }
+        if (variant != PromptVariant.AWARE || suspect.id != case.solution.culprit) return ""
+        return if (confession) "\n$CONFESSION_SECTION" else "\n$HIDING_SECTION"
     }
 }
 

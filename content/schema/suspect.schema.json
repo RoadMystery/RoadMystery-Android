@@ -30,6 +30,16 @@
         "personality": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
       }
     },
+    "stance": {
+      "description": "이 심문에서 바라는 것과 탐정을 대하는 태도. 대사를 그대로 읽지 않고 질문마다 스스로 판단할 근거로 프롬프트의 '인물'에 들어간다. 바라는 것은 의견으로만 드러나야 하므로 사실(누가 어디서 무엇을 했다)은 쓰지 않는다(docs/voice-agent/game-rules.md). 새 사건에는 꼭 쓴다(voice_eval validate).",
+      "type": "object",
+      "required": ["goal", "towardDetective"],
+      "additionalProperties": false,
+      "properties": {
+        "goal": { "type": "string", "minLength": 1, "description": "예: 의심을 벗고 빨리 끝내고 싶다" },
+        "towardDetective": { "type": "string", "minLength": 1, "description": "예: 공손하지만 경계한다" }
+      }
+    },
     "speechStyle": {
       "type": "object",
       "required": ["register", "rules", "examples"],
@@ -59,6 +69,11 @@
           "description": "절대 말하지 않는 진실. '진실 포함' 변형에서만 프롬프트에 들어간다.",
           "type": "array",
           "items": { "$ref": "#/$defs/fact" }
+        },
+        "belongings": {
+          "description": "자기 물건, 차림, 기록(명사구 한 줄에 하나). 인물이 당연히 아는 것이라 처음부터 프롬프트에 들어간다. 단서와 이어지는 물건도 있다는 것은 적고, 거기에 얽힌 사실(어디 있었는지, 무엇이 묻었는지)은 단서 쪽에 둔다. 단서 키워드와 금지 표현은 쓰지 않는다. 새 사건에는 꼭 쓴다(voice_eval validate).",
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
         },
         "beforeFound": {
           "description": "플레이어가 clue 단서를 아직 찾지 않았을 때 그 이야기를 물으면 하는 말. 단서의 숨길 사실을 담지 말고, 단서를 찾은 뒤의 반응(unlockable)과 어긋나지 않게 쓴다. '말하지 않는다'고 쓰는 대신 말해도 되는 사실과 성격으로 화제를 돌리는 말로 쓴다. 인물이 당연히 아는 것(집사가 자기 열쇠를 가졌는지)은 어떻게 써도 '드릴 말씀이 없습니다'처럼 피하는 답이 나오므로 단서가 아니라 공개 사실로 두는 편이 낫다. '누구한테 물어보라고 사람을 대지 않는다'처럼 조용히 지킬 수 있는 금지는 남긴다. 넓은 질문(정전 원인)에 대한 말에는 단서 키워드를 넣지 않고, 다른 단서의 키워드도 넣지 않는다(묻지 않은 단서를 먼저 꺼내게 됨). 2026-11-03 측정: docs/voice-agent/llm-evaluation.md",
@@ -93,6 +108,10 @@
         "pressing": { "$ref": "#/$defs/line" },
         "ready": { "$ref": "#/$defs/line" }
       }
+    },
+    "confession": {
+      "description": "범인만: 다 들켰을 때 할 1인칭 자백. 단서와 핵심 반응이 다 모인 뒤 범인의 핵심 반응을 연 단서를 꺼낸 질문에만 프롬프트에 들어가고(aware 변형), 그 턴에는 금지 표현 검사를 하지 않는다. 정답(solution)과 같은 사실만, 세 문장까지 쓴다(docs/voice-agent/game-rules.md).",
+      "$ref": "#/$defs/line"
     },
     "fallbackLines": {
       "description": "LLM 없이 기기에서 바로 재생하는 대사(오프라인·인식 실패·대기)",

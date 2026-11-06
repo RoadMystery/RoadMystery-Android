@@ -10,7 +10,13 @@ from typing import Any
 from voice_eval.content import Case, Probe, Suspect
 from voice_eval.judge import Judge, JudgeError, JudgeVerdict
 from voice_eval.metrics import AnswerChecks, check_answer
-from voice_eval.prompt import build_messages, raised_topics, render_system_prompt
+from voice_eval.prompt import (
+    build_messages,
+    confession_opens,
+    player_turns,
+    raised_topics,
+    render_system_prompt,
+)
 from voice_eval.providers import AnswerProvider, Candidate, StreamResult
 
 logger = logging.getLogger(__name__)
@@ -59,6 +65,7 @@ def _score(
     probe: Probe,
     result: StreamResult,
     judge: Judge | None,
+    confession: bool = False,
 ) -> tuple[AnswerChecks | None, JudgeVerdict | None, str | None]:
     if result.error is not None:
         return None, None, None
@@ -66,7 +73,7 @@ def _score(
     if judge is None or result.stop_reason == "refusal" or not result.text.strip():
         return checks, None, None
     try:
-        verdict = judge.evaluate(case, suspect, probe, frozenset(probe.unlocked), result.text)
+        verdict = judge.evaluate(case, suspect, probe, frozenset(probe.unlocked), result.text, confession=confession)
     except JudgeError as exc:
         return checks, None, str(exc)
     return checks, verdict, None
@@ -84,13 +91,23 @@ def run_matrix(
     provider: AnswerProvider,
     judge: Judge | None = None,
     sink: Callable[[RunRecord], Any] | None = None,
+    pressure_lines: bool = True,
 ) -> tuple[RunRecord, ...]:
     """Candidates are interleaved per probe so network drift hits them all alike.
 
     Every prompt and message list is built before the first (paid) call, so bad content fails fast.
+    [pressure_lines]: whether a probe asked late in the investigation gets the persona's pressure line,
+    as the app does only with AgentConfig.pressureLines on (off by default); the confession follows the
+    probe's stage either way.
     """
-    # Per probe, because a question that raises a clue not found yet adds a topic rule and a question
-    # asked late in the investigation adds the persona's pressure line.
+    # Per probe, because a question that raises a clue not found yet adds a topic rule, a question asked
+    # late in the investigation adds the persona's pressure line, and one that corners the culprit its
+    # confession.
+    confessions = {
+        (variant, probe.id): confession_opens(case, suspect, variant, probe.stage, player_turns(probe))
+        for variant in variants
+        for probe in probes
+    }
     systems = {
         (variant, probe.id): render_system_prompt(
             case,
@@ -99,7 +116,8 @@ def run_matrix(
             variant,
             template,
             topics=raised_topics(case, frozenset(probe.unlocked), probe.question),
-            stage=probe.stage,
+            stage=probe.stage if pressure_lines else "opening",
+            confession=confessions[(variant, probe.id)],
         )
         for variant in variants
         for probe in probes
@@ -114,7 +132,9 @@ def run_matrix(
                 system = systems[(variant, probe.id)]
                 for candidate in candidates:
                     result = provider.stream_answer(candidate, system, messages)
-                    checks, verdict, judge_error = _score(case, suspect, probe, result, judge)
+                    checks, verdict, judge_error = _score(
+                        case, suspect, probe, result, judge, confessions[(variant, probe.id)]
+                    )
                     record = RunRecord(
                         candidate=candidate,
                         variant=variant,

@@ -23,6 +23,7 @@ VALID = {
     "invents_case_facts": True,
     "in_character": 5,
     "answers_question": 4,
+    "confesses": False,
     "rationale": "말투는 지켰지만 없는 목격담을 지어냄",
 }
 

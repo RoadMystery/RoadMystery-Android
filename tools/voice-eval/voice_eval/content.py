@@ -181,6 +181,15 @@ class Suspect:
     before_found: tuple[BeforeFound, ...] = ()
     pressure: tuple[tuple[str, str], ...] = ()
     """(stage, first-person line) pairs for "pressing" and "ready", in STAGES order."""
+    goal: str | None = None
+    """What the suspect wants from the interrogation (stance.goal), voiced only as opinion."""
+    toward_detective: str | None = None
+    """How the suspect treats the detective (stance.towardDetective)."""
+    belongings: tuple[str, ...] = ()
+    """What the suspect owns, wears or keeps a record of, which it knows from the start; a clue hides
+    what happened to such a thing, not that it exists (docs/voice-agent/game-rules.md)."""
+    confession: str | None = None
+    """The culprit's first-person confession, in the prompt only once it is cornered (prompt.confession_opens)."""
 
 
 @dataclass(frozen=True)
@@ -355,6 +364,7 @@ def load_suspect(path: Path, case: Case) -> Suspect:
     profile = data["profile"]
     style = data["speechStyle"]
     fallback = data["fallbackLines"]
+    stance = data.get("stance", {})
     return Suspect(
         id=suspect_id,
         name=member.name,
@@ -378,6 +388,10 @@ def load_suspect(path: Path, case: Case) -> Suspect:
         pressure=tuple(
             (stage, data["pressure"][stage]) for stage in STAGES if stage in data.get("pressure", {})
         ),
+        goal=stance.get("goal"),
+        toward_detective=stance.get("towardDetective"),
+        belongings=tuple(knowledge.get("belongings", ())),
+        confession=data.get("confession"),
     )
 
 

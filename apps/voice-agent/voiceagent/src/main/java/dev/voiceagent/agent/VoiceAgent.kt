@@ -18,7 +18,9 @@ import dev.voiceagent.speech.SpeechException
 import dev.voiceagent.speech.SpeechInput
 import dev.voiceagent.speech.SpeechOutput
 import dev.voiceagent.text.StreamingSentenceSplitter
+import dev.voiceagent.text.addressTerms
 import dev.voiceagent.text.countedSentences
+import dev.voiceagent.text.dropRepeatedOpening
 import dev.voiceagent.text.looksLikeReadout
 import dev.voiceagent.text.phraseHits
 import dev.voiceagent.text.pythonStrip
@@ -165,17 +167,30 @@ class VoiceAgent(
         // The stage only adds pressure lines, and how the LLM answers with them is not measured yet, so
         // off every turn gets the OPENING prompt. Either way the golden file pins it to Python's.
         val stage = if (config.pressureLines) state.stage else InvestigationStage.OPENING
+        // Cornered at READY by the clue that broke its story, the culprit may confess, and once the player heard
+        // it answer such a question it stays able to; the stage counts here whether or not pressure lines are on.
+        val confession = (state.cornered && Confession.canConfess(scenario.case, suspect, config.variant)) ||
+            Confession.opens(scenario.case, suspect, config.variant, state.stage, listOf(question))
         val request = LlmRequest(
             task = LlmTask.INTERROGATION,
-            system = SuspectPrompt.render(scenario.case, suspect, state.unlockedClues, config.variant, scenario.suspectTemplate, topics, stage),
+            system = SuspectPrompt.render(
+                scenario.case, suspect, state.unlockedClues, config.variant, scenario.suspectTemplate, topics, stage, confession,
+            ),
             messages = conversation(state.notebook, suspectId, question),
             requestId = UUID.randomUUID().toString(),
         )
         val blocked = unsentClueWords(request, state.unlockedClues)
+        // The interjections the suspect's previous heard answer opened with are not said again.
+        val previous = state.notebook.lastOrNull { it.suspect == suspectId }?.answer.orEmpty()
+        val keep = addressTerms(suspect.speechRules)
         val answer = try {
             speakAnswer(
                 progress, request, suspect.speaker, suspect.filler, config.maxAnswerSentences, blocked,
-                countSentences = ::countedSentences, clean = ::stripStageDirections, isReadout = { looksLikeReadout(it, suspect.name) },
+                // A confession is meant to give the culprit away; only what the prompt did not send stops it.
+                forbidden = if (confession) emptyList() else scenario.case.forbiddenPhrases,
+                countSentences = ::countedSentences, clean = ::stripStageDirections,
+                cleanFirst = { dropRepeatedOpening(stripStageDirections(it), previous, keep) },
+                isReadout = { looksLikeReadout(it, suspect.name) },
             )
         } catch (e: CancellationException) {
             // The player cut in: keep what they heard so a follow-up question has its context, and
@@ -183,9 +198,10 @@ class VoiceAgent(
             val heard = progress.snapshot.sentences
             remember(progress.game, suspectId, question, heard)
             confront(progress.game, suspect, state.unlockedClues, question, heard)
+            if (confession && heard.isNotEmpty()) corner(progress.game)
             throw e
         }
-        return endTurn(progress, suspect, state.unlockedClues, question, answer)
+        return endTurn(progress, suspect, state.unlockedClues, question, answer, confession)
     }
 
     /**
@@ -193,11 +209,20 @@ class VoiceAgent(
      * hint for a leak the guard cut, else the nudge on the first turn that ends at READY, else, after an
      * answer-seeking question, a hint unless it is the one last given. An answer cut before its first
      * sentence is replaced by one of the suspect's deflections, with or without a line after it.
-     * [unlocked]: the clues the prompt was made with.
+     * [unlocked]: the clues the prompt was made with. [confession]: the prompt had the culprit's confession,
+     * so the narrator stays quiet over a heard answer.
      */
-    private suspend fun endTurn(progress: TurnProgress, suspect: Suspect, unlocked: Set<String>, question: String, answer: Answer): AgentReply {
+    private suspend fun endTurn(
+        progress: TurnProgress,
+        suspect: Suspect,
+        unlocked: Set<String>,
+        question: String,
+        answer: Answer,
+        confession: Boolean,
+    ): AgentReply {
         val heard = answer.sentences.isNotEmpty()
         if (heard) remember(progress.game, suspect.id, question, answer.sentences)
+        if (heard && confession) corner(progress.game)
         val drawn = confront(progress.game, suspect, unlocked, question, answer.sentences)
         // A reaction the question went after but did not draw out stays pending; "ask about it" would
         // only repeat the question just asked, so the hint moves on. That holds when the answer was
@@ -218,6 +243,8 @@ class VoiceAgent(
         val leakHint = if (answer.leaked.isEmpty()) null else hint(tried)
         val line = when {
             leakHint != null -> leakHint
+            // The culprit's answer to being cornered is the scene; a hint or the nudge would talk over it.
+            confession && heard -> null
             // READY may have come with a clue the story unlocked, or a leak hint may have taken the turn
             // that got there: the nudge waits for the first turn free for it.
             now.stage == InvestigationStage.READY && !now.nudged -> NarratorLines.ACCUSE_NUDGE
@@ -266,6 +293,11 @@ class VoiceAgent(
         val locked = SuspectPrompt.lockedKeywords(scenario.case, unlocked)
         val mentioned = phraseHits(sent, locked).toSet()
         return locked.filterNot { it in mentioned }
+    }
+
+    /** Keeps the culprit's confession in its prompt for the rest of [game] ([AgentState.cornered]). */
+    private fun corner(game: Int) {
+        mutableState.update { if (it.game == game) it.copy(cornered = true) else it }
     }
 
     private fun remember(game: Int, suspectId: String, question: String, sentences: List<String>) {
@@ -330,11 +362,15 @@ class VoiceAgent(
         filler: String,
         maxSentences: Int,
         blockedWords: List<String> = emptyList(),
+        // A cornered culprit's confession may say them (Confession).
+        forbidden: List<String> = scenario.case.forbiddenPhrases,
         // Suspects open with "하, 참." or "맨발이요?"; the narrator's summary counts every sentence.
         countSentences: (List<String>) -> Int = List<String>::size,
         // A suspect's "[짧게]" or "(sigh)" is dropped and read-out rules stop the answer; the narrator
         // may quote the overview's "-다".
         clean: (String) -> String = { it },
+        // A suspect's first sentence also loses an opening its previous answer had (dropRepeatedOpening).
+        cleanFirst: (String) -> String = clean,
         isReadout: (String) -> Boolean = { false },
     ): Answer = coroutineScope {
         val lines = Channel<Line>(Channel.UNLIMITED)
@@ -346,7 +382,7 @@ class VoiceAgent(
             // trySend: on a multi-threaded dispatcher the answer may already have closed the queue.
             lines.trySend(Line(filler, isFiller = true))
         }
-        val builder = AnswerBuilder(maxSentences, scenario.case.forbiddenPhrases + blockedWords, countSentences, clean, isReadout) { sentence ->
+        val builder = AnswerBuilder(maxSentences, forbidden + blockedWords, countSentences, clean, cleanFirst, isReadout) { sentence ->
             fillerJob.cancel()
             lines.trySend(Line(sentence, isFiller = false))
         }
@@ -455,6 +491,8 @@ private class AnswerBuilder(
     private val countSentences: (List<String>) -> Int,
     /** The sentence as spoken; an empty result is skipped. */
     private val clean: (String) -> String,
+    /** [clean] for a sentence while none has been accepted yet. */
+    private val cleanFirst: (String) -> String,
     /** Sentences never to speak: the answer stops there, as it does at a blocked phrase. */
     private val isReadout: (String) -> Boolean,
     private val onSentence: (String) -> Unit,
@@ -483,7 +521,7 @@ private class AnswerBuilder(
     private fun accept(candidates: List<String>): Boolean {
         for (candidate in candidates) {
             if (!isOpen) return false
-            val sentence = clean(candidate)
+            val sentence = if (accepted.isEmpty()) cleanFirst(candidate) else clean(candidate)
             if (sentence.isEmpty()) continue
             if (isReadout(sentence)) {
                 guarded = true

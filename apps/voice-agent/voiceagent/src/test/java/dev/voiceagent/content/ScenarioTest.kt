@@ -38,7 +38,12 @@ class ScenarioTest {
         val keyReactions = jade.suspects.values.flatMap { suspect -> suspect.unlockable.filter { it.key }.map { it.id } }
 
         assertEquals(listOf("뒷문", "뒤문", "부엌문"), jade.case.clue("clue-back-door").mentions)
-        assertEquals(listOf("창문", "서재 창", "창밖", "창 아래", "창가", "창을 열", "창 열"), jade.case.clue("clue-window").mentions)
+        assertEquals(listOf("창문", "서재 창", "창밖", "창 아래", "창가", "창을 열", "창 열", "실내화"), jade.case.clue("clue-window").mentions)
+        val niece = jade.suspect("niece")
+        assertEquals("아무 일 없었던 것처럼 이 일이 조용히 지나가기를 바란다", niece.goal)
+        assertEquals(listOf("밤에 집 안에서 신는 털실내화", "문단속 때 쓰는 집 열쇠 꾸러미"), niece.belongings)
+        assertTrue(niece.confession!!.startsWith("네, 제가 그랬어요."))
+        assertNull(jade.suspect("son").confession)
         assertEquals(listOf("골목"), jade.case.clue("clue-barefoot").mentions)
         // Not "구두" alone: the window's "구두 자국" would bring the shoes up too.
         assertEquals(listOf("고정태 구두", "고정태의 구두"), jade.case.clue("clue-shoes").mentions)

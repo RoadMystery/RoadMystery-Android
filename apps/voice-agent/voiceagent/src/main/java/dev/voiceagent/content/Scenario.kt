@@ -128,6 +128,17 @@ data class Suspect(
     val filler: String,
     /** First-person lines the prompt adds from [InvestigationStage.PRESSING] on. */
     val pressure: Map<InvestigationStage, String> = emptyMap(),
+    /** What the suspect wants from the interrogation (stance.goal), voiced only as opinion. */
+    val goal: String? = null,
+    /** How the suspect treats the detective (stance.towardDetective). */
+    val towardDetective: String? = null,
+    /**
+     * What the suspect owns, wears or keeps a record of, which it knows from the start; a clue hides what
+     * happened to such a thing, not that it exists (docs/voice-agent/game-rules.md).
+     */
+    val belongings: List<String> = emptyList(),
+    /** The culprit's first-person confession, in the prompt only once it is cornered (agent/Confession). */
+    val confession: String? = null,
 )
 
 /** One case as VoiceAgent uses it: content plus the prompt templates evaluated in tools/voice-eval. */
@@ -210,6 +221,7 @@ object ScenarioParser {
         val style = root.getJSONObject("speechStyle")
         val knowledge = root.getJSONObject("knowledge")
         val fallback = root.getJSONObject("fallbackLines")
+        val stance = root.optJSONObject("stance")
         val suspect = Suspect(
             id = id,
             name = member.name,
@@ -232,6 +244,10 @@ object ScenarioParser {
             fallbackNotUnderstood = fallback.getString("notUnderstood"),
             filler = fallback.getString("filler"),
             pressure = root.optJSONObject("pressure")?.let { pressure(it, source) }.orEmpty(),
+            goal = stance?.optionalString("goal"),
+            towardDetective = stance?.optionalString("towardDetective"),
+            belongings = knowledge.optJSONArray("belongings")?.strings().orEmpty(),
+            confession = root.optionalString("confession"),
         )
         checkReferences(suspect, case, source)
         suspect

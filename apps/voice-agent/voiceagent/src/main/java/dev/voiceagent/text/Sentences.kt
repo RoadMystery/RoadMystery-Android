@@ -102,6 +102,61 @@ fun stripStageDirections(sentence: String): String {
 }
 
 /**
+ * voice_eval.metrics.MAX_INTERJECTION_LETTERS: a piece this short before a comma or full stop at the start of
+ * an answer ("아", "하, 참", "에이", "아이고") is an interjection, not words. Not [OPENER_MAX_LETTERS]: that one
+ * is a whole short sentence [countedSentences] lets through for free.
+ */
+private const val MAX_INTERJECTION_LETTERS = 3
+private const val INTERJECTION_SEPARATORS = ",.!?…"
+
+/** voice_eval.metrics.ANSWER_WORDS: short first words that answer the question, which the prompt has the first sentence do. */
+val ANSWER_WORDS = setOf("네", "예", "응", "아니", "아니요", "아뇨", "맞아요", "그래요", "그럼요")
+
+/** Python `['‘“"]([^'’”"]+)['’”"]`: a term a persona's speech rules quote. */
+private val QUOTED = Regex("""['‘“"]([^'’”"]+)['’”"]""")
+
+private fun letters(text: String): Int = text.count { it in '가'..'힣' || it in 'a'..'z' || it in 'A'..'Z' }
+
+/** voice_eval.metrics.address_terms: the ways of addressing someone a persona's speech rules quote ('탐정님'). */
+fun addressTerms(speechRules: List<String>): Set<String> =
+    speechRules.flatMap { rule -> QUOTED.findAll(rule).map { it.groupValues[1] } }.toSet()
+
+/**
+ * voice_eval.metrics.opening_interjections: the interjections [text] opens with and what follows them ("하, 참,
+ * 훔치지 …" → (["하", "참"], "훔치지 …")). A piece of up to [MAX_INTERJECTION_LETTERS] letters before a comma, full
+ * stop, question or exclamation mark counts, unless it answers the question ([ANSWER_WORDS]) or addresses
+ * someone ([keep], or ending in 님 or 씨).
+ */
+fun openingInterjections(text: String, keep: Set<String> = emptySet()): Pair<List<String>, String> {
+    val pieces = mutableListOf<String>()
+    var rest = text
+    while (true) {
+        val body = pythonLstrip(rest)
+        val end = body.indexOfFirst { it in INTERJECTION_SEPARATORS }.let { if (it < 0) body.length else it }
+        val piece = pythonStrip(body.substring(0, end))
+        val isInterjection = end < body.length && letters(piece) in 1..MAX_INTERJECTION_LETTERS &&
+            piece !in ANSWER_WORDS && piece !in keep && !piece.endsWith("님") && !piece.endsWith("씨")
+        if (!isInterjection) return pieces to body
+        var after = end
+        while (after < body.length && body[after] in INTERJECTION_SEPARATORS) after++
+        pieces += piece
+        rest = body.substring(after)
+    }
+}
+
+/**
+ * voice_eval.metrics.drop_repeated_opening: [sentence], the first of an answer, without the interjections it
+ * opens with when the same suspect's previous heard answer opened with the same ones; "" when nothing else is
+ * left. The model copied one opening exclamation into most answers, and taking it out of the prompt's examples
+ * only moved the habit to another one, so the app drops a repeat as it speaks and the first use stays.
+ */
+fun dropRepeatedOpening(sentence: String, previousAnswer: String, keep: Set<String> = emptySet()): String {
+    val (pieces, rest) = openingInterjections(sentence, keep)
+    if (pieces.isEmpty() || pieces != openingInterjections(previousAnswer, keep).first) return sentence
+    return if (letters(rest) > 0) rest else ""
+}
+
+/**
  * Cuts streamed LLM text into sentences as soon as each one is certain, so the first sentence can
  * go to TTS while the rest is still being generated. A mark counts only once the whitespace after
  * it has arrived ("약 3." may continue as "약 3.5초"). Pushing every chunk and then calling

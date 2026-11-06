@@ -96,7 +96,7 @@ def test_mock_run_writes_results_and_report(tmp_path: Path) -> None:
     assert code == 0
     run_dir = next(tmp_path.iterdir())
     lines = (run_dir / "results.jsonl").read_text(encoding="utf-8").splitlines()
-    assert len(lines) == 2 * 2  # 2 probes x 2 variants
+    assert len(lines) == 2 * 3  # 2 probes x 3 variants
     assert json.loads(lines[0])["candidate"] == "haiku-5-5-low"
     assert "| haiku-5-5-low | cover |" in (run_dir / "report.md").read_text(encoding="utf-8")
 
@@ -152,7 +152,7 @@ def test_judge_preflight_failure_stops_before_paying_for_answers(
         def __init__(self, model: str) -> None:
             self.model = model
 
-        def evaluate(self, case, suspect, probe, unlocked, answer):
+        def evaluate(self, case, suspect, probe, unlocked, answer, *, confession=False):
             raise JudgeError("NotFoundError: no such model")
 
     provider = CountingProvider()

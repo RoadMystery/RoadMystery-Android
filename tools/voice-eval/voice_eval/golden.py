@@ -18,18 +18,22 @@ from typing import Any
 from voice_eval.content import ContentError, load_case, load_suspect
 from voice_eval.identify import decompose_jamo, identify_suspect, suspect_aliases
 from voice_eval.metrics import (
+    address_terms,
     counted_sentences,
+    drop_repeated_opening,
     looks_like_readout,
     normalize_for_match,
+    opening_interjections,
     phrase_hits,
     split_sentences,
     strip_stage_directions,
 )
-from voice_eval.prompt import VARIANTS, raised_topics, render_system_prompt
+from voice_eval.prompt import VARIANTS, confession_opens, raised_topics, render_system_prompt
 from voice_eval.summary import load_summary_probes, overview_fallback, render_summary_prompt
 
-GOLDEN_VERSION = 2
-"""What the Kotlin parity test expects; 2 added the "gathering" prompt entry."""
+GOLDEN_VERSION = 3
+"""What the Kotlin parity test expects; 2 added the "gathering" prompt entry, 3 the "aware" variant, the
+culprit's confession and the opening the app drops as it speaks."""
 GOLDEN_CASE = "jade-crown"
 """The case the app ships (Kotlin AndroidAssets.kt DEMO_CASE_DIR)."""
 PRESSURE_STAGES = ("pressing", "ready")
@@ -174,6 +178,30 @@ TOPIC_QUESTIONS: tuple[tuple[str, tuple[str, ...], str], ...] = (
 )
 """(suspect, clues found, question): questions that do or do not raise a clue not found yet."""
 
+CONFESSION_TURNS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
+    ("niece", "ready", ("하린 씨, 창 안쪽 실내화 자국 당신 거잖아요. 당신이 범인이죠?",)),
+    ("niece", "ready", ("당신이 범인이죠?",)),
+    ("niece", "pressing", ("서재 창 아래 이야기인데, 하린 씨가 그랬죠?",)),
+    ("niece", "ready", ("부엌 뒷문 발자국은 하린 씨 거죠?",)),
+    ("niece", "ready", ("서재 창 아래 이야기인데, 하린 씨가 그랬죠?", "왜 그랬어요?")),
+    ("son", "ready", ("서재 창 아래 이야기인데, 준기 씨가 그랬죠?",)),
+)
+"""(suspect, stage, the player's turns to it): when the culprit's confession joins its "aware" prompt.
+Every clue is found in each, as the later stages need."""
+
+OPENING_SAMPLES: tuple[tuple[str, str, str], ...] = (
+    ("son", "하, 참, 아니라니까요, 탐정님.", "하, 참. 화관 얘기나 하시죠."),
+    ("son", "하, 참, 아니라니까요.", "아버지랑은 돈 얘기만 나오면 싸워요."),
+    ("son", "하, 그건 몰라요.", "하, 참. 몇 번을 물어요."),
+    ("maid", "어머, 탐정님, 그런 건 몰라요.", "어머, 저는 열 시쯤 잤어요."),
+    ("maid", "어머.", "어머, 탐정님."),
+    ("niece", "탐정님, 그건 모르겠어요.", "탐정님, 저는 방에 있었어요."),
+    ("niece", "네, 그 실내화 자국은 제 거예요.", "네, 맞아요."),
+    ("niece", "음... 그건 잘 모르겠어요.", "음, 글쎄요."),
+    ("son", "아이고, 그건 몰라요.", ""),
+)
+"""(suspect, an answer's first sentence, the suspect's previous heard answer): the opening the app drops."""
+
 
 def build_golden(
     case_dir: Path, suspect_template: str, summary_template: str, summary_probes: Path
@@ -242,6 +270,32 @@ def build_golden(
                 ),
             }
         )
+    every = frozenset(every_clue)
+    confessions = []
+    for suspect_id, stage, questions in CONFESSION_TURNS:
+        opens = confession_opens(case, by_id[suspect_id], "aware", stage, questions)
+        confessions.append(
+            {
+                "suspect": suspect_id,
+                "stage": stage,
+                "questions": list(questions),
+                "opens": opens,
+                # As the app sends it: pressure lines are off by default, so the stage adds none.
+                "prompt": render_system_prompt(case, by_id[suspect_id], every, "aware", suspect_template, confession=opens),
+            }
+        )
+    openings = []
+    for suspect_id, sentence, previous in OPENING_SAMPLES:
+        keep = address_terms(by_id[suspect_id].speech_rules)
+        openings.append(
+            {
+                "suspect": suspect_id,
+                "sentence": sentence,
+                "previous": previous,
+                "pieces": list(opening_interjections(sentence, keep)[0]),
+                "spoken": drop_repeated_opening(sentence, previous, keep),
+            }
+        )
     summaries = [
         {
             "probe": probe.id,
@@ -261,6 +315,8 @@ def build_golden(
         "overview": overview_fallback(case),
         "prompts": [*prompts, gathering_prompt, *staged_prompts],
         "topics": topics,
+        "confessions": confessions,
+        "openings": openings,
         "summaries": summaries,
         "identify": [
             {"utterance": text, "default": default, "expected": identify_suspect(text, aliases, default)}

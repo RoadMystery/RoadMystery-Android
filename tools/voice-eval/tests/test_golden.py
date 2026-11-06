@@ -42,8 +42,9 @@ def test_the_golden_command_writes_the_committed_file_byte_for_byte(tmp_path: Pa
 
 
 def test_the_golden_version_is_the_one_the_kotlin_port_checks() -> None:
-    # Kotlin GoldenParityTest checks the same number; version 2 added the "gathering" prompt.
-    assert json.loads(GOLDEN_PATH.read_text(encoding="utf-8"))["version"] == GOLDEN_VERSION == 2
+    # Kotlin GoldenParityTest checks the same number; version 2 added the "gathering" prompt, version 3
+    # the "aware" variant, the confession and the dropped openings.
+    assert json.loads(GOLDEN_PATH.read_text(encoding="utf-8"))["version"] == GOLDEN_VERSION == 3
 
 
 def test_golden_samples_only_build_for_the_case_the_app_ships() -> None:
@@ -54,9 +55,9 @@ def test_golden_samples_only_build_for_the_case_the_app_ships() -> None:
 def test_golden_covers_every_suspect_variant_and_routing_case() -> None:
     golden = _fresh()
     assert {entry["suspect"] for entry in golden["prompts"]} == {"son", "niece", "maid"}
-    assert {entry["variant"] for entry in golden["prompts"]} == {"cover", "truth"}
+    assert {entry["variant"] for entry in golden["prompts"]} == {"cover", "aware", "truth"}
     # Suspects x (no clue, each clue alone, every clue) x variants; staged entries come on top.
-    assert len([entry for entry in golden["prompts"] if "stage" not in entry]) == 3 * 6 * 2
+    assert len([entry for entry in golden["prompts"] if "stage" not in entry]) == 3 * 6 * 3
     assert {entry["expected"] for entry in golden["identify"]} == {"son", "niece", "maid", None}
     assert golden["summaries"] and golden["sentences"]
     assert any(len(entry["testimonies"]) > MAX_TESTIMONIES for entry in golden["summaries"])
@@ -101,6 +102,31 @@ def test_golden_has_the_late_stage_prompts_of_every_suspect_with_pressure_lines(
         assert (entry["unlocked"], entry["variant"]) == (every_clue, "cover")
         assert section in entry["prompt"]
         assert entry["prompt"].replace(section, "", 1) == every_clue_cover[entry["suspect"]]
+
+
+def test_golden_has_the_culprit_cornered_and_not_cornered() -> None:
+    # Only jade-crown's culprit, at "ready", by a question about the clue that broke her story, and from
+    # then on in the same conversation; the app sends that prompt without pressure lines.
+    golden = _fresh()
+    case = load_case(GOLDEN_CASE_DIR)
+    niece = load_suspect(GOLDEN_CASE_DIR / "suspects" / "niece.json", case)
+    entries = golden["confessions"]
+
+    assert [entry["opens"] for entry in entries] == [True, False, False, False, True, False]
+    for entry in entries:
+        cornered = entry["opens"]
+        assert (niece.confession in entry["prompt"]) is cornered
+        assert ("# 다 들킨 지금" in entry["prompt"]) is cornered
+        assert ("# 너만 아는 것" in entry["prompt"]) is (entry["suspect"] == "niece" and not cornered)
+        assert PRESSURE_HEADING not in entry["prompt"]
+
+
+def test_golden_has_openings_dropped_and_kept() -> None:
+    spoken = [(entry["sentence"], entry["spoken"]) for entry in _fresh()["openings"]]
+
+    assert any(sentence != said for sentence, said in spoken)
+    assert any(sentence == said for sentence, said in spoken)
+    assert ("어머.", "") in spoken
 
 
 def test_golden_has_one_gathering_prompt_and_it_is_the_stage_less_one() -> None:

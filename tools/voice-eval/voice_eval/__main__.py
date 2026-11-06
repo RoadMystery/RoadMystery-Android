@@ -50,6 +50,7 @@ from voice_eval.proxy import (
 )
 from voice_eval.report import render_markdown, summarize
 from voice_eval.runner import RunRecord, run_matrix
+from voice_eval.semantic_check import check_semantics
 from voice_eval.summary import (
     ClaudeSummaryJudge,
     SummaryJudge,
@@ -57,6 +58,7 @@ from voice_eval.summary import (
     load_summary_probes,
 )
 from voice_eval.summary_eval import SummaryRecord, render_summary_markdown, run_summary_matrix
+from voice_eval.validate import load_subject, validate_case
 
 TOOL_ROOT = Path(__file__).resolve().parents[1]
 REPO_ROOT = TOOL_ROOT.parents[1]
@@ -195,6 +197,7 @@ def _execute(
                 provider=provider,
                 judge=judge,
                 sink=keep,
+                pressure_lines=not args.no_pressure_lines,
             )
     finally:
         report_path.write_text(render_markdown(summarize(records), records), encoding="utf-8")
@@ -343,10 +346,25 @@ def _cmd_render(args: argparse.Namespace) -> int:
     template = args.template.read_text(encoding="utf-8")
     sys.stdout.write(
         render_system_prompt(
-            case, suspect, frozenset(args.unlocked), args.variant, template, stage=args.stage
+            case, suspect, frozenset(args.unlocked), args.variant, template, stage=args.stage,
+            confession=args.confession,
         )
     )
     return 0
+
+
+def _cmd_validate(args: argparse.Namespace) -> int:
+    template = args.template.read_text(encoding="utf-8")
+    problems = validate_case(args.case_dir, template, schema_dir=args.schema_dir)
+    if args.semantic and not any(problem.startswith("불러오지 못함") for problem in problems):
+        if not (os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN")):
+            raise MissingCredentialsError("의미 검사(--semantic)에는 ANTHROPIC_API_KEY가 필요합니다")
+        subject = load_subject(args.case_dir, template, schema_dir=args.schema_dir)
+        problems += check_semantics(subject.case, list(subject.suspects.values()), anthropic.Anthropic())
+    for problem in problems:
+        sys.stdout.write(f"- {problem}\n")
+    sys.stdout.write(f"문제 {len(problems)}개\n" if problems else "문제 없음\n")
+    return 1 if problems else 0
 
 
 def _cmd_identify(args: argparse.Namespace) -> int:
@@ -374,7 +392,10 @@ def _parser() -> argparse.ArgumentParser:
     run.add_argument("--probe-ids", type=_csv, default=(), help="질문 id (쉼표 구분)")
     run.add_argument("--candidates", type=Path, default=DEFAULT_CANDIDATES)
     run.add_argument("--only", type=_csv, default=(), help="후보 id (쉼표 구분)")
-    run.add_argument("--variants", type=_csv, default=VARIANTS, help="cover,truth")
+    run.add_argument("--variants", type=_csv, default=VARIANTS, help="cover,aware,truth")
+    run.add_argument(
+        "--no-pressure-lines", action="store_true", help="앱 기본값처럼 단계별 대사 없이 묻기(자백은 질문의 단계대로)"
+    )
     run.add_argument("--repeats", type=int, default=1)
     run.add_argument("--judge-model", default="claude-opus-5-5")
     run.add_argument("--no-judge", action="store_true", help="LLM 채점 생략")
@@ -389,7 +410,19 @@ def _parser() -> argparse.ArgumentParser:
     render.add_argument(
         "--stage", choices=STAGES, default="opening", help="수사 진척도 (pressing·ready면 단계별 대사가 붙음)"
     )
+    render.add_argument(
+        "--confession", action="store_true", help="범인이 몰린 턴의 aware 프롬프트(자백 절이 붙음)"
+    )
     render.set_defaults(handler=_cmd_render)
+
+    validate = commands.add_parser(
+        "validate", parents=[common], help="사건이 작성 규칙(docs/voice-agent/scenario-rules.md)을 지키는지 검사"
+    )
+    validate.add_argument("--schema-dir", type=Path, default=None, help="기본값: 사건 폴더의 ../../schema")
+    validate.add_argument(
+        "--semantic", action="store_true", help="정답을 뜻으로 드러내는 대사와 답지와 다른 대사를 모델로 판정(유료 호출 1번)"
+    )
+    validate.set_defaults(handler=_cmd_validate)
 
     identify = commands.add_parser(
         "identify", parents=[common], help="질문이 어느 용의자에게 한 것인지 판별"

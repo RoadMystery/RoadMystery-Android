@@ -12,6 +12,10 @@
       "하린 이야기가 나오면 감싸려 든다"
     ]
   },
+  "stance": {
+    "goal": "화관을 훔쳤다는 의심을 벗고 싶다",
+    "towardDetective": "귀찮아하며 퉁명스럽게 대하지만 묻는 말에는 답한다"
+  },
   "speechStyle": {
     "register": "짧고 퉁명스러운 해요체",
     "rules": [
@@ -85,6 +89,7 @@
         "replaces": ["k-son-crown", "k-son-room", "k-son-window"]
       }
     ],
+    "belongings": ["새벽에 서재로 내려갈 때 입고 있던 잠옷"],
     "secret": [
       {
         "id": "s-son-truth",

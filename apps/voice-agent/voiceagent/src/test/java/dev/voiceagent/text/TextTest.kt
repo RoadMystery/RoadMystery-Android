@@ -51,6 +51,34 @@ class TextTest {
     }
 
     @Test
+    fun `an answer opens with the short interjections before its first comma or stop`() {
+        // Python test_metrics.py: addressing someone and a first word that answers are not interjections.
+        val lines = listOf(
+            "아, 그게 좀 이상하긴 했어요." to (listOf("아") to "그게 좀 이상하긴 했어요."),
+            "하, 참, 훔치지 않았다니까요, 탐정님." to (listOf("하", "참") to "훔치지 않았다니까요, 탐정님."),
+            "아이고, 그건 저도 몰라요." to (listOf("아이고") to "그건 저도 몰라요."),
+            "음... 그건 잘 모르겠어요." to (listOf("음") to "그건 잘 모르겠어요."),
+            "Ah, 저, 그건 저도 모르겠어요." to (listOf("Ah", "저") to "그건 저도 모르겠어요."),
+            "탐정님, 그건 모르겠어요." to (emptyList<String>() to "탐정님, 그건 모르겠어요."),
+            "네, 그 실내화 자국은 제 거예요." to (emptyList<String>() to "네, 그 실내화 자국은 제 거예요."),
+            "어머." to (listOf("어머") to ""),
+        )
+        for ((line, expected) in lines) assertEquals(line, expected, openingInterjections(line))
+        val keep = addressTerms(listOf("플레이어를 '언니'라고 부른다"))
+        assertEquals(setOf("언니"), keep)
+        assertEquals(emptyList<String>() to "언니, 그건 몰라요.", openingInterjections("언니, 그건 몰라요.", keep))
+    }
+
+    @Test
+    fun `only a repeat of the last answer's opening is dropped`() {
+        assertEquals("그건 저도 몰라요.", dropRepeatedOpening("아이고, 그건 저도 몰라요.", "아이고, 저는 부엌에 있었어요."))
+        assertEquals("아이고, 그건 저도 몰라요.", dropRepeatedOpening("아이고, 그건 저도 몰라요.", "어머, 저는 부엌에 있었어요."))
+        assertEquals("하, 그건 몰라요.", dropRepeatedOpening("하, 그건 몰라요.", "하, 참. 몇 번을 물어요."))
+        assertEquals("", dropRepeatedOpening("어머.", "어머, 탐정님."))
+        assertEquals("네, 제 거예요.", dropRepeatedOpening("네, 제 거예요.", "네, 맞아요."))
+    }
+
+    @Test
     fun `stage directions are dropped from what is spoken`() {
         assertEquals("어머, 탐정님.", stripStageDirections("[짧게] 어머, 탐정님."))
         assertEquals("어머, 탐정님.", stripStageDirections("*(방금 답한 것 같지만)* 어머, 탐정님."))

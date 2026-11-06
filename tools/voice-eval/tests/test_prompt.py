@@ -9,10 +9,14 @@ from voice_eval.metrics import normalize_for_match
 from voice_eval.prompt import (
     allowed_facts,
     build_messages,
+    confession_opens,
+    mentioned_clues,
+    player_turns,
     pressure_line,
     raised_topics,
     render_system_prompt,
     unlocked_facts,
+    with_subject_particle,
 )
 
 ALL_CLUES = ("clue-fusebox", "clue-wet-gloves", "clue-cellar-key", "clue-pawn-ticket")
@@ -182,7 +186,7 @@ def test_unknown_variant_raises(case: Case, butler: Suspect, template: str) -> N
         _render(case, butler, template, variant="leaky")
 
 
-@pytest.mark.parametrize("variant", ["cover", "truth"])
+@pytest.mark.parametrize("variant", ["cover", "aware", "truth"])
 def test_every_placeholder_is_filled(
     case: Case, butler: Suspect, template: str, variant: str
 ) -> None:
@@ -197,7 +201,7 @@ def test_prompt_carries_identity_style_and_fallback_line(
     assert butler.name in prompt
     assert butler.register in prompt
     assert butler.fallback_not_understood in prompt
-    assert "폭력" in prompt  # family theme rule
+    assert "가족이 함께 듣는 이야기다" in prompt  # family theme rule
 
 
 def test_build_messages_appends_question_after_history(probes: tuple[Probe, ...]) -> None:
@@ -318,3 +322,120 @@ def test_a_suspect_without_pressure_lines_gets_the_same_prompt_at_every_stage(
 def test_unknown_stage_raises(case: Case, butler: Suspect, template: str) -> None:
     with pytest.raises(ValueError, match="unknown stage 'finale'"):
         _render_at(case, butler, template, "finale")
+
+
+def test_examples_and_deflections_go_in_as_written(case: Case, butler: Suspect, template: str) -> None:
+    # A repeated opening exclamation is the app's to drop as it speaks (metrics.drop_repeated_opening):
+    # taking it out of the examples only moved the habit to another one and flattened the voice.
+    suspect = dataclasses.replace(
+        butler, speech_examples=("어머, 그런 일이 있었어요?",), deflections=("에이, 그건 모르겠습니다.",)
+    )
+
+    prompt = _render(case, suspect, template)
+
+    assert "  - 어머, 그런 일이 있었어요?" in prompt
+    assert "- 에이, 그건 모르겠습니다." in prompt
+
+
+def test_stance_and_belongings_join_the_profile_and_what_the_suspect_may_say(
+    case: Case, butler: Suspect, template: str
+) -> None:
+    suspect = dataclasses.replace(
+        butler, goal="의심을 벗고 싶다", toward_detective="공손하지만 경계한다", belongings=("은 회중시계", "집사 장부")
+    )
+
+    prompt = _render(case, suspect, template)
+
+    assert "- 이 심문에서 바라는 것: 의심을 벗고 싶다\n- 탐정을 대하는 태도: 공손하지만 경계한다" in prompt
+    assert "# 네가 가진 것\n- 은 회중시계\n- 집사 장부" in prompt
+    assert f"{with_subject_particle(butler.name)} 가진 것: 은 회중시계" in allowed_facts(case, suspect, frozenset())
+
+
+def test_a_suspect_without_stance_or_belongings_gets_neither_section(case: Case, butler: Suspect, template: str) -> None:
+    prompt = _render(case, butler, template)
+
+    assert "# 네가 가진 것" not in prompt
+    assert "이 심문에서 바라는 것" not in prompt
+
+
+def _cornerable(butler: Suspect) -> Suspect:
+    """demo-sapphire's culprit with a key reaction to its first clue and a confession, which it lacks."""
+    key = dataclasses.replace(butler.unlockable[0], key=True)
+    return dataclasses.replace(butler, unlockable=(key, *butler.unlockable[1:]), confession="네, 제가 했습니다.")
+
+
+def test_aware_tells_only_the_culprit_that_it_hides_something(case: Case, butler: Suspect, template: str) -> None:
+    assert case.solution.culprit == butler.id
+    assert "# 너만 아는 것" in _render(case, butler, template, variant="aware")
+    for suspect_id in ("niece", "cook"):
+        other = load_suspect(CASE_DIR / "suspects" / f"{suspect_id}.json", case)
+        assert _render(case, other, template, variant="aware") == _render(case, other, template)
+
+
+def test_the_culprit_is_cornered_only_at_ready_by_the_clue_that_broke_its_story(case: Case, butler: Suspect) -> None:
+    culprit = _cornerable(butler)
+    key_clue = case.clue(culprit.unlockable[0].unlocked_by[0])
+    cornering = f"{key_clue.title} 이야기인데, 당신이 범인이죠?"
+    other = next(clue for clue in case.clues if clue.id not in culprit.unlockable[0].unlocked_by)
+
+    assert confession_opens(case, culprit, "aware", "ready", [cornering])
+    assert confession_opens(case, culprit, "aware", "ready", [cornering, "그래서 어떻게 됐어요?"])
+    assert key_clue in mentioned_clues(case, cornering)
+    assert not confession_opens(case, culprit, "aware", "pressing", [cornering])
+    assert not confession_opens(case, culprit, "cover", "ready", [cornering])
+    assert not confession_opens(case, culprit, "aware", "ready", ["당신이 범인이죠?"])
+    assert not confession_opens(case, culprit, "aware", "ready", [f"{other.title} 이야기인데, 당신이 범인이죠?"])
+    assert not confession_opens(case, butler, "aware", "ready", [cornering])  # no confession line
+
+
+def test_the_confession_takes_the_place_of_hiding_once_cornered(case: Case, butler: Suspect, template: str) -> None:
+    culprit = _cornerable(butler)
+
+    key = culprit.unlockable[0]
+    order = [clue.id for clue in case.clues]
+    titles = "·".join(case.clue(clue_id).title for clue_id in sorted(key.unlocked_by, key=order.index))
+
+    cornered = render_system_prompt(case, culprit, frozenset(ALL_CLUES), "aware", template, stage="ready", confession=True)
+    hiding = render_system_prompt(case, culprit, frozenset(ALL_CLUES), "aware", template, stage="ready")
+
+    # The key clue's reaction splits in two, so the line an accusing question's clue points at holds the confession.
+    held = f"- [{titles} 이야기에 너의 반응 (몰아붙이지 않을 때)] {key.prompt_text}"
+    confessed = f"- [{titles} 이야기로 너를 범인으로 몰아붙일 때 너의 반응] 네, 제가 했습니다.\n"
+    assert held in cornered and confessed in cornered and cornered.index(held) < cornered.index(confessed)
+    assert cornered.count("네, 제가 했습니다.") == 1 and "# 다 들킨 지금" in cornered
+    assert "# 너만 아는 것" not in cornered
+    assert f"- [{titles} 이야기에 너의 반응] {key.prompt_text}" in hiding and "몰아붙이지 않을 때" not in hiding
+    assert "네, 제가 했습니다." not in hiding and "# 너만 아는 것" in hiding
+    # Rule 3 before rule 6: the line on who did it lets the cornered culprit confess before a clue's reaction holds out.
+    rule = "마찬가지다. 다만 플레이어가 찾은 증거를 들이밀며 너를 범인으로 몰아붙이면, 단서에 대한 반응으로 버티지 말고"
+    assert rule in cornered and "다만 플레이어가 찾은 증거를" not in hiding
+    assert cornered.index(rule) < cornered.index("그 단서에 대한 너의 반응대로 받아라")
+    for fact in culprit.secret:
+        assert fact.text not in cornered
+
+
+def test_only_the_aware_culprit_with_a_confession_can_confess(case: Case, butler: Suspect, template: str) -> None:
+    niece = load_suspect(CASE_DIR / "suspects" / "niece.json", case)
+    for suspect, variant in ((niece, "aware"), (_cornerable(butler), "cover"), (butler, "aware")):
+        with pytest.raises(ValueError, match="cannot confess"):
+            render_system_prompt(case, suspect, frozenset(ALL_CLUES), variant, template, stage="ready", confession=True)
+
+
+def test_player_turns_are_the_earlier_questions_then_this_one(probes: tuple[Probe, ...]) -> None:
+    probe = next(probe for probe in probes if probe.history)
+
+    turns = player_turns(probe)
+
+    assert turns[-1] == probe.question
+    assert list(turns[:-1]) == [turn["content"] for turn in probe.history if turn["role"] == "user"]
+
+
+def test_a_line_keeps_the_word_it_opens_with(case: Case, butler: Suspect, template: str) -> None:
+    # Lines are not trimmed: a reaction may open with the admission ("네, …") on purpose.
+    fact = butler.unlockable[0]
+    admitted = dataclasses.replace(fact, line="네, 그건 제가 한 일이 맞습니다.")
+    suspect = dataclasses.replace(butler, unlockable=(admitted, *butler.unlockable[1:]))
+
+    prompt = _render(case, suspect, template, unlocked=fact.unlocked_by)
+
+    assert "네, 그건 제가 한 일이 맞습니다." in prompt

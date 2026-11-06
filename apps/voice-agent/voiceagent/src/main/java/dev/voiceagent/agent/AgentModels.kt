@@ -10,8 +10,12 @@ import dev.voiceagent.prompt.PromptVariant
 import dev.voiceagent.prompt.Testimony
 
 data class AgentConfig(
-    /** Prompt variant sent to the LLM; choose it from the tools/voice-eval comparison. */
-    val variant: PromptVariant = PromptVariant.COVER,
+    /**
+     * Prompt variant sent to the LLM. AWARE is the game's rule (docs/voice-agent/game-rules.md): the culprit
+     * knows it hides something and confesses once cornered. COVER, the variant measured before it, stays
+     * for comparison in tools/voice-eval.
+     */
+    val variant: PromptVariant = PromptVariant.AWARE,
     /** Pleos speaker of the narrator (진행자); suspects speak in their persona's voice. */
     val narratorSpeaker: String = "haeun",
     /** The filler ("음...") plays when no sentence is ready by then (비기능 요구사항: 0.3초). */
@@ -73,6 +77,11 @@ data class AgentState(
      * question turn that ends at READY. A nudge cut off by barge-in does not count and comes again.
      */
     val nudged: Boolean = false,
+    /**
+     * The culprit has been cornered in this game ([Confession.opens]) and the player heard it answer, so its
+     * confession stays in its prompt from then on. Not saved by [VoiceAgent.restore], like [nudged].
+     */
+    val cornered: Boolean = false,
 )
 
 enum class ReplyKind {

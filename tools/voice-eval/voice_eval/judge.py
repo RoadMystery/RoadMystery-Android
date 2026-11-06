@@ -24,6 +24,7 @@ JUDGE_SCHEMA: dict[str, Any] = {
         "invents_case_facts": {"type": "boolean"},
         "in_character": {"type": "integer"},
         "answers_question": {"type": "integer"},
+        "confesses": {"type": "boolean"},
         "rationale": {"type": "string"},
     },
     "required": [
@@ -32,6 +33,7 @@ JUDGE_SCHEMA: dict[str, Any] = {
         "invents_case_facts",
         "in_character",
         "answers_question",
+        "confesses",
         "rationale",
     ],
     "additionalProperties": False,
@@ -43,11 +45,12 @@ JUDGE_SYSTEM = (
 )
 
 _CRITERIA = """# 채점 기준
-- reveals_solution: 범인이 누구인지, 수법, 동기, 숨긴 곳 중 하나라도 답변이 밝히거나 강하게 암시하면 true. 단순히 부인하거나 다른 사람을 의심하는 말은 false.
+- reveals_solution: 범인이 누구인지, 수법, 동기, 숨긴 곳 중 하나라도 답변이 밝히거나 강하게 암시하면 true. 범인인 용의자가 자기 잘못이나 숨기는 일이 있다는 것을 말로 인정해도 true. 단, '자백할 수 있는 턴'이 '예'일 때 범인이 자백한 것은 false. 단순히 부인하거나 다른 사람을 의심하는 말은 false.
 - reveals_locked_clue: 플레이어가 아직 찾지 않은 단서의 내용을 답변이 먼저 드러내면 true. 플레이어 질문에 이미 나온 말을 되받는 것은 false.
-- invents_case_facts: '말해도 되는 사실'이나 찾은 단서와 어긋나거나, 거기 없는 사건 사실(시간, 장소, 물건, 목격 내용 등)을 새로 지어내면 true. 감정 표현, 일반적인 집안일 묘사, 모른다는 말은 지어낸 것으로 보지 않는다.
+- invents_case_facts: '말해도 되는 사실'이나 찾은 단서와 어긋나거나, 거기 없는 사건 사실(시간, 장소, 사람이 한 일, 물건의 주인과 행방, 목격 내용 등)을 새로 지어내면 true. 남의 알리바이를 대신 대주는 말도 사건 사실이다. 감정 표현, 의견, 일반적인 집안일 묘사, 사건과 상관없는 일상, 모른다는 말은 지어낸 것으로 보지 않는다.
 - in_character (1~5): 정해진 말투와 성격을 지키고, 자신이 AI나 게임 캐릭터라는 사실을 드러내지 않았는가.
 - answers_question (1~5): 캐릭터와 비공개 원칙을 지키는 선에서 질문에 자연스럽게 반응했는가. 사건과 무관한 질문을 정중히 사건으로 돌린 것은 높게 준다.
+- confesses: 범인인 용의자가 답변에서 자기가 범인이라고 털어놓으면 true. 범인이 아니거나 털어놓지 않으면 false.
 - rationale: 한두 문장으로 근거."""
 
 
@@ -63,6 +66,8 @@ class JudgeVerdict:
     in_character: int
     answers_question: int
     rationale: str
+    confesses: bool = False
+    """The culprit owned up; expected only where confession_opens (docs/voice-agent/game-rules.md)."""
 
 
 class Judge(Protocol):
@@ -73,6 +78,8 @@ class Judge(Protocol):
         probe: Probe,
         unlocked: frozenset[str],
         answer: str,
+        *,
+        confession: bool = False,
     ) -> JudgeVerdict: ...
 
 
@@ -81,17 +88,22 @@ def _bullets(lines: list[str]) -> str:
 
 
 def build_judge_prompt(
-    case: Case, suspect: Suspect, probe: Probe, unlocked: frozenset[str], answer: str
+    case: Case, suspect: Suspect, probe: Probe, unlocked: frozenset[str], answer: str, *, confession: bool = False
 ) -> str:
+    """[confession]: the culprit's prompt had its confession this turn (prompt.confession_opens)."""
     culprit = case.member(case.solution.culprit)
-    # What the suspect may state without inventing case facts: the case overview, its profile and
-    # relationships (part of the character) and the answer keys of its public facts and unlocked
-    # reactions, not the first-person lines its prompt shows in their place; then the stage's
-    # pressure line, which the prompt of a probe asked late in the investigation also carries.
+    # What the suspect may state without inventing case facts: the case overview, its profile, stance,
+    # relationships and belongings (part of the character) and the answer keys of its public facts and
+    # unlocked reactions, not the first-person lines its prompt shows in their place; then the stage's
+    # pressure line, which the prompt of a probe asked late in the investigation also carries, and the
+    # confession once the culprit may make it.
     allowed = list(allowed_facts(case, suspect, unlocked))
     pressure = pressure_line(suspect, probe.stage)
     if pressure:
         allowed.append(pressure)
+    if confession and suspect.confession:
+        allowed.append(f"자백할 때 할 말: {suspect.confession}")
+    is_culprit = suspect.id == case.solution.culprit
     found = [f"{clue.title}: {clue.summary}" for clue in case.clues if clue.id in unlocked]
     hidden = [f"{clue.title}: {clue.summary}" for clue in case.clues if clue.id not in unlocked]
     speaker = {"user": "플레이어", "assistant": "용의자"}
@@ -110,6 +122,8 @@ def build_judge_prompt(
                 ]
             ),
             f"# 답변한 용의자\n- {suspect.name}({suspect.role}), 말투: {suspect.register}\n"
+            f"- 범인 여부: {'범인' if is_culprit else '범인 아님'}\n"
+            f"- 자백할 수 있는 턴: {'예' if confession else '아니오'}\n"
             + _bullets(list(suspect.personality)),
             "# 용의자가 말해도 되는 사실\n" + _bullets(allowed),
             "# 플레이어가 찾은 단서\n" + _bullets(found),
@@ -143,6 +157,7 @@ def parse_verdict(data: Any) -> JudgeVerdict:
             in_character=require_score(data, "in_character"),
             answers_question=require_score(data, "answers_question"),
             rationale=str(data["rationale"]),
+            confesses=require_bool(data, "confesses"),
         )
     except (KeyError, TypeError) as exc:
         raise JudgeError(f"malformed verdict: {data!r}") from exc
@@ -202,13 +217,15 @@ class ClaudeJudge:
         probe: Probe,
         unlocked: frozenset[str],
         answer: str,
+        *,
+        confession: bool = False,
     ) -> JudgeVerdict:
         data = request_structured_json(
             self.client,
             model=self.model,
             effort=self.effort,
             system=JUDGE_SYSTEM,
-            prompt=build_judge_prompt(case, suspect, probe, unlocked, answer),
+            prompt=build_judge_prompt(case, suspect, probe, unlocked, answer, confession=confession),
             schema=JUDGE_SCHEMA,
         )
         return parse_verdict(data)

@@ -1,5 +1,6 @@
 package dev.voiceagent
 
+import dev.voiceagent.agent.Confession
 import dev.voiceagent.content.InvestigationStage
 import dev.voiceagent.identify.SequenceMatcher
 import dev.voiceagent.identify.SuspectIdentifier
@@ -9,8 +10,11 @@ import dev.voiceagent.prompt.PromptVariant
 import dev.voiceagent.prompt.SummaryPrompt
 import dev.voiceagent.prompt.SuspectPrompt
 import dev.voiceagent.prompt.Testimony
+import dev.voiceagent.text.addressTerms
 import dev.voiceagent.text.countedSentences
+import dev.voiceagent.text.dropRepeatedOpening
 import dev.voiceagent.text.looksLikeReadout
+import dev.voiceagent.text.openingInterjections
 import dev.voiceagent.text.normalizeForMatch
 import dev.voiceagent.text.phraseHits
 import dev.voiceagent.text.splitSentences
@@ -33,7 +37,7 @@ class GoldenParityTest {
 
     @Test
     fun `golden file is the version and case this port implements`() {
-        assertEquals(2, golden.getInt("version"))
+        assertEquals(3, golden.getInt("version"))
         assertEquals(DEMO_CASE_DIR, "cases/${golden.getString("case")}")
         assertEquals(scenario.case.id, golden.getString("case"))
     }
@@ -70,6 +74,34 @@ class GoldenParityTest {
             val suspect = scenario.suspect(entry.getString("suspect"))
             val actual = SuspectPrompt.render(scenario.case, suspect, unlocked, PromptVariant.COVER, scenario.suspectTemplate, topics)
             assertEquals("'$question'", entry.getString("prompt"), actual)
+        }
+    }
+
+    @Test
+    fun `the culprit is cornered and its confession prompt rendered as in Python`() {
+        val entries = golden.getJSONArray("confessions").objects()
+        assertTrue(entries.any { it.getBoolean("opens") } && entries.any { !it.getBoolean("opens") })
+        val every = scenario.case.clues.map { it.id }.toSet()
+        for (entry in entries) {
+            val suspect = scenario.suspect(entry.getString("suspect"))
+            val stage = InvestigationStage.entries.first { it.id == entry.getString("stage") }
+            val questions = entry.getJSONArray("questions").strings()
+            val opens = Confession.opens(scenario.case, suspect, PromptVariant.AWARE, stage, questions)
+            assertEquals("$questions", entry.getBoolean("opens"), opens)
+            val actual = SuspectPrompt.render(scenario.case, suspect, every, PromptVariant.AWARE, scenario.suspectTemplate, confession = opens)
+            assertEquals("$questions", entry.getString("prompt"), actual)
+        }
+    }
+
+    @Test
+    fun `the opening dropped as an answer is spoken matches Python`() {
+        val entries = golden.getJSONArray("openings").objects()
+        assertTrue(entries.any { it.getString("spoken") != it.getString("sentence") })
+        for (entry in entries) {
+            val keep = addressTerms(scenario.suspect(entry.getString("suspect")).speechRules)
+            val sentence = entry.getString("sentence")
+            assertEquals("'$sentence'", entry.getJSONArray("pieces").strings(), openingInterjections(sentence, keep).first)
+            assertEquals("'$sentence'", entry.getString("spoken"), dropRepeatedOpening(sentence, entry.getString("previous"), keep))
         }
     }
 

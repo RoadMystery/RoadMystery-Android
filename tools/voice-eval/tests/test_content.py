@@ -180,7 +180,7 @@ def test_mentions_key_reactions_and_pressure_lines_load_and_are_optional(case: C
     ]
     demo_suspects = [load_suspect(CASE_DIR / "suspects" / f"{sid}.json", case) for sid in ("butler", "niece", "cook")]
 
-    assert jade.clue("clue-window").mentions == ("창문", "서재 창", "창밖", "창 아래", "창가", "창을 열", "창 열")
+    assert jade.clue("clue-window").mentions == ("창문", "서재 창", "창밖", "창 아래", "창가", "창을 열", "창 열", "실내화")
     assert {fact.id for suspect in jade_suspects for fact in suspect.unlockable if fact.key} == {
         "k-son-shoes",
         "k-niece-window",

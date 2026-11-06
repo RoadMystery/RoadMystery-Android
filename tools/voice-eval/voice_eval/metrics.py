@@ -125,6 +125,88 @@ def strip_stage_directions(sentence: str) -> str:
     return rest if any(char.isalnum() for char in rest) else ""
 
 
+_INTERJECTION_SEPARATORS = frozenset(",.!?…")
+_QUOTED = re.compile(r"['‘“\"]([^'’”\"]+)['’”\"]")
+MAX_INTERJECTION_LETTERS = 3
+"""A piece this short before a comma or full stop at the start of an answer ("아", "하, 참", "에이",
+"아이고") is an interjection, not words. Not the OPENER_MAX_LETTERS above: that one is a whole short
+sentence counted_sentences lets through for free."""
+ANSWER_WORDS = frozenset({"네", "예", "응", "아니", "아니요", "아뇨", "맞아요", "그래요", "그럼요"})
+"""Short first words that answer the question, which the prompt has the first sentence do; never dropped."""
+
+
+def _letters(text: str) -> int:
+    return sum(1 for char in text if "가" <= char <= "힣" or "a" <= char <= "z" or "A" <= char <= "Z")
+
+
+def address_terms(speech_rules: Iterable[str]) -> frozenset[str]:
+    """The ways of addressing someone that a persona's speech rules quote ('탐정님'), never an interjection."""
+    return frozenset(term for rule in speech_rules for term in _QUOTED.findall(rule))
+
+
+def opening_interjections(text: str, keep: Iterable[str] = ()) -> tuple[tuple[str, ...], str]:
+    """The interjections [text] opens with and what follows them ("하, 참, 훔치지 …" → (("하", "참"),
+    "훔치지 …")), as the app finds them (Kotlin text/Sentences.kt).
+
+    A piece of up to MAX_INTERJECTION_LETTERS letters before a comma, full stop, question or exclamation
+    mark counts, unless it answers the question (ANSWER_WORDS) or addresses someone ([keep], or ending in
+    님 or 씨).
+    """
+    kept = set(keep)
+    pieces: list[str] = []
+    rest = text
+    while True:
+        body = rest.lstrip()
+        end = next((index for index, char in enumerate(body) if char in _INTERJECTION_SEPARATORS), len(body))
+        piece = body[:end].strip()
+        if (
+            end == len(body)
+            or not 1 <= _letters(piece) <= MAX_INTERJECTION_LETTERS
+            or piece in ANSWER_WORDS
+            or piece in kept
+            or piece.endswith(("님", "씨"))
+        ):
+            return tuple(pieces), body
+        after = end
+        while after < len(body) and body[after] in _INTERJECTION_SEPARATORS:
+            after += 1
+        pieces.append(piece)
+        rest = body[after:]
+
+
+def drop_repeated_opening(sentence: str, previous_answer: str, keep: Iterable[str] = ()) -> str:
+    """[sentence], the first of an answer, without the interjections it opens with when the same suspect's
+    previous heard answer opened with the same ones; "" when nothing else is left (Kotlin text/Sentences.kt).
+
+    The model copied one opening exclamation into most answers, and taking it out of the prompt's examples
+    only moved the habit to another one ("어머," became "아이고,"), so the app drops a repeat as it speaks
+    and the first use stays (docs/voice-agent/game-rules.md).
+    """
+    pieces, rest = opening_interjections(sentence, keep)
+    if not pieces or pieces != opening_interjections(previous_answer, keep)[0]:
+        return sentence
+    return rest if _letters(rest) else ""
+
+
+REFUSAL = re.compile(
+    r"(말씀드릴|말할)\s*수\s*(가\s*)?없|말씀드릴\s*수\s*있는\s*(게|것이|얘기가|일이|말이)\s*(아[니닙]|없)"
+    r"|드릴\s*(수\s*있는\s*)?말씀이\s*(없|아[니닙])|말씀드릴\s*(일|것|게)이?\s*아[니닙]|(말씀|기억해)\s*드리기\s*(가\s*)?어렵"
+    r"|말씀드리기\s*(가\s*)?어렵|말할\s*일이\s*아[니닙]|입\s*밖에\s*낼|입에\s*올릴|입으로\s*드릴|드릴\s*수\s*없|읽어\s*드릴\s*수"
+    r"|알려\s*드릴\s*수\s*없|아는\s*(만큼만|범위에서만|것\s*이상)|아는\s*(것|대로)만"
+    r"|드릴\s*수\s*있는\s*(답|말씀|것|일)이\s*아[니닙]|만\s*(말씀\s*드릴|말할)\s*수\s*있"
+)
+"""Saying that something cannot be said, which sounds like hiding: the rubric registered for the refusal
+runs of 2026-11-03 and the "제가 한 일만 말할 수 있어요" family the 2026-11-06 blind test counted by hand.
+"알 바 아니에요" and "모르겠어요" are not refusals."""
+_DEFERENCE = re.compile(r"함부로|감히")
+"""'함부로 말씀드릴 수 없어요' is modesty, not a refusal."""
+
+
+def refuses(text: str) -> bool:
+    """Whether [text] says it cannot tell (REFUSAL), other than out of modesty just before it."""
+    return any(not _DEFERENCE.search(text[max(0, match.start() - 8) : match.start()]) for match in REFUSAL.finditer(text))
+
+
 def hangul_ratio(text: str) -> float:
     letters = [char for char in text if char.isalpha()]
     if not letters:

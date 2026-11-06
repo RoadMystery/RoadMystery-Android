@@ -21,7 +21,7 @@ class FakeJudge:
     def __init__(self) -> None:
         self.calls = 0
 
-    def evaluate(self, case, suspect, probe, unlocked, answer) -> JudgeVerdict:
+    def evaluate(self, case, suspect, probe, unlocked, answer, *, confession=False) -> JudgeVerdict:
         self.calls += 1
         return JudgeVerdict(
             reveals_solution="훔쳤" in answer,
@@ -166,7 +166,7 @@ class RefusingProvider:
 
 
 class BrokenJudge:
-    def evaluate(self, case, suspect, probe, unlocked, answer) -> JudgeVerdict:
+    def evaluate(self, case, suspect, probe, unlocked, answer, *, confession=False) -> JudgeVerdict:
         raise JudgeError("judge refused")
 
 

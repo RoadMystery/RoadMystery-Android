@@ -32,6 +32,65 @@ class PromptsTest {
     }
 
     @Test
+    fun `examples and deflections go in as written`() {
+        // Python test_prompt.py: a repeated opening is dropped as the answer is spoken, not cut from the prompt.
+        val suspect = scenario.suspect("butler")
+            .copy(speechExamples = listOf("어머, 그런 일이 있었어요?"), deflections = listOf("에이, 그건 모르겠습니다."))
+
+        val prompt = SuspectPrompt.render(scenario.case, suspect, emptySet(), PromptVariant.COVER, scenario.suspectTemplate)
+
+        assertTrue(prompt.contains("  - 어머, 그런 일이 있었어요?"))
+        assertTrue(prompt.contains("- 에이, 그건 모르겠습니다."))
+    }
+
+    @Test
+    fun `stance and belongings join the profile and the facts`() {
+        val suspect = scenario.suspect("butler")
+            .copy(goal = "의심을 벗고 싶다", towardDetective = "공손하지만 경계한다", belongings = listOf("은 회중시계", "집사 장부"))
+
+        val prompt = SuspectPrompt.render(scenario.case, suspect, emptySet(), PromptVariant.COVER, scenario.suspectTemplate)
+        val plain = SuspectPrompt.render(scenario.case, scenario.suspect("butler"), emptySet(), PromptVariant.COVER, scenario.suspectTemplate)
+
+        assertTrue(prompt.contains("- 이 심문에서 바라는 것: 의심을 벗고 싶다\n- 탐정을 대하는 태도: 공손하지만 경계한다"))
+        assertTrue(prompt.contains("# 네가 가진 것\n- 은 회중시계\n- 집사 장부"))
+        assertFalse(plain.contains("# 네가 가진 것") || plain.contains("이 심문에서 바라는 것"))
+    }
+
+    @Test
+    fun `aware tells only the culprit it hides something, and the confession replaces that once cornered`() {
+        val butler = scenario.suspect("butler")
+        val key = butler.unlockable.first().copy(key = true)
+        val culprit = butler.copy(unlockable = listOf(key) + butler.unlockable.drop(1), confession = "네, 제가 했습니다.")
+        val every = scenario.case.clues.map { it.id }.toSet()
+        val render = { suspect: Suspect, confession: Boolean ->
+            SuspectPrompt.render(scenario.case, suspect, every, PromptVariant.AWARE, scenario.suspectTemplate, confession = confession)
+        }
+
+        val order = scenario.case.clues.map { it.id }
+        val titles = key.unlockedBy.sortedBy(order::indexOf).joinToString("·") { id -> scenario.case.clues.first { it.id == id }.title }
+        val cornered = render(culprit, true)
+
+        assertEquals(scenario.case.solution.culprit, butler.id)
+        assertTrue(render(culprit, false).contains("# 너만 아는 것"))
+        // The key clue's reaction splits in two, so the line an accusing question's clue points at holds the confession.
+        val held = "- [$titles 이야기에 너의 반응 (몰아붙이지 않을 때)] ${key.promptText}"
+        val confessed = "- [$titles 이야기로 너를 범인으로 몰아붙일 때 너의 반응] 네, 제가 했습니다.\n"
+        assertTrue(cornered.indexOf(held) in 0 until cornered.indexOf(confessed))
+        assertTrue(cornered.contains("# 다 들킨 지금\n") && cornered.split("네, 제가 했습니다.").size == 2)
+        assertTrue(render(culprit, false).contains("- [$titles 이야기에 너의 반응] ${key.promptText}"))
+        assertFalse(render(culprit, false).contains("몰아붙이지 않을 때"))
+        assertFalse(cornered.contains("# 너만 아는 것") || render(culprit, false).contains("네, 제가 했습니다."))
+        // Rule 3 before rule 6: the line on who did it lets the cornered culprit confess before a clue's reaction holds out.
+        val rule = "마찬가지다. 다만 플레이어가 찾은 증거를 들이밀며 너를 범인으로 몰아붙이면, 단서에 대한 반응으로 버티지 말고"
+        assertTrue(render(culprit, true).indexOf(rule) in 0 until render(culprit, true).indexOf("그 단서에 대한 너의 반응대로 받아라"))
+        assertFalse(render(culprit, false).contains("다만 플레이어가 찾은 증거를"))
+        val cook = scenario.suspect("cook")
+        assertEquals(SuspectPrompt.render(scenario.case, cook, every, PromptVariant.COVER, scenario.suspectTemplate), render(cook, false))
+        assertThrows(IllegalArgumentException::class.java) { render(cook, true) }
+        assertThrows(IllegalArgumentException::class.java) { render(butler, true) }
+    }
+
+    @Test
     fun `cover prompt keeps the secret out and truth prompt carries it`() {
         val butler = scenario.suspect("butler")
         val cover = SuspectPrompt.render(scenario.case, butler, emptySet(), PromptVariant.COVER, scenario.suspectTemplate)

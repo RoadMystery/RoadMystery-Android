@@ -6,18 +6,82 @@ import pytest
 from voice_eval.content import Case
 from voice_eval.metrics import (
     StreamTimer,
+    address_terms,
     check_answer,
     counted_sentences,
+    drop_repeated_opening,
     first_sentence_end,
     format_violations,
     hangul_ratio,
     looks_like_readout,
     normalize_for_match,
+    opening_interjections,
     percentile,
     phrase_hits,
+    refuses,
     split_sentences,
     strip_stage_directions,
 )
+
+
+@pytest.mark.parametrize(
+    ("line", "pieces", "rest"),
+    [
+        ("아, 그게 좀 이상하긴 했어요.", ("아",), "그게 좀 이상하긴 했어요."),
+        ("하, 참, 훔치지 않았다니까요, 탐정님.", ("하", "참"), "훔치지 않았다니까요, 탐정님."),
+        ("하, 참. 화관 얘기나 하시죠.", ("하", "참"), "화관 얘기나 하시죠."),
+        ("아이고, 그건 저도 몰라요.", ("아이고",), "그건 저도 몰라요."),
+        ("음... 그건 잘 모르겠어요.", ("음",), "그건 잘 모르겠어요."),
+        ("Ah, 저, 그건 저도 모르겠어요.", ("Ah", "저"), "그건 저도 모르겠어요."),
+        ("탐정님, 그건 모르겠어요.", (), "탐정님, 그건 모르겠어요."),
+        ("민재 씨, 그건 모르겠어요.", (), "민재 씨, 그건 모르겠어요."),
+        ("네, 그 실내화 자국은 제 거예요.", (), "네, 그 실내화 자국은 제 거예요."),
+        ("아니요, 저는 방에 있었어요.", (), "아니요, 저는 방에 있었어요."),
+        ("그건 잘 모르겠어요.", (), "그건 잘 모르겠어요."),
+        ("어머.", ("어머",), ""),
+    ],
+)
+def test_an_answer_opens_with_the_short_interjections_before_its_first_comma_or_stop(
+    line: str, pieces: tuple[str, ...], rest: str
+) -> None:
+    # A way of addressing someone is not an interjection, nor is a first word that answers the question:
+    # the prompt has the first sentence say yes or no, and the admission "네, …" must stay whole.
+    assert opening_interjections(line) == (pieces, rest)
+
+
+def test_a_way_of_addressing_someone_the_speech_rules_quote_is_not_an_interjection() -> None:
+    keep = address_terms(("플레이어를 '언니'라고 부른다",))
+
+    assert keep == frozenset({"언니"})
+    assert opening_interjections("언니, 그건 몰라요.", keep) == ((), "언니, 그건 몰라요.")
+
+
+def test_only_a_repeat_of_the_last_answers_opening_is_dropped() -> None:
+    # The model copied one opening into most answers; the first use stays, the repeat goes.
+    assert drop_repeated_opening("아이고, 그건 저도 몰라요.", "아이고, 저는 부엌에 있었어요.") == "그건 저도 몰라요."
+    assert drop_repeated_opening("하, 참, 아니라니까요.", "하, 참. 몇 번을 물어요.") == "아니라니까요."
+    assert drop_repeated_opening("아이고, 그건 저도 몰라요.", "어머, 저는 부엌에 있었어요.") == "아이고, 그건 저도 몰라요."
+    assert drop_repeated_opening("아이고, 그건 저도 몰라요.", "") == "아이고, 그건 저도 몰라요."
+    assert drop_repeated_opening("하, 그건 몰라요.", "하, 참. 몇 번을 물어요.") == "하, 그건 몰라요."
+    assert drop_repeated_opening("어머.", "어머, 탐정님.") == ""
+    assert drop_repeated_opening("네, 제 거예요.", "네, 맞아요.") == "네, 제 거예요."
+
+
+@pytest.mark.parametrize(
+    ("text", "refusal"),
+    [
+        ("그건 제가 말씀드릴 수 없어요, 탐정님.", True),
+        ("저는 아는 만큼만 말씀드릴 수 있습니다.", True),
+        ("제가 한 일만 말할 수 있어요.", True),
+        ("제 일만 말씀드릴 수 있어요.", True),
+        ("그런 건 제가 함부로 말씀드릴 수 없어요.", False),
+        ("그건 제가 알 바 아니에요.", False),
+        ("그건 잘 모르겠어요, 탐정님.", False),
+        ("그보다 화관 얘기를 해 주세요.", False),
+    ],
+)
+def test_saying_it_cannot_be_told_is_a_refusal_unless_it_is_modesty(text: str, refusal: bool) -> None:
+    assert refuses(text) is refusal
 
 
 def _clock(times: list[float]) -> "callable":
