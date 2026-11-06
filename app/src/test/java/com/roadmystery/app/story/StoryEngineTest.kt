@@ -99,6 +99,52 @@ class StoryEngineTest {
     }
 
     @Test
+    fun `목적지가 없으면 10분 챕터로 보고 넘치는 선택 장면을 뺀다`() {
+        val long =
+            testScenario.copy(
+                chapters =
+                    listOf(
+                        Chapter(
+                            "ch1",
+                            "1장",
+                            listOf(
+                                scene("briefing", trigger = SceneTrigger.BRIEFING),
+                                scene("m1", durationSec = 300, unlocks = listOf("c1")),
+                                scene("opt1", required = false, durationSec = 60),
+                                scene("m2", durationSec = 300, unlocks = listOf("c2")),
+                                scene("ending_correct", trigger = SceneTrigger.ENDING_CORRECT),
+                                scene("ending_wrong", trigger = SceneTrigger.ENDING_WRONG),
+                            ),
+                        ),
+                    ),
+            )
+        val engine = DefaultStoryEngine(ScenarioRepository { long }, audio)
+        engine.start("test")
+        engine.onAudioEvent(AudioEvent.SceneFinished("briefing"))
+        engine.onVehicleEvent(VehicleEvent.Driving)
+        engine.onAudioEvent(AudioEvent.SceneFinished("m1"))
+        assertEquals("필수만으로 10분이 차서 선택 장면은 건너뛴다", "m2", audio.playing)
+    }
+
+    @Test
+    fun `목적지가 없어도 10분이 남으면 선택 장면을 넣는다`() {
+        startDriving()
+        finish("m1")
+        assertEquals("opt1", audio.playing)
+    }
+
+    @Test
+    fun `끼어든 터널 장면도 남은 시간을 쓰므로 시간이 부족하면 뺀다`() {
+        startDriving()
+        send(VehicleEvent.EtaChanged(remainingSec = 100))
+        send(VehicleEvent.Place("tunnel"))
+        finish("m1")
+        assertEquals("터널 장면은 시간이 모자라 건너뛰고 남는 시간에 맞는 장면을 튼다", "opt1", audio.playing)
+        finish("opt1")
+        assertEquals("m2", audio.playing)
+    }
+
+    @Test
     fun `도착하면 못 들은 필수 단서를 지급하고, 범인을 맞히면 정답 엔딩을 재생한다`() {
         startDriving()
         send(VehicleEvent.Arrived)
