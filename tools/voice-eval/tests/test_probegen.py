@@ -27,9 +27,11 @@ def _wording(slots, change=None, case=None):
         question = f"질문 {number}번이에요?"
         if case is not None and slot.corner_clue:
             question = f"질문 {number}번, {case.clue(slot.corner_clue).title} 얘기인데 범인 맞죠?"
+        if case is not None and slot.caught_clue:
+            question = f"질문 {number}번, {case.clue(slot.caught_clue).title} 얘기랑 아까 말이 다르잖아요?"
         row = {"suspect": slot.suspect, "id": slot.id, "question": question,
                "earlier_question": "", "earlier_answer": ""}
-        if slot.category == "multi_turn":
+        if slot.category in ("multi_turn", "caught"):
             row.update(earlier_question="그날 밤 얘기 좀 해 줄래요?", earlier_answer="그날 밤엔 일찍 잤어요.")
         rows.append(row)
     if change:
@@ -107,6 +109,36 @@ def test_a_corner_question_must_name_the_clue_and_a_bare_one_none(jade) -> None:
     assert any("niece/corner-bare:" in problem and "단서를 꺼냅니다" in problem for problem in problems)
 
 
+def test_each_claim_a_reaction_takes_back_gets_a_question_that_catches_it(jade) -> None:
+    case, suspects = jade
+    son = next(suspect for suspect in suspects if suspect.id == "son")
+    lines = {fact.id: fact.prompt_text for fact in son.public}
+    caught = {slot.id: slot for slot in skeleton(case, suspects) if slot.category == "caught"}
+
+    # The son said he never left his room and that he only picked the crown up; the barefoot prints and
+    # the shoes take those back. No one else has a line a reaction takes back.
+    assert set(caught) == {"caught-k-son-barefoot", "caught-k-son-shoes"}
+    assert all(slot.suspect == "son" and slot.repeats == 1 for slot in caught.values())
+    barefoot, shoes = caught["caught-k-son-barefoot"], caught["caught-k-son-shoes"]
+    assert (barefoot.caught_clue, barefoot.claim) == ("clue-barefoot", lines["k-son-room"])
+    assert (shoes.caught_clue, shoes.claim) == ("clue-shoes", lines["k-son-crown"])
+    assert barefoot.unlocked == ("clue-back-door", "clue-window", "clue-barefoot")
+
+
+def test_a_caught_question_must_bring_up_the_clue_that_breaks_the_claim(jade) -> None:
+    case, suspects = jade
+    slots = skeleton(case, suspects)
+
+    def change(rows):
+        for row in rows:
+            if row["id"] == "caught-k-son-barefoot":
+                row["question"] = "아까 한 말이랑 다르잖아요?"
+
+    problems = check_wording(case, slots, _wording(slots, change, case=case))
+
+    assert problems == [f"son/caught-k-son-barefoot: 앞 대답을 깨는 단서 '{case.clue('clue-barefoot').title}'를 꺼내지 않습니다"]
+
+
 def test_plain_wording_passes_and_makes_files_that_load(jade, tmp_path: Path) -> None:
     case, suspects = jade
     slots = skeleton(case, suspects)
@@ -122,6 +154,11 @@ def test_plain_wording_passes_and_makes_files_that_load(jade, tmp_path: Path) ->
         assert [turn["role"] for turn in multi.history] == ["user", "assistant"]
         stages = {probe.id: probe.stage for probe in probes}
         assert stages.get("corner", "ready") == stages.get("corner-bare", "ready") == "ready"
+        # A caught question's earlier answer is the claim as the sheet has it, not the model's wording.
+        claims = {slot.id: slot.claim for slot in slots if slot.suspect == suspect_id and slot.category == "caught"}
+        for probe in probes:
+            if probe.id in claims:
+                assert probe.history[1] == {"role": "assistant", "content": claims[probe.id]}
 
 
 def test_a_question_copying_a_hidden_fact_of_a_clue_not_found_is_reported(jade) -> None:

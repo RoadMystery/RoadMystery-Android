@@ -54,6 +54,24 @@ object Investigation {
     }
 
     /**
+     * [suspect]'s reactions within reach with [unlocked] that take back one of its public lines
+     * ([UnlockableFact.replaces]): the claims the clues broke (docs/voice-agent/before-found-denials.md).
+     */
+    fun claimBreakers(suspect: Suspect, unlocked: Set<String>): List<UnlockableFact> {
+        val public = suspect.public.map { it.id }.toSet()
+        return suspect.unlockable.filter { unlocked.containsAll(it.unlockedBy) && it.replaces.any(public::contains) }
+    }
+
+    /**
+     * Ids of [suspect]'s claims, the public lines some reaction takes back, that its prompt still carries
+     * with [unlocked]: no reaction within reach has taken them back yet.
+     */
+    fun standingClaims(suspect: Suspect, unlocked: Set<String>): Set<String> {
+        val claims = suspect.unlockable.flatMap { it.replaces }.toSet() intersect suspect.public.map { it.id }.toSet()
+        return claims - claimBreakers(suspect, unlocked).flatMap { it.replaces }.toSet()
+    }
+
+    /**
      * Whether [heard], what the player heard [suspect] say, answers the question at all: a counted
      * sentence, not only openers like "하, 참.", and not the suspect's line for a question it did not
      * understand, which the prompt has it say word for word (matched normalized all the same).

@@ -399,6 +399,79 @@ class VoiceAgentTest {
     }
 
     @Test
+    fun `a claim heard before its clue is found brings the narrator's comparison once that clue breaks it`() = runTest {
+        val llm = ScriptedLlm(answer("방에만 있었어요."), answer("열 시쯤 잤어요."), answer("정말이에요."))
+        val speech = speech()
+        val agent = jadeAgent(llm, speech)
+        val son = jade.suspect("son")
+        val barefoot = jade.case.clue("clue-barefoot")
+        val compare = NarratorLines.compare(son, barefoot)
+
+        agent.ask("준기 씨, 그날 밤 어디 있었어요?")
+        agent.unlockClue(barefoot.id)
+        val next = agent.ask("옥분 씨, 그날 밤 어디 있었어요?")
+        val after = agent.ask("정말이에요?")
+
+        assertEquals("탐정님, 서준기 씨가 아까 한 말을 골목의 맨발 자국 이야기와 견줘 보세요.", compare)
+        assertEquals(ReplyKind.HINT, next.kind)
+        assertEquals(listOf("열 시쯤 잤어요.", compare), next.sentences)
+        assertEquals(ReplyKind.ANSWER, after.kind)
+        assertEquals(1, speech.spoken.count { it.text == compare })
+        assertEquals(setOf("son" to "k-son-barefoot"), agent.state.value.caught)
+        assertTrue(agent.state.value.notebook.none { it.answer.contains(compare) })
+    }
+
+    @Test
+    fun `confronting the suspect with the clue that breaks its claim leaves the narrator nothing to compare`() = runTest {
+        val llm = ScriptedLlm(answer("방에만 있었어요."), answer("그래요, 골목까지 뛰어나갔어요."), answer("열 시쯤 잤어요."))
+        val speech = speech()
+        val agent = jadeAgent(llm, speech)
+        val compare = NarratorLines.compare(jade.suspect("son"), jade.case.clue("clue-barefoot"))
+
+        agent.ask("준기 씨, 그날 밤 어디 있었어요?")
+        agent.unlockClue("clue-barefoot")
+        val confronted = agent.ask("준기 씨, 골목 맨발 자국은 뭐예요?")
+        val next = agent.ask("옥분 씨, 그날 밤 어디 있었어요?")
+
+        assertEquals(ReplyKind.ANSWER, confronted.kind)
+        assertEquals(ReplyKind.ANSWER, next.kind)
+        assertTrue(speech.spoken.none { it.text == compare })
+        assertEquals(setOf("son" to "k-son-barefoot"), agent.state.value.caught)
+    }
+
+    @Test
+    fun `a claim already broken when the player first hears the suspect brings no comparison`() = runTest {
+        val llm = ScriptedLlm(answer("방에만 있었어요."), answer("열 시쯤 잤어요."))
+        val speech = speech()
+        val agent = jadeAgent(llm, speech)
+        agent.unlockClue("clue-barefoot")
+
+        agent.ask("준기 씨, 그날 밤 어디 있었어요?")
+        val next = agent.ask("옥분 씨, 그날 밤 어디 있었어요?")
+
+        assertEquals(ReplyKind.ANSWER, next.kind)
+        assertEquals(setOf("son" to "k-son-crown"), agent.state.value.claimsHeard)
+        assertTrue(speech.spoken.none { it.text.startsWith("탐정님, 서준기 씨가 아까 한 말을") })
+    }
+
+    @Test
+    fun `a key reaction that takes a claim back is left to the hints, which name no one`() = runTest {
+        val llm = ScriptedLlm(answer("방에만 있었어요."), answer("열 시쯤 잤어요."))
+        val speech = speech()
+        val agent = jadeAgent(llm, speech)
+
+        agent.ask("준기 씨, 그날 밤 어디 있었어요?")
+        // The window and the shoes bring k-son-shoes within reach, the key reaction taking both his claims back.
+        agent.unlockClue("clue-window")
+        agent.unlockClue("clue-shoes")
+        val next = agent.ask("옥분 씨, 그날 밤 어디 있었어요?")
+
+        assertEquals(ReplyKind.ANSWER, next.kind)
+        assertEquals(listOf("열 시쯤 잤어요."), next.sentences)
+        assertEquals(emptySet<Pair<String, String>>(), agent.state.value.caught)
+    }
+
+    @Test
     fun `a leak on the turn that reaches READY takes the turn, and the nudge comes on the next one`() = runTest {
         val llm = ScriptedLlm(answer("그날 밤 서재 창밖에 고정태가 있었어요. 범인은 하린이에요."), answer("다 말씀드렸잖아요."))
         val agent = jadeAgent(llm, speech())

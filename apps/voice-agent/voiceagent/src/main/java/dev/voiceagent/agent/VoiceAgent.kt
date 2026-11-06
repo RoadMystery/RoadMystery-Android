@@ -1,8 +1,10 @@
 package dev.voiceagent.agent
 
+import dev.voiceagent.content.Clue
 import dev.voiceagent.content.InvestigationStage
 import dev.voiceagent.content.Scenario
 import dev.voiceagent.content.Suspect
+import dev.voiceagent.content.UnlockableFact
 import dev.voiceagent.identify.SuspectIdentifier
 import dev.voiceagent.llm.ChatMessage
 import dev.voiceagent.llm.LlmClient
@@ -206,9 +208,10 @@ class VoiceAgent(
 
     /**
      * Records what the player heard of [answer], then ends the turn with at most one narrator line: the
-     * hint for a leak the guard cut, else the nudge on the first turn that ends at READY, else, after an
-     * answer-seeking question, a hint unless it is the one last given. An answer cut before its first
-     * sentence is replaced by one of the suspect's deflections, with or without a line after it.
+     * hint for a leak the guard cut, else on a heard answer the line comparing a claim the player heard with
+     * the clue that broke it ([NarratorLines.compare]), else the nudge on the first turn that ends at READY,
+     * else, after an answer-seeking question, a hint unless it is the one last given. An answer cut before
+     * its first sentence is replaced by one of the suspect's deflections, with or without a line after it.
      * [unlocked]: the clues the prompt was made with. [confession]: the prompt had the culprit's confession,
      * so the narrator stays quiet over a heard answer.
      */
@@ -224,6 +227,7 @@ class VoiceAgent(
         if (heard) remember(progress.game, suspect.id, question, answer.sentences)
         if (heard && confession) corner(progress.game)
         val drawn = confront(progress.game, suspect, unlocked, question, answer.sentences)
+        if (heard) noteClaims(progress.game, suspect, unlocked, question)
         // A reaction the question went after but did not draw out stays pending; "ask about it" would
         // only repeat the question just asked, so the hint moves on. That holds when the answer was
         // heard but did not count (only an opener, or asking to repeat) as much as when it was cut.
@@ -241,10 +245,14 @@ class VoiceAgent(
         }
         val now = mutableState.value
         val leakHint = if (answer.leaked.isEmpty()) null else hint(tried)
+        val catch = if (heard) pendingCatch(now) else null
+        val compareLine = catch?.let { (who, _, clue) -> NarratorLines.compare(who, clue) }
         val line = when {
             leakHint != null -> leakHint
             // The culprit's answer to being cornered is the scene; a hint or the nudge would talk over it.
             confession && heard -> null
+            // Like the nudge, on the first turn free for it once the clue that breaks the claim is found.
+            compareLine != null -> compareLine
             // READY may have come with a clue the story unlocked, or a leak hint may have taken the turn
             // that got there: the nudge waits for the first turn free for it.
             now.stage == InvestigationStage.READY && !now.nudged -> NarratorLines.ACCUSE_NUDGE
@@ -256,7 +264,8 @@ class VoiceAgent(
             mutableState.update { if (it.game == progress.game) it.copy(lastHint = null) else it }
             return progress.reply(kind)
         }
-        narrate(progress, line)
+        val caught = if (catch != null && line == compareLine) catch.first.id to catch.second.id else null
+        narrate(progress, line, caught)
         return progress.reply(ReplyKind.HINT)
     }
 
@@ -326,17 +335,58 @@ class VoiceAgent(
     }
 
     /**
-     * Speaks a hint or the nudge in the narrator's voice, never testimony. Only once it has been spoken
-     * is it the last hint and the nudge given: a barge-in that cuts it off leaves the one nudge of the
-     * game for the next turn.
+     * Speaks a hint, the nudge or a comparison in the narrator's voice, never testimony. Only once it has
+     * been spoken is it the last hint, the nudge given and [caught] (the suspect and reaction a comparison
+     * pointed at) done: a barge-in that cuts it off leaves it for the next turn.
      */
-    private suspend fun narrate(progress: TurnProgress, line: String) {
+    private suspend fun narrate(progress: TurnProgress, line: String, caught: Pair<String, String>? = null) {
         // Marked before say() adds it to the sentences, so a reply cut off here still keeps it apart.
         progress.update { it.copy(narratorLine = line) }
         say(progress, line, config.narratorSpeaker, isFiller = false)
         mutableState.update {
-            if (it.game == progress.game) it.copy(lastHint = line, nudged = it.nudged || line == NarratorLines.ACCUSE_NUDGE) else it
+            if (it.game != progress.game) return@update it
+            it.copy(
+                lastHint = line,
+                nudged = it.nudged || line == NarratorLines.ACCUSE_NUDGE,
+                caught = if (caught == null) it.caught else it.caught + caught,
+            )
         }
+    }
+
+    /**
+     * Records the claims [suspect]'s prompt carried with [unlocked] when the player heard it answer, and
+     * counts as caught the reactions taking a claim back that [question] already confronted it with: pointing
+     * at them afterwards would repeat what the player just did.
+     */
+    private fun noteClaims(game: Int, suspect: Suspect, unlocked: Set<String>, question: String) {
+        val held = Investigation.standingClaims(suspect, unlocked).map { suspect.id to it }
+        val raised = Investigation.mentionedClues(scenario.case, question).map { it.id }.toSet()
+        val confronting = Investigation.claimBreakers(suspect, unlocked)
+            .filter { fact -> fact.unlockedBy.any(raised::contains) }
+            .map { suspect.id to it.id }
+        if (held.isEmpty() && confronting.isEmpty()) return
+        mutableState.update {
+            if (it.game == game) it.copy(claimsHeard = it.claimsHeard + held, caught = it.caught + confronting) else it
+        }
+    }
+
+    /**
+     * The first non-key reaction, in cast and sheet order, that takes back a claim the player heard and is
+     * within reach now, with its suspect and the clue that broke the claim (the last of its clues in case
+     * order); null once each has been pointed at or confronted. Key reactions are the way to the culprit and
+     * are left to the hints, which name no one ([NarratorLines.confrontHint]).
+     */
+    private fun pendingCatch(state: AgentState): Triple<Suspect, UnlockableFact, Clue>? {
+        val order = scenario.case.clues.map { it.id }
+        for (suspect in scenario.suspects.values) {
+            for (fact in Investigation.claimBreakers(suspect, state.unlockedClues)) {
+                if (fact.key || (suspect.id to fact.id) in state.caught) continue
+                if (fact.replaces.none { (suspect.id to it) in state.claimsHeard }) continue
+                val clueId = fact.unlockedBy.maxBy(order::indexOf)
+                return Triple(suspect, fact, scenario.case.clues.first { it.id == clueId })
+            }
+        }
+        return null
     }
 
     /** [state] with its stage worked out again from its clues and confrontations. */

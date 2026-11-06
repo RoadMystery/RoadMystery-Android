@@ -23,7 +23,7 @@ STYLES = {
     "user": (
         "너는 이 게임에 직접 만든 시나리오를 올리려는 일반 사용자다. 추리 소설을 좋아하는 직장인이고 시나리오는 처음 써 본다. "
         "꼭 지켜야 하는 규칙만 지키고, 문장은 다듬지 않고 생각나는 대로 쓴다. "
-        "선택 칸(mentions, demeanor, beforeFound, pressure, replaces)은 쓰지 않는다."
+        "선택 칸(mentions, demeanor, pressure)은 쓰지 않는다."
     ),
 }
 """Who writes the case: a generator that follows every rule, or a first-time author."""

@@ -27,7 +27,9 @@ def jade():
 
 def _verdicts(suspects, flag=None):
     rows = [
-        {"suspect": suspect.id, "id": fact.id, "reveals_solution": False, "line_differs_from_text": False, "reason": "괜찮다"}
+        {"suspect": suspect.id, "id": fact.id, "reveals_solution": False, "line_differs_from_text": False,
+         "contradicts_unreplaced_public": False, "hidden_act_without_claim": False, "claim_names_breaking_clue": False,
+         "reason": "괜찮다"}
         for suspect in suspects
         for fact in (*suspect.public, *suspect.unlockable)
     ]
@@ -90,6 +92,49 @@ def test_flags_become_messages_naming_the_fact(jade) -> None:
     assert any(f"{first['suspect']}/{first['id']}" in problem and "정답" in problem for problem in problems)
     assert any(f"{second['suspect']}/{second['id']}" in problem and "다른 사실" in problem for problem in problems)
     assert len(problems) == 2
+
+
+def test_the_request_pairs_each_claim_with_the_reactions_that_take_it_back(jade) -> None:
+    case, suspects = jade
+    _, user = semantic_request(case, suspects)
+    sent = {(row["suspect"], row["id"]): row for row in json.loads(user)["facts"]}
+
+    # jade-crown's son: "never left my room" is taken back by the barefoot and the shoes reactions.
+    assert sent[("son", "k-son-barefoot")]["replaces"] == ["k-son-room"]
+    claim = sent[("son", "k-son-room")]
+    assert claim["replaced_by"] == ["k-son-barefoot", "k-son-shoes"]
+    assert claim["breaking_clues"] == [case.clue(c).title for c in ("clue-window", "clue-barefoot", "clue-shoes")]
+    assert sent[("son", "k-son-money")]["replaced_by"] == [] and sent[("son", "k-son-money")]["breaking_clues"] == []
+
+
+def test_a_reaction_that_contradicts_or_reveals_without_taking_a_claim_back_is_a_problem(jade) -> None:
+    _, suspects = jade
+
+    def flag(rows):
+        for row in rows:
+            if row["id"] == "k-maid-back-door":
+                row["contradicts_unreplaced_public"] = True
+                row["hidden_act_without_claim"] = True
+
+    problems = semantic_problems(suspects, _verdicts(suspects, flag))
+
+    assert any("maid/k-maid-back-door" in p and "replaces로 거두지" in p for p in problems)
+    assert any("maid/k-maid-back-door" in p and "덮는 주장" in p for p in problems)
+    assert len(problems) == 2
+
+
+def test_only_a_claim_some_reaction_takes_back_can_name_its_breaking_clue_too_early(jade) -> None:
+    _, suspects = jade
+
+    def flag(rows):
+        for row in rows:
+            if row["id"] in ("k-son-room", "k-son-money", "k-son-barefoot"):
+                row["claim_names_breaking_clue"] = True
+
+    problems = semantic_problems(suspects, _verdicts(suspects, flag))
+
+    # k-son-money is no claim a reaction takes back and k-son-barefoot is a reaction: neither is asked about.
+    assert problems == [problems[0]] and "son/k-son-room" in problems[0] and "먼저 꺼냅니다" in problems[0]
 
 
 def test_a_fact_the_model_left_out_is_a_problem_and_one_it_made_up_is_ignored(jade) -> None:

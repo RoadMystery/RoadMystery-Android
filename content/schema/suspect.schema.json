@@ -74,11 +74,6 @@
           "description": "자기 물건, 차림, 기록(명사구 한 줄에 하나). 인물이 당연히 아는 것이라 처음부터 프롬프트에 들어간다. 단서와 이어지는 물건도 있다는 것은 적고, 거기에 얽힌 사실(어디 있었는지, 무엇이 묻었는지)은 단서 쪽에 둔다. 단서 키워드와 금지 표현은 쓰지 않는다. 새 사건에는 꼭 쓴다(voice_eval validate).",
           "type": "array",
           "items": { "type": "string", "minLength": 1 }
-        },
-        "beforeFound": {
-          "description": "플레이어가 clue 단서를 아직 찾지 않았을 때 그 이야기를 물으면 하는 말. 단서의 숨길 사실을 담지 말고, 단서를 찾은 뒤의 반응(unlockable)과 어긋나지 않게 쓴다. '말하지 않는다'고 쓰는 대신 말해도 되는 사실과 성격으로 화제를 돌리는 말로 쓴다. 인물이 당연히 아는 것(집사가 자기 열쇠를 가졌는지)은 어떻게 써도 '드릴 말씀이 없습니다'처럼 피하는 답이 나오므로 단서가 아니라 공개 사실로 두는 편이 낫다. '누구한테 물어보라고 사람을 대지 않는다'처럼 조용히 지킬 수 있는 금지는 남긴다. 넓은 질문(정전 원인)에 대한 말에는 단서 키워드를 넣지 않고, 다른 단서의 키워드도 넣지 않는다(묻지 않은 단서를 먼저 꺼내게 됨). 2026-11-03 측정: docs/voice-agent/llm-evaluation.md",
-          "type": "array",
-          "items": { "$ref": "#/$defs/beforeFoundLine" }
         }
       }
     },
@@ -178,15 +173,6 @@
       "type": "string",
       "minLength": 1,
       "pattern": "^\\S([^\\n\\r]*\\S)?(?![\\s\\S])"
-    },
-    "beforeFoundLine": {
-      "type": "object",
-      "required": ["clue", "text"],
-      "additionalProperties": false,
-      "properties": {
-        "clue": { "type": "string", "description": "case.json clues의 id" },
-        "text": { "type": "string", "minLength": 1 }
-      }
     }
   }
 }

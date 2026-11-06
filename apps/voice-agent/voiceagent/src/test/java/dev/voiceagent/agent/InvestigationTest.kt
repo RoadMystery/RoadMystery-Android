@@ -47,6 +47,19 @@ class InvestigationTest {
     }
 
     @Test
+    fun `the son's claims stand until a clue brings a reaction that takes them back`() {
+        // He says he never left his room and only picked the crown up; the barefoot prints take the first back,
+        // the shoes (with the window) both. His window reaction is replaced too, but it is no public claim.
+        assertEquals(setOf("k-son-room", "k-son-crown"), Investigation.standingClaims(son, emptySet()))
+        assertEquals(listOf("k-son-barefoot"), Investigation.claimBreakers(son, setOf(barefoot.id)).map { it.id })
+        assertEquals(setOf("k-son-crown"), Investigation.standingClaims(son, setOf(barefoot.id)))
+        assertEquals(emptySet<String>(), Investigation.standingClaims(son, setOf(window.id, shoes.id)))
+        assertEquals(listOf("k-son-barefoot", "k-son-shoes"), Investigation.claimBreakers(son, allClues).map { it.id })
+        // No reaction of the maid or the niece takes a line back, so they hold no claim the clues break.
+        assertEquals(emptySet<String>(), Investigation.standingClaims(maid, emptySet()) + Investigation.standingClaims(niece, emptySet()))
+    }
+
+    @Test
     fun `asking about 고정태 in general brings up no clue`() {
         assertEquals(emptyList<Any>(), Investigation.mentionedClues(case, "고정태는 어떤 사람이에요?"))
         assertEquals(emptyList<Any>(), Investigation.mentionedClues(case, "고정태 씨랑 친해요?"))

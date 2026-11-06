@@ -180,9 +180,6 @@ def keywords_before_their_clue(subject: Subject) -> list[str]:
             for text in dict.fromkeys((fact.text, fact.prompt_text)):
                 if hits := phrase_hits(text, _keywords_except(case, fact.unlocked_by)):
                     problems.append(f"{suspect.id}/{fact.id}: 이 반응을 열지 않는 단서의 키워드 {list(hits)}가 있습니다")
-        for line in suspect.before_found:
-            if hits := phrase_hits(line.text, _keywords_except(case, (line.clue,))):
-                problems.append(f"{suspect.id}/beforeFound {line.clue}: 다른 단서의 키워드 {list(hits)}가 있습니다")
     return problems
 
 
@@ -195,7 +192,6 @@ def forbidden_phrases_in_persona(subject: Subject) -> list[str]:
         texts = [
             *_persona_shown_before_any_clue(suspect),
             *((fact.id, text) for fact in suspect.unlockable for text in dict.fromkeys((fact.text, fact.prompt_text))),
-            *((f"beforeFound {line.clue}", line.text) for line in suspect.before_found),
         ]
         for where, text in texts:
             if hits := phrase_hits(text, case.forbidden_phrases):
@@ -439,6 +435,25 @@ def hidden_facts_are_not_allowed_facts(subject: Subject) -> list[str]:
     ]
 
 
+def comparisons_do_not_point_at_the_culprit(subject: Subject) -> list[str]:
+    """The narrator names whoever's non-key reaction takes back one of their public lines (Kotlin
+    NarratorLines.compare; key reactions are left to the hints, which name no one). If the culprit is the only
+    such suspect, every comparison names the culprit (docs/voice-agent/before-found-denials.md)."""
+    owners = {
+        suspect.id
+        for suspect in subject.suspects.values()
+        if any(not fact.key and set(fact.replaces) & {line.id for line in suspect.public} for fact in suspect.unlockable)
+    }
+    if owners and owners <= {subject.case.solution.culprit}:
+        return [
+            (
+                "범인만 핵심이 아닌 반응으로 공개 진술을 거둡니다. 진행자의 짚어 주기가 늘 범인을 가리키니, "
+                "다른 용의자에게도 주장과 거두는 반응을 두거나 범인의 그 반응에서 replaces를 빼세요"
+            )
+        ]
+    return []
+
+
 CHECKS: tuple[Check, ...] = (
     voices,
     aliases,
@@ -456,4 +471,5 @@ CHECKS: tuple[Check, ...] = (
     sheet_items,
     deflections_do_not_refuse,
     example_openings_vary,
+    comparisons_do_not_point_at_the_culprit,
 )

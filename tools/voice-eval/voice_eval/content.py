@@ -21,6 +21,7 @@ PROBE_CATEGORIES = frozenset(
         "off_topic",
         "stt_noise",
         "multi_turn",
+        "caught",
         "content_safety",
         "secret_pressure",
     }
@@ -144,12 +145,6 @@ class UnlockableFact:
         return self.line or self.text
 
 
-@dataclass(frozen=True)
-class BeforeFound:
-    """How the suspect answers a question about [clue] while the player has not found it."""
-
-    clue: str
-    text: str
 
 
 @dataclass(frozen=True)
@@ -178,7 +173,6 @@ class Suspect:
     fallback_offline: str
     fallback_not_understood: str
     filler: str
-    before_found: tuple[BeforeFound, ...] = ()
     pressure: tuple[tuple[str, str], ...] = ()
     """(stage, first-person line) pairs for "pressing" and "ready", in STAGES order."""
     goal: str | None = None
@@ -337,13 +331,6 @@ def load_suspect(path: Path, case: Case) -> Suspect:
                 clue_id in clue_ids,
                 f"{path}: knowledge '{fact.id}' is unlocked by unknown clue '{clue_id}'",
             )
-    before_found = tuple(
-        BeforeFound(clue=item["clue"], text=item["text"]) for item in knowledge.get("beforeFound", ())
-    )
-    for line in before_found:
-        _require(line.clue in clue_ids, f"{path}: beforeFound refers to unknown clue '{line.clue}'")
-    _unique([line.clue for line in before_found], "beforeFound clue", path)
-
     relationships = tuple(
         Relationship(target=item["target"], attitude=item["attitude"])
         for item in data["relationships"]
@@ -384,7 +371,6 @@ def load_suspect(path: Path, case: Case) -> Suspect:
         fallback_offline=fallback["offline"],
         fallback_not_understood=fallback["notUnderstood"],
         filler=fallback["filler"],
-        before_found=before_found,
         pressure=tuple(
             (stage, data["pressure"][stage]) for stage in STAGES if stage in data.get("pressure", {})
         ),

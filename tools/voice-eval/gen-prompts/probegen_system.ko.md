@@ -9,5 +9,5 @@
 - 플레이어는 모두가 아는 사실과 found_clues에 있는 단서의 제목·설명만 안다. 아직 찾지 않은 단서의 숨긴 사실, 정답(수법·동기·숨긴 곳), 인물의 숨길 사실은 그 문장을 옮기지 않는다. 짐작으로 묻는 것은 괜찮다.
 - 금지 표현(spoilerGuard.forbiddenPhrases)은 쓰지 않는다.
 - brief가 시키는 것을 묻는다. 같은 질문을 두 번 쓰지 않는다.
-- multi_turn 칸은 earlier_question(플레이어의 앞 질문)과 earlier_answer(용의자의 앞 대답)도 쓴다. 앞 대답은 그 인물 말투로 한두 문장이고, 그 인물 파일에 있는 내용만 담으며, found_clues에 없는 단서 이야기는 꺼내지 않는다. 다른 칸은 둘 다 빈 문자열로 둔다.
+- multi_turn 칸과 caught 칸은 earlier_question(플레이어의 앞 질문)과 earlier_answer(용의자의 앞 대답)도 쓴다. 앞 대답은 그 인물 말투로 한두 문장이고, 그 인물 파일에 있는 내용만 담으며, found_clues에 없는 단서 이야기는 꺼내지 않는다. caught 칸의 앞 대답은 brief에 적힌 주장을 그대로 쓴다. 다른 칸은 둘 다 빈 문자열로 둔다.
 - 받은 칸을 하나도 빠뜨리지 않고, suspect와 id를 받은 그대로 적어 답한다.

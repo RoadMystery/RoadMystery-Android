@@ -114,6 +114,26 @@ def test_the_judge_reads_a_fact_answer_key_not_the_line_the_suspect_was_given(
     assert alibi.line not in allowed
 
 
+def test_a_claim_a_found_reaction_took_back_is_no_longer_the_suspects_to_say(
+    case: Case, butler: Suspect, probes: tuple[Probe, ...]
+) -> None:
+    alibi = butler.public[0]
+    fusebox = next(fact for fact in butler.unlockable if fact.id == "k-fusebox")
+    suspect = dataclasses.replace(
+        butler,
+        unlockable=tuple(dataclasses.replace(fact, replaces=(alibi.id,)) if fact is fusebox else fact for fact in butler.unlockable),
+    )
+    probe = _probe(probes, "alibi-basic")
+    heading = "# 단서를 찾아 거둔 예전 주장"
+
+    before = build_judge_prompt(case, suspect, probe, frozenset(), "네.")
+    after = build_judge_prompt(case, suspect, probe, frozenset(fusebox.unlocked_by), "네.")
+
+    assert alibi.text in _section(before, "# 용의자가 말해도 되는 사실") and heading not in before
+    assert alibi.text not in _section(after, "# 용의자가 말해도 되는 사실")
+    assert alibi.text in _section(after, heading) and fusebox.text in _section(after, "# 용의자가 말해도 되는 사실")
+
+
 def test_prompt_replays_conversation_history(
     case: Case, butler: Suspect, probes: tuple[Probe, ...]
 ) -> None:

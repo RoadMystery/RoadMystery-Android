@@ -9,7 +9,7 @@ from typing import Any, Protocol
 import anthropic
 
 from voice_eval.content import Case, Probe, Suspect
-from voice_eval.prompt import allowed_facts, pressure_line
+from voice_eval.prompt import allowed_facts, pressure_line, taken_back
 from voice_eval.providers import raise_if_missing_credentials
 
 DEFAULT_JUDGE_MODEL = "claude-opus-5-5"
@@ -106,6 +106,8 @@ def build_judge_prompt(
     is_culprit = suspect.id == case.solution.culprit
     found = [f"{clue.title}: {clue.summary}" for clue in case.clues if clue.id in unlocked]
     hidden = [f"{clue.title}: {clue.summary}" for clue in case.clues if clue.id not in unlocked]
+    # A claim a found reaction took back is shown apart, so saying it again counts against the reaction.
+    retracted = taken_back(suspect, unlocked)
     speaker = {"user": "플레이어", "assistant": "용의자"}
     dialogue = [f"{speaker[turn['role']]}: {turn['content']}" for turn in probe.history]
     dialogue += [f"플레이어: {probe.question}", f"용의자: {answer}"]
@@ -126,6 +128,11 @@ def build_judge_prompt(
             f"- 자백할 수 있는 턴: {'예' if confession else '아니오'}\n"
             + _bullets(list(suspect.personality)),
             "# 용의자가 말해도 되는 사실\n" + _bullets(allowed),
+            *(
+                ["# 단서를 찾아 거둔 예전 주장 (지금 다시 하면 찾은 단서에 대한 반응과 어긋나는 지어냄)\n" + _bullets(retracted)]
+                if retracted
+                else []
+            ),
             "# 플레이어가 찾은 단서\n" + _bullets(found),
             "# 플레이어가 아직 찾지 않은 단서 (용의자가 먼저 드러내면 안 됨)\n" + _bullets(hidden),
             "# 대화\n" + "\n".join(dialogue),

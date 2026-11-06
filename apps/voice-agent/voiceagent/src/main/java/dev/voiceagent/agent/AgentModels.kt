@@ -82,6 +82,17 @@ data class AgentState(
      * confession stays in its prompt from then on. Not saved by [VoiceAgent.restore], like [nudged].
      */
     val cornered: Boolean = false,
+    /**
+     * (suspect id, claim id) for the claims ([Investigation.standingClaims]) the player heard their suspect
+     * answer while its prompt still carried them, so the clue that breaks one is worth comparing with
+     * ([NarratorLines.compare]). Not saved by [VoiceAgent.restore].
+     */
+    val claimsHeard: Set<Pair<String, String>> = emptySet(),
+    /**
+     * (suspect id, reaction id) for the reactions taking a claim back that the narrator has pointed at, or
+     * that the player already confronted the suspect with, in this game. Not saved, like [nudged].
+     */
+    val caught: Set<Pair<String, String>> = emptySet(),
 )
 
 enum class ReplyKind {
@@ -184,6 +195,14 @@ object NarratorLines {
      * naming the suspect gave the culprit away whenever theirs was the reaction left.
      */
     fun confrontHint(clue: Clue): String = "탐정님, ${clue.title} 이야기를 아직 물어보지 않은 사람이 있어요."
+
+    /**
+     * Once per reaction that takes a claim back, on the first answered turn after [clue] brings it within
+     * reach, when the player heard [suspect] while it still held the claim. It names the suspect, whose words
+     * the player already has, and points at them without calling them a lie: the suspect may have said it
+     * did not remember instead (docs/voice-agent/before-found-denials.md).
+     */
+    fun compare(suspect: Suspect, clue: Clue): String = "탐정님, ${suspect.name} 씨가 아까 한 말을 ${clue.title} 이야기와 견줘 보세요."
 
     /**
      * The narrator's hint, for a leak the spoiler guard cut or after an answer-seeking question. First

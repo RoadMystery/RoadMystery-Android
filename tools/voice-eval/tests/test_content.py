@@ -56,27 +56,15 @@ def test_hidden_facts_are_not_copies_of_what_any_suspect_may_say(case: Case) -> 
     assert not any("와인" in fact for fact in case.solution.hidden_facts)
 
 
-def test_before_found_lines_load_with_their_clue(case: Case, butler: Suspect) -> None:
-    assert [line.clue for line in butler.before_found] == [clue.id for clue in case.clues]
-    assert all(line.text for line in butler.before_found)
+def test_a_sheet_still_carrying_before_found_lines_is_rejected(tmp_path: Path, case: Case) -> None:
+    """beforeFound never reached the prompt; a claim the clues break is a public line a reaction replaces
+    (docs/voice-agent/before-found-denials.md), so an old sheet fails loudly instead of being ignored."""
 
-
-def test_before_found_must_reference_existing_clue(tmp_path: Path, case: Case) -> None:
     def mutate(data: dict) -> None:
-        data["knowledge"]["beforeFound"][0]["clue"] = "clue-nope"
+        data["knowledge"]["beforeFound"] = [{"clue": case.clues[0].id, "text": "그 이야기를 물으면 모른다고 한다."}]
 
     path = _write_variant(tmp_path, BUTLER_PATH, mutate)
-    with pytest.raises(ContentError, match="clue-nope"):
-        load_suspect(path, case)
-
-
-def test_before_found_has_one_line_per_clue(tmp_path: Path, case: Case) -> None:
-    def mutate(data: dict) -> None:
-        lines = data["knowledge"]["beforeFound"]
-        lines.append(dict(lines[0]))
-
-    path = _write_variant(tmp_path, BUTLER_PATH, mutate)
-    with pytest.raises(ContentError, match="duplicate beforeFound clue"):
+    with pytest.raises(ContentError, match="beforeFound"):
         load_suspect(path, case)
 
 
@@ -132,7 +120,7 @@ def test_a_reaction_may_replace_public_facts_and_reactions_shown_before_it(tmp_p
     assert all(fact.replaces == () for fact in suspect.unlockable if fact.id != "k-both")
 
 
-def test_hidden_facts_and_before_found_are_optional(tmp_path: Path, case: Case) -> None:
+def test_hidden_facts_are_optional(tmp_path: Path) -> None:
     case_dir = tmp_path / "case"
     case_dir.mkdir()
 
@@ -143,11 +131,9 @@ def test_hidden_facts_and_before_found_are_optional(tmp_path: Path, case: Case) 
 
     _write_variant(case_dir, CASE_DIR / "case.json", strip_case)
     plain_case = load_case(case_dir, schema_dir=CASE_DIR.parent.parent / "schema")
-    path = _write_variant(tmp_path, BUTLER_PATH, lambda data: data["knowledge"].pop("beforeFound"))
 
     assert all(clue.hidden_facts == () for clue in plain_case.clues)
     assert plain_case.solution.hidden_facts == ()
-    assert load_suspect(path, case).before_found == ()
 
 
 def test_a_fact_line_is_what_the_prompt_shows_and_its_text_stays_the_answer_key(

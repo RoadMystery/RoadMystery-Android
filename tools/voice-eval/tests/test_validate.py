@@ -87,6 +87,31 @@ def test_a_hint_naming_another_clue_is_reported_with_its_clue(jade_copy: Path) -
     assert any(clues[0]["id"] in problem for problem in _problems(jade_copy))
 
 
+def test_a_case_where_only_the_culprit_takes_a_claim_back_off_the_key_path_is_reported(jade_copy: Path) -> None:
+    """The narrator names whoever's non-key reaction takes a public claim back (NarratorLines.compare): if only
+    the culprit has one, that line always names the culprit."""
+
+    def drop_replaces(data: Any) -> None:
+        for fact in data["knowledge"]["unlockable"]:
+            fact.pop("replaces", None)
+
+    def niece_takes_her_study_line_back(data: Any) -> None:
+        reaction = next(fact for fact in data["knowledge"]["unlockable"] if fact["id"] == "k-niece-back-door")
+        reaction["replaces"] = ["k-niece-study"]
+
+    # jade-crown as it is: the son's barefoot reaction is the only non-key one that takes a claim back.
+    assert not any("짚어 주기" in problem for problem in _problems(jade_copy))
+    _edit(jade_copy / "suspects" / "son.json", drop_replaces)
+    _edit(jade_copy / "suspects" / "niece.json", niece_takes_her_study_line_back)
+
+    assert [problem for problem in _problems(jade_copy) if "짚어 주기" in problem] == [
+        (
+            "범인만 핵심이 아닌 반응으로 공개 진술을 거둡니다. 진행자의 짚어 주기가 늘 범인을 가리키니, "
+            "다른 용의자에게도 주장과 거두는 반응을 두거나 범인의 그 반응에서 replaces를 빼세요"
+        )
+    ]
+
+
 def test_a_case_without_a_key_reaction_is_reported(jade_copy: Path) -> None:
     for path in sorted((jade_copy / "suspects").glob("*.json")):
         _edit(path, lambda data: [fact.pop("key", None) for fact in data["knowledge"]["unlockable"]])
