@@ -28,7 +28,10 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.lifecycleScope
 import com.roadmystery.app.audio.AudioPlayer
 import com.roadmystery.app.audio.FakeAudioPlayer
+import com.roadmystery.app.audio.PlaybackStatus
 import com.roadmystery.app.audio.PleosTtsAudioPlayer
+import com.roadmystery.app.audio.SentenceAudioPlayer
+import com.roadmystery.app.audio.SpeechOutput
 import com.roadmystery.app.director.Director
 import com.roadmystery.app.director.PleosDirector
 import com.roadmystery.app.director.ToneDirector
@@ -93,7 +96,17 @@ class MainActivity : ComponentActivity() {
             initial = if (BuildConfig.DEBUG) VehicleSource.SIMULATION else VehicleSource.REAL
         )
 
-        audio = attempt("TTS") { PleosTtsAudioPlayer(this, lifecycleScope, clientId, clientSecret) } ?: FakeAudioPlayer(lifecycleScope)
+        audio = attempt("TTS") { PleosTtsAudioPlayer(this, lifecycleScope, clientId, clientSecret) }
+            ?: SentenceAudioPlayer(
+                lifecycleScope,
+                object : SpeechOutput {
+                    override suspend fun speak(text: String, speaker: String) {
+                        error("TTS를 시작하지 못했습니다. 앱을 다시 실행해 주세요.")
+                    }
+                    override fun stop() = Unit
+                    override fun release() = Unit
+                }
+            )
         speech = attempt("STT") { PleosSpeechInput(this, clientId, clientSecret) }
         director = vehicleSdk?.let { sdk -> attempt("Director") { PleosDirector(sdk) } } ?: ToneDirector()
         store = DataStoreProgressStore(this)
@@ -142,7 +155,13 @@ class MainActivity : ComponentActivity() {
         val saved by savedProgress.collectAsState()
         val autoplayStep by autoplay.step.collectAsState()
         val lastEffect by director.lastEffect.collectAsState()
-        val ttsReady by ((audio as? PleosTtsAudioPlayer)?.ttsReady ?: MutableStateFlow(false)).collectAsState()
+        val audioStatus by (
+            when (val player = audio) {
+                is PleosTtsAudioPlayer -> player.status
+                is SentenceAudioPlayer -> player.status
+                else -> MutableStateFlow(PlaybackStatus(message = "무음 시뮬레이션"))
+            }
+            ).collectAsState()
         var fastAudio by remember { mutableStateOf(false) }
         var listening by remember { mutableStateOf(false) }
 
@@ -182,11 +201,7 @@ class MainActivity : ComponentActivity() {
                 canResume = saved != null,
                 autoplayStep = autoplayStep,
                 audioLabel =
-                when (ttsReady) {
-                    true -> "Pleos TTS"
-                    null -> "TTS 준비 중"
-                    false -> "무음 + 자막"
-                },
+                audioStatus.message,
                 lastEffect = lastEffect?.label
             )
         val panelActions =
@@ -199,7 +214,8 @@ class MainActivity : ComponentActivity() {
                     fastAudio = !fastAudio
                     val speed = if (fastAudio) 10f else 1f
                     when (val player = audio) {
-                        is PleosTtsAudioPlayer -> player.fallbackSpeed = speed
+                        is PleosTtsAudioPlayer -> player.retry()
+                        is SentenceAudioPlayer -> player.retry()
                         is FakeAudioPlayer -> player.speed = speed
                     }
                 }
@@ -207,7 +223,7 @@ class MainActivity : ComponentActivity() {
 
         Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
             Row(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
-                if (BuildConfig.DEBUG) {
+                if (BuildConfig.DEBUG && (source == VehicleSource.SIMULATION || canInteract)) {
                     Column(Modifier.width(280.dp).fillMaxHeight()) {
                         Button(onClick = {
                             if (source == VehicleSource.REAL) {
@@ -224,6 +240,10 @@ class MainActivity : ComponentActivity() {
                         Button(onClick = {
                             startActivity(Intent().setClassName(packageName, "$packageName.vehicle.MotionTestActivity"))
                         }) { Text("F-01 단독 판정 테스트") }
+                        Button(onClick = {
+                            engine.stop()
+                            startActivity(Intent().setClassName(packageName, "$packageName.audio.NarrationTestActivity"))
+                        }) { Text("F-03 낭독 테스트") }
                         if (source == VehicleSource.SIMULATION) {
                             SimulationPanel(state = panelState, actions = panelActions, modifier = Modifier.weight(1f))
                         }
@@ -236,7 +256,12 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
-        (audio as? PleosTtsAudioPlayer)?.release() ?: audio.stop()
+        engine.stop()
+        when (val player = audio) {
+            is PleosTtsAudioPlayer -> player.release()
+            is SentenceAudioPlayer -> player.release()
+            else -> player.stop()
+        }
         (speech as? PleosSpeechInput)?.release()
         runCatching { vehicleSdk?.release() }
         super.onDestroy()

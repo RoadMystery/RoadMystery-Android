@@ -40,6 +40,9 @@ object ScenarioParser {
             chapter.scenes.forEach { scene ->
                 if (scene.script.isEmpty() || scene.script.any { it.isBlank() }) errors += "${scene.id}: 빈 대본"
                 if (scene.durationSec <= 0) errors += "${scene.id}: durationSec는 0보다 커야 함"
+                if (scene.sentenceVoices.isNotEmpty() && scene.sentenceVoices.size != scene.script.size) {
+                    errors += "${scene.id}: sentenceVoices는 대본 문장 수와 같아야 함"
+                }
                 scene.unlocks.filterNot { it in clueIds }.forEach { errors += "${scene.id}: 없는 단서 $it" }
                 scene.effect?.let { if (Effect.from(it) == null) errors += "${scene.id}: 알 수 없는 연출 $it" }
             }

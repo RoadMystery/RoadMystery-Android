@@ -1,0 +1,60 @@
+--------- beginning of main
+11-05 17:39:04.147 I/F03Test (25429): status=PlaybackStatus(phase=IDLE, sceneId=null, sentenceIndex=0, speaker=null, message=낭독 대기)
+11-05 17:39:04.148 I/F03Test (25429): engine mode=IDLE
+11-05 17:39:04.339 I/F03Test (25429): engine mode=DRIVING
+11-05 17:39:04.345 I/F03Test (25429): status=PlaybackStatus(phase=SPEAKING, sceneId=s01_scene, sentenceIndex=1, speaker=sanghyeok, message=문장 2/6 · sanghyeok)
+11-05 17:39:04.346 I/F03Test (25429): event=SentenceStarted(sceneId=s01_scene, index=1)
+11-05 17:39:04.760 I/F03Speech(25429): speak speaker=sanghyeok chars=50
+11-05 17:39:05.910 I/F03Speech(25429): speech started
+11-05 17:39:08.032 I/F03Test (25429): status=PlaybackStatus(phase=PAUSED, sceneId=s01_scene, sentenceIndex=1, speaker=null, message=낭독 일시정지)
+11-05 17:39:08.032 I/F03Test (25429): engine mode=PAUSED
+11-05 17:39:08.033 I/F03Test (25429): ENGINE_SMOKE first hazard
+11-05 17:39:08.387 I/F03Speech(25429): speech stopped
+11-05 17:39:11.038 I/F03Test (25429): engine mode=DRIVING
+11-05 17:39:11.064 I/F03Speech(25429): speak speaker=sanghyeok chars=11
+11-05 17:39:11.065 I/F03Test (25429): status=PlaybackStatus(phase=SPEAKING, sceneId=reply_0, sentenceIndex=0, speaker=sanghyeok, message=문장 1/1 · sanghyeok)
+11-05 17:39:11.065 I/F03Test (25429): event=SentenceStarted(sceneId=reply_0, index=0)
+11-05 17:39:11.117 I/F03Speech(25429): speech started
+11-05 17:39:11.683 I/F03Speech(25429): audible PCM reported
+11-05 17:39:13.135 I/F03Speech(25429): speech completed
+11-05 17:39:13.138 I/F03Test (25429): status=PlaybackStatus(phase=IDLE, sceneId=reply_0, sentenceIndex=0, speaker=null, message=장면 재생 완료)
+11-05 17:39:13.139 I/F03Test (25429): event=SceneFinished(sceneId=reply_0)
+11-05 17:39:13.176 I/F03Speech(25429): speak speaker=sanghyeok chars=50
+11-05 17:39:13.193 I/F03Test (25429): status=PlaybackStatus(phase=SPEAKING, sceneId=s01_scene, sentenceIndex=1, speaker=sanghyeok, message=문장 2/6 · sanghyeok)
+11-05 17:39:13.194 I/F03Test (25429): event=SentenceStarted(sceneId=s01_scene, index=1)
+11-05 17:39:13.226 I/F03Speech(25429): speech started
+11-05 17:39:14.112 I/F03Speech(25429): audible PCM reported
+11-05 17:39:20.045 I/F03Test (25429): status=PlaybackStatus(phase=PAUSED, sceneId=s01_scene, sentenceIndex=1, speaker=null, message=낭독 일시정지)
+11-05 17:39:20.045 I/F03Test (25429): engine mode=PAUSED
+11-05 17:39:20.046 I/F03Test (25429): ENGINE_SMOKE repeated hazard
+11-05 17:39:20.259 I/F03Speech(25429): speech stopped
+11-05 17:39:26.054 I/F03Test (25429): ENGINE_SMOKE before stopped mode=PAUSED
+11-05 17:39:26.055 I/F03Test (25429): engine mode=STOPPED
+11-05 17:39:26.063 I/F03Speech(25429): speak speaker=sanghyeok chars=11
+11-05 17:39:26.066 I/F03Test (25429): status=PlaybackStatus(phase=SPEAKING, sceneId=reply_1, sentenceIndex=0, speaker=sanghyeok, message=문장 1/1 · sanghyeok)
+11-05 17:39:26.066 I/F03Test (25429): event=SentenceStarted(sceneId=reply_1, index=0)
+11-05 17:39:26.083 I/F03Speech(25429): speech started
+11-05 17:39:26.451 I/F03Speech(25429): audible PCM reported
+11-05 17:39:27.883 I/F03Speech(25429): speech completed
+11-05 17:39:27.884 I/F03Test (25429): status=PlaybackStatus(phase=IDLE, sceneId=reply_1, sentenceIndex=0, speaker=null, message=장면 재생 완료)
+11-05 17:39:27.887 I/F03Test (25429): event=SceneFinished(sceneId=reply_1)
+11-05 17:39:27.898 I/F03Speech(25429): speak speaker=sanghyeok chars=50
+11-05 17:39:27.900 I/F03Test (25429): status=PlaybackStatus(phase=SPEAKING, sceneId=s01_scene, sentenceIndex=1, speaker=sanghyeok, message=문장 2/6 · sanghyeok)
+11-05 17:39:27.901 I/F03Test (25429): event=SentenceStarted(sceneId=s01_scene, index=1)
+11-05 17:39:27.922 I/F03Speech(25429): speech started
+11-05 17:39:28.846 I/F03Speech(25429): audible PCM reported
+11-05 17:39:34.910 I/F03Speech(25429): speech completed
+11-05 17:39:34.925 I/F03Speech(25429): speak speaker=sanghyeok chars=31
+11-05 17:39:34.926 I/F03Test (25429): status=PlaybackStatus(phase=SPEAKING, sceneId=s01_scene, sentenceIndex=2, speaker=sanghyeok, message=문장 3/6 · sanghyeok)
+11-05 17:39:34.927 I/F03Test (25429): event=SentenceStarted(sceneId=s01_scene, index=2)
+11-05 17:39:35.020 I/F03Speech(25429): speech started
+11-05 17:39:36.047 I/F03Speech(25429): audible PCM reported
+11-05 17:39:39.494 I/F03Speech(25429): speech completed
+11-05 17:39:39.500 I/F03Speech(25429): speak speaker=sanghyeok chars=31
+11-05 17:39:39.502 I/F03Test (25429): status=PlaybackStatus(phase=SPEAKING, sceneId=s01_scene, sentenceIndex=3, speaker=sanghyeok, message=문장 4/6 · sanghyeok)
+11-05 17:39:39.502 I/F03Test (25429): event=SentenceStarted(sceneId=s01_scene, index=3)
+11-05 17:39:39.525 I/F03Speech(25429): speech started
+11-05 17:39:40.844 I/F03Speech(25429): audible PCM reported
+11-05 17:39:41.077 I/F03Test (25429): status=PlaybackStatus(phase=PAUSED, sceneId=s01_scene, sentenceIndex=3, speaker=null, message=낭독 일시정지)
+11-05 17:39:41.077 I/F03Test (25429): ENGINE_SMOKE finished mode=STOPPED
+11-05 17:39:41.192 I/F03Speech(25429): speech stopped

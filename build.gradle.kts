@@ -19,6 +19,9 @@ val frontendPatterns = listOf(
     "app/src/main/java/com/roadmystery/app/MainActivity.kt",
     "app/src/debug/java/com/roadmystery/app/vehicle/*.kt",
     "app/src/test/java/com/roadmystery/app/vehicle/*.kt",
+    "app/src/main/java/com/roadmystery/app/audio/{SentenceAudioPlayer,PleosTtsAudioPlayer}.kt",
+    "app/src/debug/java/com/roadmystery/app/audio/*.kt",
+    "app/src/test/java/com/roadmystery/app/audio/*.kt",
 )
 
 tasks.register<JavaExec>("ktlintCheck") {

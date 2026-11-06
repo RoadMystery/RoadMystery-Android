@@ -19,7 +19,8 @@ import org.junit.Test
 
 class StoryEngineTest {
     private val audio = RecordingAudioPlayer()
-    private val engine = DefaultStoryEngine(ScenarioRepository { testScenario }, audio)
+    private var now = 0L
+    private val engine = DefaultStoryEngine(ScenarioRepository { testScenario }, audio, clock = { now })
 
     /** 실제 플레이어처럼 재생이 끝난 뒤 종료 이벤트를 보낸다. */
     private fun finish(sceneId: String) {
@@ -73,6 +74,15 @@ class StoryEngineTest {
         assertNull("정차해도 위험 정지된 낭독은 그대로 멈춰 있다", audio.playing)
 
         send(VehicleEvent.Driving)
+        assertNull("위험 직후의 출발 신호로는 재개하지 않는다", audio.playing)
+        assertEquals(AppMode.PAUSED, engine.mode.value)
+
+        now += 5_000
+        send(VehicleEvent.Driving)
+        assertEquals(AppMode.DRIVING, engine.mode.value)
+        assertEquals("재개 전에 안내를 먼저 들려준다", "reply_0", audio.playing)
+
+        finish("reply_0")
         assertEquals("m1" to 1, audio.history.last())
     }
 
@@ -154,7 +164,7 @@ class StoryEngineTest {
                     AppMode.STOPPED,
                     AppMode.DRIVING,
                     AppMode.PAUSED,
-                    AppMode.DRIVING,
+                    AppMode.PAUSED,
                     AppMode.ENDING,
                     AppMode.ENDING,
                 ),
@@ -235,7 +245,7 @@ class StoryEngineTest {
     @Test
     fun `대답 중 급제동이면 즉시 멈추고, 다시 출발하면 낭독을 재개한다`() =
         runTest(UnconfinedTestDispatcher()) {
-            val engine = DefaultStoryEngine(ScenarioRepository { testScenario }, audio, scope = backgroundScope)
+            val engine = DefaultStoryEngine(ScenarioRepository { testScenario }, audio, scope = backgroundScope, clock = { testScheduler.currentTime })
             engine.start("test")
             engine.onAudioEvent(AudioEvent.SceneFinished("briefing"))
             engine.onVehicleEvent(VehicleEvent.Driving)
@@ -247,8 +257,91 @@ class StoryEngineTest {
             assertEquals(AppMode.PAUSED, engine.mode.value)
             assertNull(audio.playing)
 
+            testScheduler.advanceTimeBy(3_001)
             engine.onVehicleEvent(VehicleEvent.Driving)
+            assertEquals("reply_1", audio.playing)
+
+            engine.onAudioEvent(AudioEvent.SceneFinished("reply_1"))
             assertEquals("m1" to 1, audio.history.last())
+        }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private fun hazardEngine(scope: kotlinx.coroutines.CoroutineScope, clock: () -> Long): DefaultStoryEngine {
+        val engine = DefaultStoryEngine(ScenarioRepository { testScenario }, audio, scope = scope, clock = clock)
+        engine.start("test")
+        engine.onAudioEvent(AudioEvent.SceneFinished("briefing"))
+        engine.onVehicleEvent(VehicleEvent.Driving)
+        audio.pauseIndex = 1
+        return engine
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun `테스트 화면 전환으로 종료하면 예약된 자동 재개도 취소된다`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val engine = hazardEngine(backgroundScope) { testScheduler.currentTime }
+            engine.onVehicleEvent(VehicleEvent.Hazard(HazardReason.HARD_BRAKE))
+            engine.stop()
+            testScheduler.advanceTimeBy(5_000)
+            assertEquals(AppMode.IDLE, engine.mode.value)
+            assertNull(audio.playing)
+        }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun `주행 중 위험이 지나고 일정 시간 조용하면 안내 후 멈춘 문장부터 자동 재개한다`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val engine = hazardEngine(backgroundScope) { testScheduler.currentTime }
+            engine.onVehicleEvent(VehicleEvent.Hazard(HazardReason.HARD_BRAKE))
+            testScheduler.advanceTimeBy(2_000)
+            assertNull("아직 조용한 시간이 모자란다", audio.playing)
+            assertEquals(AppMode.PAUSED, engine.mode.value)
+
+            testScheduler.advanceTimeBy(1_100)
+            assertEquals(AppMode.DRIVING, engine.mode.value)
+            assertEquals("reply_0", audio.playing)
+
+            engine.onAudioEvent(AudioEvent.SceneFinished("reply_0"))
+            assertEquals("m1" to 1, audio.history.last())
+        }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun `위험이 짧은 시간에 반복되면 정차할 때까지 재개를 보류한다`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val engine = hazardEngine(backgroundScope) { testScheduler.currentTime }
+            engine.onVehicleEvent(VehicleEvent.Hazard(HazardReason.HARD_BRAKE))
+            testScheduler.advanceTimeBy(1_000)
+            engine.onVehicleEvent(VehicleEvent.Hazard(HazardReason.ADAS_WARNING))
+
+            testScheduler.advanceTimeBy(30_000)
+            assertNull("반복 위험이면 시간이 지나도 재개하지 않는다", audio.playing)
+            engine.onVehicleEvent(VehicleEvent.Driving)
+            assertNull(audio.playing)
+            assertEquals(AppMode.PAUSED, engine.mode.value)
+
+            engine.onVehicleEvent(VehicleEvent.Stopped)
+            assertEquals(AppMode.STOPPED, engine.mode.value)
+            assertEquals("정차하면 안내 후 재개한다", "reply_0", audio.playing)
+            engine.onAudioEvent(AudioEvent.SceneFinished("reply_0"))
+            assertEquals("m1" to 1, audio.history.last())
+        }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun `위험 사이가 충분히 길면 반복으로 보지 않고 각각 자동 재개한다`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val engine = hazardEngine(backgroundScope) { testScheduler.currentTime }
+            engine.onVehicleEvent(VehicleEvent.Hazard(HazardReason.HARD_BRAKE))
+            testScheduler.advanceTimeBy(3_100)
+            engine.onAudioEvent(AudioEvent.SceneFinished("reply_0"))
+
+            testScheduler.advanceTimeBy(70_000)
+            audio.pauseIndex = 1
+            engine.onVehicleEvent(VehicleEvent.Hazard(HazardReason.HARD_BRAKE))
+            assertNull(audio.playing)
+            testScheduler.advanceTimeBy(3_100)
+            assertEquals("reply_1", audio.playing)
         }
 
     @Test

@@ -1,6 +1,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application>
         <activity
+            android:name=".audio.NarrationTestActivity"
+            android:exported="true"
+            android:label="RoadMystery F-03 낭독 테스트" />
+        <activity
             android:name=".vehicle.MotionTestActivity"
             android:exported="true"
             android:label="RoadMystery F-01 테스트" />

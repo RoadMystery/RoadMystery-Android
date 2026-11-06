@@ -40,7 +40,7 @@ com.roadmystery.app
 1. 엔진은 차량과 분리한다. StoryEngine은 차량 SDK를 직접 호출하지 않고 VehicleEvent만 받는다.
 2. 목업으로 병렬 개발한다. 모든 모듈은 인터페이스 + Fake 구현을 먼저 만든다.
 3. 시뮬레이션 패널을 유지한다. 출발·정차·터널·급제동·도착 버튼으로 FakeVehicleState에 이벤트를 넣는다. 시연용 이벤트 순서 자동 재생 기능도 이 패널에 둔다.
-4. 장면 낭독은 미리 만든 음성 파일(assets)로 재생한다. 녹음 전까지는 Pleos TTS로 대신하고, TTS가 안 되면 무음 + 패널 자막으로 진행한다.
+4. 장면 낭독은 미리 만든 음성 파일(assets)로 재생한다. 녹음 전까지는 Pleos TTS로 대신한다. F-03에서는 초기화·합성 실패 시 해당 문장에서 멈추고 오류를 표시한다. 소리가 나지 않은 대본을 자동으로 건너뛰지 않는다. FakeAudioPlayer는 명시적인 무음 테스트용으로 유지한다.
 5. 안전이 기능보다 우선한다.
     - 주행 중에는 이미지·긴 텍스트·선택지를 표시하지 않는다.
     - 급제동·ADAS 경고·"멈춰" 명령이 오면 낭독과 심문을 즉시 멈춘다.
@@ -113,6 +113,8 @@ interface ProgressStore {
   - trigger 없음: 본편, 순서대로 재생 / `briefing`: 시작 시 / `ending_correct`·`ending_wrong`: 범인 지목 후 / 그 외: `VehicleEvent.Place` 태그(예: `tunnel`)
   - 도착하면 못 들은 필수 장면의 단서를 지급하므로, 모든 단서는 필수 본편 장면에서 열려야 한다.
 - scene.effect: night | tension | tunnel | reveal
+- scene.voice: 기본 narrator. sentenceVoices는 비어 있거나 script와 같은 길이인 문장별 화자 목록. 기존 원고는 유지하고 용의자 답변에 Suspect.voice를 연결한다.
+- F-03 구현·테스트 실행법: `docs/f03/README.md`, 에뮬레이터 확인 기록: `docs/f03/verification.md`.
 - progress: scenarioId, chapterId, lastSceneId, lastSentenceIndex, playedSceneIds, cluesFound, testimonies, choices
 - 용의자 답변(LLM)은 범인과 트릭을 직접 공개하지 않는다.
 

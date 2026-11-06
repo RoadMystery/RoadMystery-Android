@@ -77,7 +77,7 @@ fun SimulationPanel(
             PanelButton("\"멈춰\"", danger = true) { onEvent(VehicleEvent.Hazard(HazardReason.USER_STOP)) }
             HorizontalDivider()
             OutlinedButton(onClick = actions.onToggleSpeed, modifier = Modifier.fillMaxWidth()) {
-                Text(if (state.fastAudio) "무음 낭독 속도 ×10" else "무음 낭독 속도 ×1")
+                Text("음성 오류 재시도 / 무음 속도 전환")
             }
             state.lastEffect?.let { Text("연출: $it", style = MaterialTheme.typography.labelMedium) }
 

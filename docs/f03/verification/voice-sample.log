@@ -1,0 +1,42 @@
+--------- beginning of main
+11-05 17:36:08.736 I/F03Test ( 1341): status=PlaybackStatus(phase=IDLE, sceneId=null, sentenceIndex=0, speaker=null, message=낭독 대기)
+11-05 17:36:08.803 I/F03Test ( 1341): status=PlaybackStatus(phase=SPEAKING, sceneId=f03_voice_sample, sentenceIndex=0, speaker=sanghyeok, message=문장 1/4 · sanghyeok)
+11-05 17:36:08.803 I/F03Test ( 1341): event=SentenceStarted(sceneId=f03_voice_sample, index=0)
+11-05 17:36:09.286 I/F03Speech( 1341): speak speaker=sanghyeok chars=39
+11-05 17:36:09.410 I/F03Speech( 1341): speech started
+11-05 17:36:13.672 I/F03Test ( 1341): status=PlaybackStatus(phase=PAUSED, sceneId=f03_voice_sample, sentenceIndex=0, speaker=null, message=낭독 일시정지)
+11-05 17:36:13.673 I/F03Test ( 1341): SMOKE paused sentence=0
+11-05 17:36:13.946 I/F03Speech( 1341): speech stopped
+11-05 17:36:16.753 I/F03Speech( 1341): speak speaker=sanghyeok chars=39
+11-05 17:36:16.755 I/F03Test ( 1341): status=PlaybackStatus(phase=SPEAKING, sceneId=f03_voice_sample, sentenceIndex=0, speaker=sanghyeok, message=문장 1/4 · sanghyeok)
+11-05 17:36:16.756 I/F03Test ( 1341): event=SentenceStarted(sceneId=f03_voice_sample, index=0)
+11-05 17:36:16.756 I/F03Test ( 1341): SMOKE resumed sentence=0
+11-05 17:36:16.825 I/F03Speech( 1341): speech started
+11-05 17:36:17.938 I/F03Speech( 1341): audible PCM reported
+11-05 17:36:23.032 I/F03Speech( 1341): speech completed
+11-05 17:36:23.042 I/F03Speech( 1341): speak speaker=seoyoon chars=39
+11-05 17:36:23.043 I/F03Test ( 1341): status=PlaybackStatus(phase=SPEAKING, sceneId=f03_voice_sample, sentenceIndex=1, speaker=seoyoon, message=문장 2/4 · seoyoon)
+11-05 17:36:23.043 I/F03Test ( 1341): event=SentenceStarted(sceneId=f03_voice_sample, index=1)
+11-05 17:36:23.138 I/F03Speech( 1341): speech started
+11-05 17:36:23.440 I/F03Speech( 1341): audible PCM reported
+11-05 17:36:28.289 I/F03Speech( 1341): speech completed
+11-05 17:36:28.316 I/F03Speech( 1341): speak speaker=eunwoo chars=38
+11-05 17:36:28.318 I/F03Test ( 1341): status=PlaybackStatus(phase=SPEAKING, sceneId=f03_voice_sample, sentenceIndex=2, speaker=eunwoo, message=문장 3/4 · eunwoo)
+11-05 17:36:28.318 I/F03Test ( 1341): event=SentenceStarted(sceneId=f03_voice_sample, index=2)
+11-05 17:36:28.452 I/F03Speech( 1341): speech started
+11-05 17:36:28.793 I/F03Speech( 1341): audible PCM reported
+11-05 17:36:33.408 I/F03Speech( 1341): speech completed
+11-05 17:36:33.427 I/F03Speech( 1341): speak speaker=haeun chars=35
+11-05 17:36:33.427 I/F03Test ( 1341): status=PlaybackStatus(phase=SPEAKING, sceneId=f03_voice_sample, sentenceIndex=3, speaker=haeun, message=문장 4/4 · haeun)
+11-05 17:36:33.428 I/F03Test ( 1341): event=SentenceStarted(sceneId=f03_voice_sample, index=3)
+11-05 17:36:33.487 I/F03Speech( 1341): speech started
+11-05 17:36:33.849 I/F03Speech( 1341): audible PCM reported
+11-05 17:36:37.964 I/F03Speech( 1341): speech completed
+11-05 17:36:37.978 I/F03Speech( 1341): speak speaker=sanghyeok chars=28
+11-05 17:36:37.979 I/F03Test ( 1341): status=PlaybackStatus(phase=QUESTION, sceneId=f03_voice_sample, sentenceIndex=4, speaker=null, message=질문할 것이 있나요? 잠시 생각할 시간을 드릴게요.)
+11-05 17:36:38.039 I/F03Speech( 1341): speech started
+11-05 17:36:38.244 I/F03Speech( 1341): audible PCM reported
+11-05 17:36:41.783 I/F03Speech( 1341): speech completed
+11-05 17:36:41.783 I/F03Test ( 1341): status=PlaybackStatus(phase=WAITING, sceneId=f03_voice_sample, sentenceIndex=4, speaker=null, message=질문 대기)
+11-05 17:36:44.795 I/F03Test ( 1341): status=PlaybackStatus(phase=IDLE, sceneId=f03_voice_sample, sentenceIndex=4, speaker=null, message=장면 재생 완료)
+11-05 17:36:44.797 I/F03Test ( 1341): event=SceneFinished(sceneId=f03_voice_sample)

@@ -84,6 +84,10 @@ data class Scene(
     val trigger: String? = null,
     /** 장면이 시작될 때 Director에 넘길 연출. Effect 이름(소문자). */
     val effect: String? = null,
+    /** TTS 화자. 기존 대본은 진행자가 읽고, 심문 대답은 용의자의 voice를 사용한다. */
+    val voice: String = "narrator",
+    /** 필요할 때 문장별 화자를 지정한다. 비어 있으면 장면 voice를 사용한다. */
+    val sentenceVoices: List<String> = emptyList(),
 )
 
 object SceneTrigger {
