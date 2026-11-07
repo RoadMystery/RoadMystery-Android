@@ -47,6 +47,7 @@ import com.roadmystery.app.ui.PanelActions
 import com.roadmystery.app.ui.PanelState
 import com.roadmystery.app.ui.SimulationPanel
 import com.roadmystery.app.ui.theme.RoadMysteryTheme
+import com.roadmystery.app.vehicle.AndroidTunnelLocation
 import com.roadmystery.app.vehicle.DemoAutoplay
 import com.roadmystery.app.vehicle.FakeVehicleState
 import com.roadmystery.app.vehicle.PleosVehicleState
@@ -59,6 +60,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.launch
 
 private const val DEMO_SCENARIO_ID = "midnight_rest_area"
@@ -71,8 +73,10 @@ private const val TAG = "MainActivity"
 class MainActivity : ComponentActivity() {
     private val simulated = FakeVehicleState()
     private lateinit var selectedVehicle: SelectedVehicleState
+    private lateinit var tunnelLocation: AndroidTunnelLocation
     private val motionPermissions = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
         // Re-subscribe after the permission result; missing permission stays conservatively Driving.
+        tunnelLocation.refreshPermission()
         selectedVehicle.select(VehicleSource.REAL)
     }
     private var vehicleSdk: Vehicle? = null
@@ -90,8 +94,9 @@ class MainActivity : ComponentActivity() {
         val clientSecret = BuildConfig.PLEOS_CLIENT_SECRET
 
         vehicleSdk = attempt("Vehicle SDK") { Vehicle(this).apply { initialize() } }
+        tunnelLocation = AndroidTunnelLocation(this, lifecycle)
         selectedVehicle = SelectedVehicleState(
-            real = PleosVehicleState(this).events,
+            real = merge(PleosVehicleState(this).events, tunnelLocation.events),
             simulated = simulated.events,
             initial = if (BuildConfig.DEBUG) VehicleSource.SIMULATION else VehicleSource.REAL
         )
@@ -108,7 +113,7 @@ class MainActivity : ComponentActivity() {
                 }
             )
         speech = attempt("STT") { PleosSpeechInput(this, clientId, clientSecret) }
-        director = vehicleSdk?.let { sdk -> attempt("Director") { PleosDirector(sdk) } } ?: ToneDirector()
+        director = attempt("Director") { PleosDirector(this) } ?: ToneDirector()
         store = DataStoreProgressStore(this)
         engine =
             DefaultStoryEngine(
@@ -142,6 +147,7 @@ class MainActivity : ComponentActivity() {
     @androidx.compose.runtime.Composable
     private fun AppContent() {
         val source by selectedVehicle.source.collectAsState()
+        val gpsStatus by tunnelLocation.status.collectAsState()
         val mode by engine.mode.collectAsState()
         val scenario by engine.scenario.collectAsState()
         val nowPlaying by engine.nowPlaying.collectAsState()
@@ -155,6 +161,7 @@ class MainActivity : ComponentActivity() {
         val saved by savedProgress.collectAsState()
         val autoplayStep by autoplay.step.collectAsState()
         val lastEffect by director.lastEffect.collectAsState()
+        val effectStatus by ((director as? PleosDirector)?.status ?: MutableStateFlow("효과음 전용")).collectAsState()
         val audioStatus by (
             when (val player = audio) {
                 is PleosTtsAudioPlayer -> player.status
@@ -202,7 +209,7 @@ class MainActivity : ComponentActivity() {
                 autoplayStep = autoplayStep,
                 audioLabel =
                 audioStatus.message,
-                lastEffect = lastEffect?.label
+                lastEffect = lastEffect?.let { "${it.label} · $effectStatus" }
             )
         val panelActions =
             PanelActions(
@@ -232,7 +239,9 @@ class MainActivity : ComponentActivity() {
                                 motionPermissions.launch(
                                     arrayOf(
                                         "android.car.permission.CAR_SPEED",
-                                        "android.car.permission.CAR_POWERTRAIN"
+                                        "android.car.permission.CAR_POWERTRAIN",
+                                        "android.permission.ACCESS_COARSE_LOCATION",
+                                        "android.permission.ACCESS_FINE_LOCATION"
                                     )
                                 )
                             }
@@ -244,6 +253,16 @@ class MainActivity : ComponentActivity() {
                             engine.stop()
                             startActivity(Intent().setClassName(packageName, "$packageName.audio.NarrationTestActivity"))
                         }) { Text("F-03 낭독 테스트") }
+                        Button(onClick = {
+                            engine.stop()
+                            startActivity(Intent().setClassName(packageName, "$packageName.director.TunnelTestActivity"))
+                        }) { Text("F-09 터널 연출 테스트") }
+                        Button(onClick = {
+                            engine.stop()
+                            startActivity(Intent().setClassName(packageName, "$packageName.director.GpsTunnelTestActivity"))
+                        }) { Text("F-09 GPS 터널 자동 감지 테스트") }
+                        Text(gpsStatus)
+                        Text("터널 지도: © OpenStreetMap contributors · ODbL 1.0")
                         if (source == VehicleSource.SIMULATION) {
                             SimulationPanel(state = panelState, actions = panelActions, modifier = Modifier.weight(1f))
                         }
@@ -257,6 +276,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         engine.stop()
+        director.release()
         when (val player = audio) {
             is PleosTtsAudioPlayer -> player.release()
             is SentenceAudioPlayer -> player.release()

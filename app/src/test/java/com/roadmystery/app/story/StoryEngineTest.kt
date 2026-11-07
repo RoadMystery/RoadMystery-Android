@@ -364,6 +364,54 @@ class StoryEngineTest {
         assertEquals("m2", engine.snapshot.value?.lastSceneId)
     }
 
+    @Test
+    fun `터널 이탈이면 대기 중인 장면은 취소되고 다음 본편으로 진행한다`() {
+        startDriving()
+        send(VehicleEvent.Place("tunnel"), VehicleEvent.PlaceExited("tunnel"))
+        finish("m1")
+        assertEquals("opt1", audio.playing)
+    }
+
+    @Test
+    fun `정차 중 장소 입력과 예약된 시스템 태그는 연출을 삽입하지 않는다`() {
+        startDriving()
+        send(VehicleEvent.Stopped, VehicleEvent.Place("tunnel"), VehicleEvent.Driving)
+        send(VehicleEvent.Place("ending_correct"), VehicleEvent.Place("briefing"))
+        finish("m1")
+        assertEquals("opt1", audio.playing)
+    }
+
+    @Test
+    fun `터널 낭독 중 위험은 연출도 중단하고 문장 재개 때 연출을 반복하지 않는다`() {
+        val effects = mutableListOf<Effect>()
+        var stops = 0
+        val fake = FakeDirector()
+        val director = object : com.roadmystery.app.director.Director {
+            override val lastEffect = fake.lastEffect
+            override fun perform(effect: Effect) { effects += effect; fake.perform(effect) }
+            override fun stop() { stops++ }
+        }
+        val scenario = testScenario.copy(chapters = testScenario.chapters.map { chapter ->
+            chapter.copy(scenes = chapter.scenes.map { if (it.trigger == "tunnel") it.copy(effect = "tunnel") else it })
+        })
+        val engine = DefaultStoryEngine(ScenarioRepository { scenario }, audio, director = director, clock = { now })
+        engine.start("test")
+        engine.onVehicleEvent(VehicleEvent.Driving)
+        engine.onAudioEvent(AudioEvent.SceneFinished("briefing"))
+        engine.onVehicleEvent(VehicleEvent.Place("tunnel"))
+        engine.onAudioEvent(AudioEvent.SceneFinished("m1"))
+        assertEquals("tunnel", audio.playing)
+        assertEquals(1, effects.count { it == Effect.TUNNEL })
+        val before = stops
+        engine.onVehicleEvent(VehicleEvent.Hazard(HazardReason.HARD_BRAKE))
+        assertTrue(stops > before)
+        now += 5_000
+        engine.onVehicleEvent(VehicleEvent.Driving)
+        engine.onAudioEvent(AudioEvent.SceneFinished("reply_0"))
+        assertEquals("tunnel", audio.playing)
+        assertEquals(1, effects.count { it == Effect.TUNNEL })
+    }
+
     private fun startDriving() {
         engine.start("test")
         finish("briefing")

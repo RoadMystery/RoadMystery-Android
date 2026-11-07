@@ -1,0 +1,44 @@
+--------- beginning of main
+11-06 23:36:19.376 21277 21277 I F09Test : effect=연출 대기 sdk=true fakeBrightness=70 fakeFan=2
+11-06 23:36:19.378 21277 21277 I F09Test : audio=PlaybackStatus(phase=IDLE, sceneId=null, sentenceIndex=0, speaker=null, message=낭독 대기)
+11-06 23:36:19.379 21277 21277 I F09Test : scene=null
+11-06 23:36:19.520 21277 21277 I F09Test : event=Place(tag=tunnel)
+11-06 23:36:19.528 21277 21277 I F09Test : scene=s01_scene
+11-06 23:36:19.531 21277 21277 I F09Test : audio=PlaybackStatus(phase=SPEAKING, sceneId=s01_scene, sentenceIndex=5, speaker=sanghyeok, message=문장 6/6 · sanghyeok)
+11-06 23:36:19.793 21277 21277 I F03Speech: speak speaker=sanghyeok chars=35
+11-06 23:36:19.831 21277 21354 I F03Speech: speech started
+11-06 23:36:22.914 21277 21277 I F03Speech: audible PCM reported
+11-06 23:36:26.208 21277 21277 I F03Speech: speech completed
+11-06 23:36:26.230 21277 21277 I F03Speech: speak speaker=sanghyeok chars=28
+11-06 23:36:26.231 21277 21277 I F09Test : audio=PlaybackStatus(phase=QUESTION, sceneId=s01_scene, sentenceIndex=6, speaker=null, message=질문할 것이 있나요? 잠시 생각할 시간을 드릴게요.)
+11-06 23:36:26.276 21277 21354 I F03Speech: speech started
+11-06 23:36:26.905 21277 21277 I F03Speech: audible PCM reported
+11-06 23:36:30.295 21277 21277 I F03Speech: speech completed
+11-06 23:36:30.297 21277 21277 I F09Test : audio=PlaybackStatus(phase=WAITING, sceneId=s01_scene, sentenceIndex=6, speaker=null, message=질문 대기)
+11-06 23:36:33.298 21277 21277 I F09Test : audio=PlaybackStatus(phase=IDLE, sceneId=s01_scene, sentenceIndex=6, speaker=null, message=장면 재생 완료)
+11-06 23:36:33.350 21277 21277 I F09Test : scene=tunnel_flashback
+11-06 23:36:36.320 21277 21277 I F03Speech: speak speaker=sanghyeok chars=29
+11-06 23:36:36.321 21277 21277 I F09Test : effect=터널 · 조명·공조 지원과 현재값 확인 중 sdk=true fakeBrightness=70 fakeFan=2
+11-06 23:36:36.321 21277 21277 I F09Test : audio=PlaybackStatus(phase=SPEAKING, sceneId=tunnel_flashback, sentenceIndex=0, speaker=sanghyeok, message=문장 1/3 · sanghyeok)
+11-06 23:36:36.427 21277 21354 I F03Speech: speech started
+11-06 23:36:37.908 21277 21277 I F03Speech: audible PCM reported
+11-06 23:36:37.947 21277 21277 I F09Test : effect=효과음만 재생 · 공조 꺼짐 · 사용자 설정 유지 sdk=true fakeBrightness=70 fakeFan=2
+11-06 23:36:40.371 21277 21277 I F09Test : SMOKE status=효과음만 재생 · 공조 꺼짐 · 사용자 설정 유지 sdk=true fakeBrightness=70 fakeFan=2
+11-06 23:36:40.633 21277 21277 I F03Speech: speech completed
+11-06 23:36:40.641 21277 21277 I F03Speech: speak speaker=sanghyeok chars=36
+11-06 23:36:40.642 21277 21277 I F09Test : audio=PlaybackStatus(phase=SPEAKING, sceneId=tunnel_flashback, sentenceIndex=1, speaker=sanghyeok, message=문장 2/3 · sanghyeok)
+11-06 23:36:40.642 21277 21277 I F09Test : scene=tunnel_flashback
+11-06 23:36:40.726 21277 21353 I F03Speech: speech started
+11-06 23:36:41.314 21277 21277 I F03Speech: audible PCM reported
+11-06 23:36:45.944 21277 21277 I F03Speech: speech completed
+11-06 23:36:45.960 21277 21277 I F03Speech: speak speaker=sanghyeok chars=28
+11-06 23:36:45.962 21277 21277 I F09Test : audio=PlaybackStatus(phase=SPEAKING, sceneId=tunnel_flashback, sentenceIndex=2, speaker=sanghyeok, message=문장 3/3 · sanghyeok)
+11-06 23:36:45.964 21277 21277 I F09Test : scene=tunnel_flashback
+11-06 23:36:46.082 21277 21353 I F03Speech: speech started
+11-06 23:36:46.245 21277 21277 I F03Speech: audible PCM reported
+11-06 23:36:49.548 21277 21277 I F03Speech: speech completed
+11-06 23:36:49.548 21277 21277 I F09Test : audio=PlaybackStatus(phase=IDLE, sceneId=tunnel_flashback, sentenceIndex=2, speaker=null, message=장면 재생 완료)
+11-06 23:36:49.603 21277 21277 I F09Test : scene=s02_driver
+11-06 23:36:49.631 21277 21277 I F09Test : SMOKE complete
+11-06 23:36:49.632 21277 21277 I F09Test : audio=PlaybackStatus(phase=IDLE, sceneId=null, sentenceIndex=0, speaker=null, message=낭독 대기)
+11-06 23:36:49.632 21277 21277 I F09Test : scene=null

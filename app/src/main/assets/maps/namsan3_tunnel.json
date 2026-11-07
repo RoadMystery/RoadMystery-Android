@@ -1,0 +1,180 @@
+{
+  "name": "남산3호터널",
+  "source": "https://www.openstreetmap.org/way/37930783",
+  "sourceApi": "https://api.openstreetmap.org/api/0.6/way/37930783/full",
+  "osmVersion": 33,
+  "osmTimestamp": "2026-11-01T09:03:41Z",
+  "attribution": "© OpenStreetMap contributors · ODbL 1.0",
+  "license": "https://www.openstreetmap.org/copyright",
+  "bufferMeters": 30,
+  "centerline": [
+    {
+      "latitude": 37.555569,
+      "longitude": 126.9829804
+    },
+    {
+      "latitude": 37.5553004,
+      "longitude": 126.9830562
+    },
+    {
+      "latitude": 37.5548944,
+      "longitude": 126.9832249
+    },
+    {
+      "latitude": 37.5531762,
+      "longitude": 126.9840305
+    },
+    {
+      "latitude": 37.5518178,
+      "longitude": 126.9846674
+    },
+    {
+      "latitude": 37.5515758,
+      "longitude": 126.9847809
+    },
+    {
+      "latitude": 37.5514909,
+      "longitude": 126.9848207
+    },
+    {
+      "latitude": 37.5513734,
+      "longitude": 126.9848758
+    },
+    {
+      "latitude": 37.5512813,
+      "longitude": 126.984919
+    },
+    {
+      "latitude": 37.5500309,
+      "longitude": 126.9855053
+    },
+    {
+      "latitude": 37.5464115,
+      "longitude": 126.9873556
+    },
+    {
+      "latitude": 37.5447139,
+      "longitude": 126.9881247
+    }
+  ],
+  "regions": [
+    {
+      "id": "osm-way-37930783",
+      "tag": "tunnel",
+      "polygon": [
+        {
+          "latitude": 37.55537215,
+          "longitude": 126.9833843
+        },
+        {
+          "latitude": 37.55498354,
+          "longitude": 126.98354577
+        },
+        {
+          "latitude": 37.55327009,
+          "longitude": 126.98434914
+        },
+        {
+          "latitude": 37.55191171,
+          "longitude": 126.98498604
+        },
+        {
+          "latitude": 37.55166972,
+          "longitude": 126.98509953
+        },
+        {
+          "latitude": 37.55158479,
+          "longitude": 126.98513934
+        },
+        {
+          "latitude": 37.55146732,
+          "longitude": 126.98519443
+        },
+        {
+          "latitude": 37.55137523,
+          "longitude": 126.98523763
+        },
+        {
+          "latitude": 37.55012848,
+          "longitude": 126.98582221
+        },
+        {
+          "latitude": 37.54651272,
+          "longitude": 126.98767065
+        },
+        {
+          "latitude": 37.54650259,
+          "longitude": 126.98767553
+        },
+        {
+          "latitude": 37.54480499,
+          "longitude": 126.98844463
+        },
+        {
+          "latitude": 37.54462281,
+          "longitude": 126.98780477
+        },
+        {
+          "latitude": 37.5463153,
+          "longitude": 126.98703798
+        },
+        {
+          "latitude": 37.54992968,
+          "longitude": 126.98519025
+        },
+        {
+          "latitude": 37.549937,
+          "longitude": 126.98518666
+        },
+        {
+          "latitude": 37.55118739,
+          "longitude": 126.98460037
+        },
+        {
+          "latitude": 37.55127947,
+          "longitude": 126.98455717
+        },
+        {
+          "latitude": 37.55139699,
+          "longitude": 126.98450206
+        },
+        {
+          "latitude": 37.5514819,
+          "longitude": 126.98446226
+        },
+        {
+          "latitude": 37.55172388,
+          "longitude": 126.98434877
+        },
+        {
+          "latitude": 37.55308231,
+          "longitude": 126.98371186
+        },
+        {
+          "latitude": 37.55480051,
+          "longitude": 126.98290626
+        },
+        {
+          "latitude": 37.55481008,
+          "longitude": 126.98290202
+        },
+        {
+          "latitude": 37.55521608,
+          "longitude": 126.98273332
+        },
+        {
+          "latitude": 37.55524156,
+          "longitude": 126.98272446
+        },
+        {
+          "latitude": 37.55551016,
+          "longitude": 126.98264866
+        },
+        {
+          "latitude": 37.55562784,
+          "longitude": 126.98331214
+        }
+      ]
+    }
+  ]
+}

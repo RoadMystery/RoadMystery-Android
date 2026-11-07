@@ -69,7 +69,8 @@ fun SimulationPanel(
             PanelButton("출발") { onEvent(VehicleEvent.Driving) }
             PanelButton("정차") { onEvent(VehicleEvent.Stopped) }
             PanelButton("주차") { onEvent(VehicleEvent.Parked) }
-            PanelButton("터널") { onEvent(VehicleEvent.Place("tunnel")) }
+            PanelButton("터널 진입 (가상)") { onEvent(VehicleEvent.Place("tunnel")) }
+            PanelButton("터널 이탈 (가상)") { onEvent(VehicleEvent.PlaceExited("tunnel")) }
             PanelButton("도착 1분 전") { onEvent(VehicleEvent.EtaChanged(remainingSec = 60)) }
             PanelButton("도착") { onEvent(VehicleEvent.Arrived) }
             PanelButton("급제동", danger = true) { onEvent(VehicleEvent.Hazard(HazardReason.HARD_BRAKE)) }

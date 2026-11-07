@@ -1,6 +1,18 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application>
         <activity
+            android:name=".director.GpsTunnelTestActivity"
+            android:exported="true"
+            android:label="F-09 GPS 터널 자동 감지 테스트" />
+        <activity
+            android:name=".director.CabinVerificationActivity"
+            android:exported="true"
+            android:label="F-09 SDK 값 검증 (에뮬레이터 전용)" />
+        <activity
+            android:name=".director.TunnelTestActivity"
+            android:exported="true"
+            android:label="RoadMystery F-09 터널 연출 테스트" />
+        <activity
             android:name=".audio.NarrationTestActivity"
             android:exported="true"
             android:label="RoadMystery F-03 낭독 테스트" />

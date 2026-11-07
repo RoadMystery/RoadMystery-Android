@@ -1,0 +1,15 @@
+{
+  "source": "https://www.openstreetmap.org/way/37930783",
+  "outsideBefore": {
+    "latitude": 37.55688396,
+    "longitude": 126.98260931
+  },
+  "inside": {
+    "latitude": 37.5501163,
+    "longitude": 126.98546526
+  },
+  "outsideAfter": {
+    "latitude": 37.54344575,
+    "longitude": 126.98869924
+  }
+}

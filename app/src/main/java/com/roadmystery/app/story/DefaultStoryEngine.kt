@@ -80,6 +80,7 @@ class DefaultStoryEngine(
     private var chapter: Chapter? = null
     private val queue = ArrayDeque<Scene>()
     private val playedIds = mutableSetOf<String>()
+    private val performedEffects = mutableSetOf<String>()
 
     /** 도착 시간 때문에 큐에서 이미 버린 장면. */
     private val droppedIds = mutableSetOf<String>()
@@ -125,6 +126,7 @@ class DefaultStoryEngine(
 
     /** 화면 종료·개발용 재생 전환 시 재개 예약까지 정리한다. 저장 스냅샷은 유지한다. */
     fun stop() {
+        director.stop()
         askJob?.cancel()
         askJob = null
         cancelHazardState()
@@ -141,6 +143,8 @@ class DefaultStoryEngine(
         scenarioId: String,
         resume: Progress?,
     ) {
+        director.stop()
+        performedEffects.clear()
         audio.stop()
         askJob?.cancel()
         cancelHazardState()
@@ -201,6 +205,10 @@ class DefaultStoryEngine(
             is VehicleEvent.Hazard -> onHazard()
             VehicleEvent.Arrived -> onArrived()
             is VehicleEvent.Place -> onPlace(event.tag)
+            is VehicleEvent.PlaceExited -> {
+                queue.removeAll { it.trigger == event.tag }
+                if (current?.trigger == event.tag) director.stop()
+            }
             is VehicleEvent.EtaChanged -> {
                 etaSec = event.remainingSec
                 replan()
@@ -283,6 +291,7 @@ class DefaultStoryEngine(
         val asyncScope = scope ?: return
         if (_mode.value != AppMode.STOPPED || moving || question.isBlank()) return
         if (askJob?.isActive == true) return
+        director.stop()
 
         // 진행 중이던 대답은 끊고, 낭독 중이었다면 멈춘 자리를 기억해 둔다.
         val playing = current
@@ -368,6 +377,7 @@ class DefaultStoryEngine(
     }
 
     private fun onHazard() {
+        director.stop()
         if (abortInterrogation()) {
             if (current != null) held = true
         } else if (current != null && !held) {
@@ -432,6 +442,7 @@ class DefaultStoryEngine(
 
     private fun onArrived() {
         if (_mode.value == AppMode.ENDING) return
+        director.stop()
         abortInterrogation()
         cancelHazardState()
         audio.stop()
@@ -448,12 +459,15 @@ class DefaultStoryEngine(
     }
 
     private fun onPlace(tag: String) {
-        if (_mode.value == AppMode.ENDING) return
+        if (_mode.value == AppMode.ENDING || !moving || tag in SceneTrigger.endings ||
+            tag == SceneTrigger.BRIEFING || tag == SceneTrigger.REPLY
+        ) return
         val scene =
             chapter?.scenes?.firstOrNull { scene ->
                 scene.trigger == tag &&
                     scene.id !in playedIds &&
                     scene.id != current?.id &&
+                    scene.id != interrupted?.first?.id &&
                     queue.none { it.id == scene.id }
             } ?: return
         queue.addFirst(scene)
@@ -461,6 +475,7 @@ class DefaultStoryEngine(
     }
 
     private fun finishScene(scene: Scene) {
+        director.stop()
         current = null
         _nowPlaying.value = null
 
@@ -508,7 +523,10 @@ class DefaultStoryEngine(
         current = scene
         sentenceIndex = fromSentence
         publishNowPlaying(scene)
-        if (fromSentence == 0) scene.effect?.let(Effect::from)?.let(director::perform)
+        // 첫 문장에서 재개해도 위험으로 중단한 연출을 다시 실행하지 않는다.
+        if (fromSentence == 0 && performedEffects.add(scene.id)) {
+            scene.effect?.let(Effect::from)?.let(director::perform)
+        }
         audio.play(scene, fromSentence)
     }
 

@@ -18,4 +18,7 @@ sealed interface VehicleEvent {
 
     /** "tunnel", 지역명 등 */
     data class Place(val tag: String) : VehicleEvent
+
+    /** 확인된 구역 이탈. 위치 신호 유실은 이탈로 취급하지 않는다. */
+    data class PlaceExited(val tag: String) : VehicleEvent
 }

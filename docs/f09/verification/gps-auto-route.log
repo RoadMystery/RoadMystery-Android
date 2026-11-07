@@ -1,0 +1,86 @@
+--------- beginning of main
+11-07 17:20:41.294 32061 32061 I F09GpsTest: GPS_FIX null
+11-07 17:20:41.295 32061 32061 I F09GpsTest: GPS_STATUS GPS 대기
+11-07 17:20:41.296 32061 32061 I F09GpsTest: SCENE null
+11-07 17:20:41.297 32061 32061 I F09GpsTest: EFFECT 연출 대기
+11-07 17:20:41.297 32061 32061 I F09GpsTest: AUDIO PlaybackStatus(phase=IDLE, sceneId=null, sentenceIndex=0, speaker=null, message=낭독 대기)
+11-07 17:20:41.575 32061 32061 I F09GpsTest: SCENE s01_scene
+11-07 17:20:41.582 32061 32061 I F09GpsTest: AUDIO PlaybackStatus(phase=SPEAKING, sceneId=s01_scene, sentenceIndex=5, speaker=sanghyeok, message=문장 6/6 · sanghyeok)
+11-07 17:20:41.597 32061 32061 D TunnelLocation: lifecycle=ON_CREATE
+11-07 17:20:41.600 32061 32061 D TunnelLocation: lifecycle=ON_START
+11-07 17:20:41.610 32061 32061 D TunnelLocation: registered lifecycle=STARTED
+11-07 17:20:41.611 32061 32061 I F09GpsTest: GPS_STATUS 남산3호터널 지도 준비 · GPS 수신 대기
+11-07 17:20:41.615 32061 32061 D TunnelLocation: lifecycle=ON_RESUME
+11-07 17:20:43.788 32061 32061 I F03Speech: speak speaker=sanghyeok chars=35
+11-07 17:20:43.936 32061 32061 I F09GpsTest: GPS_FIX PositionFix(point=GeoPoint(latitude=37.55688333333333, longitude=126.98260833333333), accuracyMeters=5.0, ageMs=1336)
+11-07 17:20:43.942 32061 32061 I F09GpsTest: GPS_FIX PositionFix(point=GeoPoint(latitude=37.55688333333333, longitude=126.98260833333333), accuracyMeters=5.0, ageMs=311)
+11-07 17:20:43.978 32061 32094 I F03Speech: speech started
+11-07 17:20:44.633 32061 32061 I F09GpsTest: GPS_FIX PositionFix(point=GeoPoint(latitude=37.55688333333333, longitude=126.98260833333333), accuracyMeters=5.0, ageMs=17)
+11-07 17:20:44.830 32061 32061 I F03Speech: audible PCM reported
+11-07 17:20:45.721 32061 32061 I F09GpsTest: GPS_FIX PositionFix(point=GeoPoint(latitude=37.55688333333333, longitude=126.98260833333333), accuracyMeters=5.0, ageMs=65)
+11-07 17:20:46.661 32061 32061 I F09GpsTest: GPS_FIX PositionFix(point=GeoPoint(latitude=37.55688333333333, longitude=126.98260833333333), accuracyMeters=5.0, ageMs=14)
+11-07 17:20:47.212 32061 32061 I F09GpsTest: GPS_FIX PositionFix(point=GeoPoint(latitude=37.550115, longitude=126.985465), accuracyMeters=5.0, ageMs=5)
+11-07 17:20:48.643 32061 32061 I F09GpsTest: GPS_FIX PositionFix(point=GeoPoint(latitude=37.550115, longitude=126.985465), accuracyMeters=5.0, ageMs=7)
+11-07 17:20:48.644 32061 32061 I F09GpsTest: GPS_STATUS 남산3호터널: 진입
+11-07 17:20:48.646 32061 32061 I F09GpsTest: LOCATION_EVENT Place(tag=tunnel)
+11-07 17:20:48.927 32061 32061 I F03Speech: speech completed
+11-07 17:20:48.935 32061 32061 I F03Speech: speak speaker=sanghyeok chars=28
+11-07 17:20:48.936 32061 32061 I F09GpsTest: AUDIO PlaybackStatus(phase=QUESTION, sceneId=s01_scene, sentenceIndex=6, speaker=null, message=질문할 것이 있나요? 잠시 생각할 시간을 드릴게요.)
+11-07 17:20:48.948 32061 32094 I F03Speech: speech started
+11-07 17:20:49.470 32061 32061 I F03Speech: audible PCM reported
+11-07 17:20:49.684 32061 32061 I F09GpsTest: GPS_FIX PositionFix(point=GeoPoint(latitude=37.550115, longitude=126.985465), accuracyMeters=5.0, ageMs=48)
+11-07 17:20:50.648 32061 32061 I F09GpsTest: GPS_FIX PositionFix(point=GeoPoint(latitude=37.550115, longitude=126.985465), accuracyMeters=5.0, ageMs=5)
+11-07 17:20:51.675 32061 32061 I F09GpsTest: GPS_FIX PositionFix(point=GeoPoint(latitude=37.550115, longitude=126.985465), accuracyMeters=5.0, ageMs=21)
+11-07 17:20:52.653 32061 32061 I F09GpsTest: GPS_FIX PositionFix(point=GeoPoint(latitude=37.550115, longitude=126.985465), accuracyMeters=5.0, ageMs=4)
+11-07 17:20:52.852 32061 32061 I F03Speech: speech completed
+11-07 17:20:52.853 32061 32061 I F09GpsTest: AUDIO PlaybackStatus(phase=WAITING, sceneId=s01_scene, sentenceIndex=6, speaker=null, message=질문 대기)
+11-07 17:20:53.669 32061 32061 I F09GpsTest: GPS_FIX PositionFix(point=GeoPoint(latitude=37.550115, longitude=126.985465), accuracyMeters=5.0, ageMs=19)
+11-07 17:20:54.657 32061 32061 I F09GpsTest: GPS_FIX PositionFix(point=GeoPoint(latitude=37.550115, longitude=126.985465), accuracyMeters=5.0, ageMs=4)
+11-07 17:20:55.664 32061 32061 I F09GpsTest: GPS_FIX PositionFix(point=GeoPoint(latitude=37.550115, longitude=126.985465), accuracyMeters=5.0, ageMs=11)
+11-07 17:20:55.884 32061 32061 I F09GpsTest: AUDIO PlaybackStatus(phase=IDLE, sceneId=s01_scene, sentenceIndex=6, speaker=null, message=장면 재생 완료)
+11-07 17:20:55.920 32061 32061 I F09GpsTest: SCENE tunnel_flashback
+11-07 17:20:58.078 32061 32061 I F03Speech: speak speaker=sanghyeok chars=29
+11-07 17:20:58.079 32061 32061 I F09GpsTest: EFFECT 터널 · 조명·공조 지원과 현재값 확인 중
+11-07 17:20:58.079 32061 32061 I F09GpsTest: AUDIO PlaybackStatus(phase=SPEAKING, sceneId=tunnel_flashback, sentenceIndex=0, speaker=sanghyeok, message=문장 1/3 · sanghyeok)
+11-07 17:20:58.095 32061 32094 I F03Speech: speech started
+11-07 17:20:58.168 32061 32061 I F09GpsTest: GPS_FIX PositionFix(point=GeoPoint(latitude=37.550115, longitude=126.985465), accuracyMeters=5.0, ageMs=1513)
+11-07 17:20:58.173 32061 32061 I F09GpsTest: GPS_FIX PositionFix(point=GeoPoint(latitude=37.550115, longitude=126.985465), accuracyMeters=5.0, ageMs=518)
+11-07 17:20:58.471 32061 32061 I F03Speech: audible PCM reported
+11-07 17:20:59.544 32061 32061 I F09GpsTest: GPS_FIX PositionFix(point=GeoPoint(latitude=37.550115, longitude=126.985465), accuracyMeters=5.0, ageMs=888)
+11-07 17:20:59.571 32061 32061 I F09GpsTest: EFFECT 효과음만 재생 · 공조 자동 모드 · 사용자 설정 유지
+11-07 17:20:59.675 32061 32061 I F09GpsTest: GPS_FIX PositionFix(point=GeoPoint(latitude=37.550115, longitude=126.985465), accuracyMeters=5.0, ageMs=19)
+11-07 17:21:00.665 32061 32061 I F09GpsTest: GPS_FIX PositionFix(point=GeoPoint(latitude=37.550115, longitude=126.985465), accuracyMeters=5.0, ageMs=7)
+11-07 17:21:01.660 32061 32061 I F09GpsTest: GPS_FIX PositionFix(point=GeoPoint(latitude=37.550115, longitude=126.985465), accuracyMeters=5.0, ageMs=3)
+11-07 17:21:02.184 32061 32061 I F03Speech: speech completed
+11-07 17:21:02.198 32061 32061 I F03Speech: speak speaker=sanghyeok chars=36
+11-07 17:21:02.198 32061 32061 I F09GpsTest: AUDIO PlaybackStatus(phase=SPEAKING, sceneId=tunnel_flashback, sentenceIndex=1, speaker=sanghyeok, message=문장 2/3 · sanghyeok)
+11-07 17:21:02.199 32061 32061 I F09GpsTest: SCENE tunnel_flashback
+11-07 17:21:02.286 32061  2696 I F03Speech: speech started
+11-07 17:21:02.660 32061 32061 I F09GpsTest: GPS_FIX PositionFix(point=GeoPoint(latitude=37.550115, longitude=126.985465), accuracyMeters=5.0, ageMs=2)
+11-07 17:21:02.677 32061 32061 I F03Speech: audible PCM reported
+11-07 17:21:03.697 32061 32061 I F09GpsTest: GPS_FIX PositionFix(point=GeoPoint(latitude=37.550115, longitude=126.985465), accuracyMeters=5.0, ageMs=37)
+11-07 17:21:04.704 32061 32061 I F09GpsTest: GPS_FIX PositionFix(point=GeoPoint(latitude=37.550115, longitude=126.985465), accuracyMeters=5.0, ageMs=9)
+11-07 17:21:05.715 32061 32061 I F09GpsTest: GPS_FIX PositionFix(point=GeoPoint(latitude=37.550115, longitude=126.985465), accuracyMeters=5.0, ageMs=7)
+11-07 17:21:06.687 32061 32061 I F09GpsTest: GPS_FIX PositionFix(point=GeoPoint(latitude=37.550115, longitude=126.985465), accuracyMeters=5.0, ageMs=4)
+11-07 17:21:07.227 32061 32061 I F03Speech: speech completed
+11-07 17:21:07.233 32061 32061 I F03Speech: speak speaker=sanghyeok chars=28
+11-07 17:21:07.233 32061 32061 I F09GpsTest: AUDIO PlaybackStatus(phase=SPEAKING, sceneId=tunnel_flashback, sentenceIndex=2, speaker=sanghyeok, message=문장 3/3 · sanghyeok)
+11-07 17:21:07.234 32061 32061 I F09GpsTest: SCENE tunnel_flashback
+11-07 17:21:07.241 32061  2696 I F03Speech: speech started
+11-07 17:21:07.686 32061 32061 I F09GpsTest: GPS_FIX PositionFix(point=GeoPoint(latitude=37.550115, longitude=126.985465), accuracyMeters=5.0, ageMs=2)
+11-07 17:21:07.737 32061 32061 I F03Speech: audible PCM reported
+11-07 17:21:08.696 32061 32061 I F09GpsTest: GPS_FIX PositionFix(point=GeoPoint(latitude=37.550115, longitude=126.985465), accuracyMeters=5.0, ageMs=12)
+11-07 17:21:09.687 32061 32061 I F09GpsTest: GPS_FIX PositionFix(point=GeoPoint(latitude=37.550115, longitude=126.985465), accuracyMeters=5.0, ageMs=2)
+11-07 17:21:10.703 32061 32061 I F09GpsTest: GPS_FIX PositionFix(point=GeoPoint(latitude=37.550115, longitude=126.985465), accuracyMeters=5.0, ageMs=5)
+11-07 17:21:10.987 32061 32061 I F03Speech: speech completed
+11-07 17:21:10.990 32061 32061 I F09GpsTest: AUDIO PlaybackStatus(phase=IDLE, sceneId=tunnel_flashback, sentenceIndex=2, speaker=null, message=장면 재생 완료)
+11-07 17:21:11.020 32061 32061 I F09GpsTest: SCENE s02_driver
+11-07 17:21:11.029 32061 32061 I F03Speech: speak speaker=sanghyeok chars=45
+11-07 17:21:11.029 32061 32061 I F09GpsTest: EFFECT 긴장 · 낮은 음량 효과음
+11-07 17:21:11.030 32061 32061 I F09GpsTest: AUDIO PlaybackStatus(phase=SPEAKING, sceneId=s02_driver, sentenceIndex=0, speaker=sanghyeok, message=문장 1/6 · sanghyeok)
+11-07 17:21:11.143 32061 32088 I F03Speech: speech started
+11-07 17:21:11.562 32061 32061 I F09GpsTest: GPS_FIX PositionFix(point=GeoPoint(latitude=37.543445, longitude=126.98869833333333), accuracyMeters=5.0, ageMs=10)
+11-07 17:21:12.164 32061 32061 I F03Speech: audible PCM reported
+11-07 17:21:12.706 32061 32061 I F09GpsTest: GPS_FIX PositionFix(point=GeoPoint(latitude=37.543445, longitude=126.98869833333333), accuracyMeters=5.0, ageMs=3)
+11-07 17:21:12.707 32061 32061 I F09GpsTest: GPS_STATUS 남산3호터널: 이탈
+11-07 17:21:12.707 32061 32061 I F09GpsTest: LOCATION_EVENT PlaceExited(tag=tunnel)

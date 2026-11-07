@@ -22,6 +22,11 @@ val frontendPatterns = listOf(
     "app/src/main/java/com/roadmystery/app/audio/{SentenceAudioPlayer,PleosTtsAudioPlayer}.kt",
     "app/src/debug/java/com/roadmystery/app/audio/*.kt",
     "app/src/test/java/com/roadmystery/app/audio/*.kt",
+    "app/src/main/java/com/roadmystery/app/director/*.kt",
+    "app/src/debug/java/com/roadmystery/app/director/*.kt",
+    "app/src/test/java/com/roadmystery/app/director/*.kt",
+    "app/src/main/java/com/roadmystery/app/vehicle/PlaceEventDetector.kt",
+    "app/src/main/java/com/roadmystery/app/vehicle/{AndroidTunnelLocation,TunnelMap}.kt",
 )
 
 tasks.register<JavaExec>("ktlintCheck") {

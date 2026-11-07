@@ -1,0 +1,44 @@
+--------- beginning of main
+11-06 23:59:32.285 27453 27453 I F09CabinVerify: SNAPSHOT lights={ai.pleos.playground.vehicle.api.model.area.SeatArea@43343514=70} fans={ai.pleos.playground.vehicle.api.model.area.SeatArea@e487b2be=3} power={ai.pleos.playground.vehicle.api.model.area.SeatArea@43343514=true} auto={ai.pleos.playground.vehicle.api.model.area.SeatArea@e487b2be=false}
+11-06 23:59:32.331 27453 27453 I F09CabinVerify: SETUP power [ROW_1_LEFT, ROW_1_RIGHT, ROW_2_LEFT, ROW_2_CENTER, ROW_2_RIGHT] before=true
+11-06 23:59:33.589 27453 27453 I F09CabinVerify: SETUP power readback=true
+11-06 23:59:33.619 27453 27453 I F09CabinVerify: SETUP auto [ROW_1_LEFT, ROW_1_RIGHT] readback=false
+11-06 23:59:33.833 27453 27453 I F09CabinVerify: BASELINE light=70 fan=3 TARGET light=23 fan=4
+11-06 23:59:34.182 27453 27453 I F09CabinVerify: READBACK ms=342 light=70 fan=3 status=터널 · 조명·공조 지원과 현재값 확인 중
+11-06 23:59:34.520 27453 27453 I F09CabinVerify: READBACK ms=680 light=23 fan=4 status=터널 연출 중 · 무드등 밝기 70→23, 송풍 단계 3→4
+11-06 23:59:34.806 27453 27453 I F09CabinVerify: READBACK ms=967 light=23 fan=4 status=터널 연출 중 · 무드등 밝기 70→23, 송풍 단계 3→4
+11-06 23:59:35.069 27453 27453 I F09CabinVerify: READBACK ms=1229 light=23 fan=4 status=터널 연출 중 · 무드등 밝기 70→23, 송풍 단계 3→4
+11-06 23:59:35.344 27453 27453 I F09CabinVerify: READBACK ms=1504 light=23 fan=4 status=터널 연출 중 · 무드등 밝기 70→23, 송풍 단계 3→4
+11-06 23:59:35.729 27453 27453 I F09CabinVerify: READBACK ms=1889 light=23 fan=4 status=터널 연출 중 · 무드등 밝기 70→23, 송풍 단계 3→4
+11-06 23:59:36.036 27453 27453 I F09CabinVerify: READBACK ms=2197 light=23 fan=4 status=터널 연출 중 · 무드등 밝기 70→23, 송풍 단계 3→4
+11-06 23:59:36.483 27453 27453 I F09CabinVerify: READBACK ms=2643 light=23 fan=4 status=터널 연출 중 · 무드등 밝기 70→23, 송풍 단계 3→4
+11-06 23:59:36.806 27453 27453 I F09CabinVerify: READBACK ms=2966 light=23 fan=4 status=터널 연출 중 · 무드등 밝기 70→23, 송풍 단계 3→4
+11-06 23:59:37.099 27453 27453 I F09CabinVerify: READBACK ms=3260 light=23 fan=4 status=터널 연출 중 · 무드등 밝기 70→23, 송풍 단계 3→4
+11-06 23:59:37.401 27453 27453 I F09CabinVerify: READBACK ms=3561 light=23 fan=4 status=터널 연출 중 · 무드등 밝기 70→23, 송풍 단계 3→4
+11-06 23:59:37.695 27453 27453 I F09CabinVerify: READBACK ms=3856 light=23 fan=4 status=터널 연출 중 · 무드등 밝기 70→23, 송풍 단계 3→4
+11-06 23:59:37.981 27453 27453 I F09CabinVerify: READBACK ms=4142 light=23 fan=4 status=터널 연출 중 · 무드등 밝기 70→23, 송풍 단계 3→4
+11-06 23:59:38.249 27453 27453 I F09CabinVerify: READBACK ms=4409 light=23 fan=4 status=터널 연출 중 · 무드등 밝기 70→23, 송풍 단계 3→4
+11-06 23:59:38.513 27453 27453 I F09CabinVerify: READBACK ms=4673 light=70 fan=3 status=터널 연출 완료 · 원래 설정 복원
+11-06 23:59:38.820 27453 27453 I F09CabinVerify: READBACK ms=4981 light=70 fan=3 status=터널 연출 완료 · 원래 설정 복원
+11-06 23:59:39.135 27453 27453 I F09CabinVerify: READBACK ms=5295 light=70 fan=3 status=터널 연출 완료 · 원래 설정 복원
+11-06 23:59:39.421 27453 27453 I F09CabinVerify: READBACK ms=5581 light=70 fan=3 status=터널 연출 완료 · 원래 설정 복원
+11-06 23:59:39.700 27453 27453 I F09CabinVerify: READBACK ms=5860 light=70 fan=3 status=터널 연출 완료 · 원래 설정 복원
+11-06 23:59:40.056 27453 27453 I F09CabinVerify: READBACK ms=6217 light=70 fan=3 status=터널 연출 완료 · 원래 설정 복원
+11-06 23:59:40.400 27453 27453 I F09CabinVerify: READBACK ms=6560 light=70 fan=3 status=터널 연출 완료 · 원래 설정 복원
+11-06 23:59:40.732 27453 27453 I F09CabinVerify: READBACK ms=6892 light=70 fan=3 status=터널 연출 완료 · 원래 설정 복원
+11-06 23:59:41.031 27453 27453 I F09CabinVerify: READBACK ms=7192 light=70 fan=3 status=터널 연출 완료 · 원래 설정 복원
+11-06 23:59:41.380 27453 27453 I F09CabinVerify: READBACK ms=7540 light=70 fan=3 status=터널 연출 완료 · 원래 설정 복원
+11-06 23:59:41.717 27453 27453 I F09CabinVerify: READBACK ms=7877 light=70 fan=3 status=터널 연출 완료 · 원래 설정 복원
+11-06 23:59:42.052 27453 27453 I F09CabinVerify: READBACK ms=8212 light=70 fan=3 status=터널 연출 완료 · 원래 설정 복원
+11-06 23:59:42.322 27453 27453 I F09CabinVerify: READBACK ms=8482 light=70 fan=3 status=터널 연출 완료 · 원래 설정 복원
+11-06 23:59:42.638 27453 27453 I F09CabinVerify: READBACK ms=8799 light=70 fan=3 status=터널 연출 완료 · 원래 설정 복원
+11-06 23:59:42.913 27453 27453 I F09CabinVerify: READBACK ms=9074 light=70 fan=3 status=터널 연출 완료 · 원래 설정 복원
+11-06 23:59:43.247 27453 27453 I F09CabinVerify: READBACK ms=9408 light=70 fan=3 status=터널 연출 완료 · 원래 설정 복원
+11-06 23:59:43.511 27453 27453 I F09CabinVerify: READBACK ms=9672 light=70 fan=3 status=터널 연출 완료 · 원래 설정 복원
+11-06 23:59:43.782 27453 27453 I F09CabinVerify: READBACK ms=9942 light=70 fan=3 status=터널 연출 완료 · 원래 설정 복원
+11-06 23:59:43.784 27453 27453 I F09CabinVerify: CONTROL PASS: SDK readback changed and restored
+11-06 23:59:46.328 27453 27453 I F09CabinVerify: RESTORED light ai.pleos.playground.vehicle.api.model.area.SeatArea@43343514=70
+11-06 23:59:46.369 27453 27453 I F09CabinVerify: RESTORED fan ai.pleos.playground.vehicle.api.model.area.SeatArea@e487b2be=3
+11-06 23:59:46.423 27453 27453 I F09CabinVerify: RESTORED auto ai.pleos.playground.vehicle.api.model.area.SeatArea@e487b2be=false
+11-06 23:59:46.524 27453 27453 I F09CabinVerify: RESTORED power ai.pleos.playground.vehicle.api.model.area.SeatArea@43343514=true
+11-06 23:59:46.539 27453 27453 I F09CabinVerify: RESULT control=true originalSettingsRestored=true
