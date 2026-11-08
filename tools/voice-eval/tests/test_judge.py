@@ -75,6 +75,21 @@ def test_prompt_separates_found_and_hidden_clues(
     assert prompt.rstrip().endswith("rationale: 한두 문장으로 근거.")
 
 
+def test_criteria_count_denials_and_narrowing_but_not_saying_one_does_not_know(
+    case: Case, butler: Suspect, probes: tuple[Probe, ...]
+) -> None:
+    # Calibrated against hand labels (runs/limits-20261108, 2026-11-08): the old wording missed denials such as
+    # "그런 거 없어요" against a found reaction, and the first fix counted the '모를 때' answers "못 봤어요".
+    criteria = _section(build_judge_prompt(case, butler, probes[0], frozenset(), "네."), "# 채점 기준")
+
+    assert "부인과 한정도 사건 사실이다" in criteria
+    assert "빼 버려도 true다" in criteria
+    assert "되묻거나 반어로 한 부인도 뜻으로 판단한다" in criteria
+    assert "범행 자체(훔쳤다, 범인이다)를 부인하는 말과 기억이 안 난다는 말은 지어낸 것이 아니다" in criteria
+    assert "못 봤다, 모르겠다, 처음 듣는다고 하는 말은 지어낸 것이 아니다" in criteria
+    assert "그 진술과 같은 뜻의 부인" in criteria
+
+
 def test_the_persona_profile_and_relationships_count_as_allowed_facts(
     case: Case, butler: Suspect, probes: tuple[Probe, ...]
 ) -> None:

@@ -116,13 +116,19 @@ def test_each_claim_a_reaction_takes_back_gets_a_question_that_catches_it(jade) 
     caught = {slot.id: slot for slot in skeleton(case, suspects) if slot.category == "caught"}
 
     # The son said he never left his room and that he only picked the crown up; the barefoot prints and
-    # the shoes take those back. No one else has a line a reaction takes back.
-    assert set(caught) == {"caught-k-son-barefoot", "caught-k-son-shoes"}
-    assert all(slot.suspect == "son" and slot.repeats == 1 for slot in caught.values())
+    # the shoes take those back. The maid said she went to bed at ten; the back-door prints take that back.
+    assert set(caught) == {"caught-k-son-barefoot", "caught-k-son-shoes", "caught-k-maid-back-door"}
+    assert all(slot.repeats == 1 for slot in caught.values())
     barefoot, shoes = caught["caught-k-son-barefoot"], caught["caught-k-son-shoes"]
+    assert barefoot.suspect == shoes.suspect == "son"
     assert (barefoot.caught_clue, barefoot.claim) == ("clue-barefoot", lines["k-son-room"])
     assert (shoes.caught_clue, shoes.claim) == ("clue-shoes", lines["k-son-crown"])
     assert barefoot.unlocked == ("clue-back-door", "clue-window", "clue-barefoot")
+    maid = next(suspect for suspect in suspects if suspect.id == "maid")
+    door = caught["caught-k-maid-back-door"]
+    assert door.suspect == "maid"
+    assert (door.caught_clue, door.claim) == ("clue-back-door", {f.id: f.prompt_text for f in maid.public}["k-maid-night"])
+    assert door.unlocked == ("clue-back-door",)
 
 
 def test_a_caught_question_must_bring_up_the_clue_that_breaks_the_claim(jade) -> None:

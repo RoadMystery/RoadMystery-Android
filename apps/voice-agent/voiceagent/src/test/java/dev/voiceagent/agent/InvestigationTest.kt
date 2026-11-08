@@ -55,8 +55,12 @@ class InvestigationTest {
         assertEquals(setOf("k-son-crown"), Investigation.standingClaims(son, setOf(barefoot.id)))
         assertEquals(emptySet<String>(), Investigation.standingClaims(son, setOf(window.id, shoes.id)))
         assertEquals(listOf("k-son-barefoot", "k-son-shoes"), Investigation.claimBreakers(son, allClues).map { it.id })
-        // No reaction of the maid or the niece takes a line back, so they hold no claim the clues break.
-        assertEquals(emptySet<String>(), Investigation.standingClaims(maid, emptySet()) + Investigation.standingClaims(niece, emptySet()))
+        // The maid says she went to bed at ten; the back-door prints bring the reaction that takes it back.
+        assertEquals(setOf("k-maid-night"), Investigation.standingClaims(maid, emptySet()))
+        assertEquals(listOf("k-maid-back-door"), Investigation.claimBreakers(maid, setOf(backDoor.id)).map { it.id })
+        assertEquals(emptySet<String>(), Investigation.standingClaims(maid, setOf(backDoor.id)))
+        // No reaction of the niece takes a line back, so she holds no claim the clues break.
+        assertEquals(emptySet<String>(), Investigation.standingClaims(niece, emptySet()))
     }
 
     @Test
