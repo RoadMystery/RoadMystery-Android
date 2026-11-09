@@ -6,12 +6,12 @@ plugins {
 val defaultProxyUrl = "http://10.0.2.2:8787"
 
 /**
- * VOICE_PROXY_TOKEN for the development proxy, taken from the environment or from
+ * A secret such as VOICE_PROXY_TOKEN or ANTHROPIC_API_KEY, taken from the environment or from
  * tools/voice-eval/.env parsed like voice_eval/env.py (first non-empty value wins). The file is
  * never committed and the value is never printed; only the debug build carries it.
  */
-fun devProxyToken(): String {
-    providers.environmentVariable("VOICE_PROXY_TOKEN").orNull?.takeIf { it.isNotEmpty() }?.let { return it }
+fun devSecret(name: String): String {
+    providers.environmentVariable(name).orNull?.takeIf { it.isNotEmpty() }?.let { return it }
     val env = rootDir.resolve("../../tools/voice-eval/.env")
     if (!env.isFile) return ""
     return env.readText(Charsets.UTF_8).removePrefix("\uFEFF").lineSequence()
@@ -21,7 +21,7 @@ fun devProxyToken(): String {
         .mapNotNull { line ->
             val key = line.substringBefore("=").trim()
             val value = envValue(line.substringAfter("=").trim())
-            value.takeIf { key == "VOICE_PROXY_TOKEN" && it.isNotEmpty() }
+            value.takeIf { key == name && it.isNotEmpty() }
         }
         .firstOrNull()
         .orEmpty()
@@ -52,11 +52,14 @@ android {
         // The emulator reaches the PC's dev proxy at 10.0.2.2; override with -PvoiceProxyUrl=...
         buildConfigField("String", "PROXY_URL", javaString(providers.gradleProperty("voiceProxyUrl").getOrElse(defaultProxyUrl)))
         buildConfigField("String", "PROXY_TOKEN", javaString(""))
+        // With a key the debug build calls Claude directly; without one it uses the proxy.
+        buildConfigField("String", "ANTHROPIC_API_KEY", javaString(""))
     }
 
     buildTypes {
         debug {
-            buildConfigField("String", "PROXY_TOKEN", javaString(devProxyToken()))
+            buildConfigField("String", "PROXY_TOKEN", javaString(devSecret("VOICE_PROXY_TOKEN")))
+            buildConfigField("String", "ANTHROPIC_API_KEY", javaString(devSecret("ANTHROPIC_API_KEY")))
         }
     }
 
