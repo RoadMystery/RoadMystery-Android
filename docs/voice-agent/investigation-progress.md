@@ -152,6 +152,11 @@
 
 아직 신준호와 정하지 않은 약속입니다. StoryEngine 쪽 동작은 `roadmystery/feat/f02-story-engine`(커밋 `581b855`)의 `DefaultStoryEngine.kt`, `Progress.kt`, `EndingScreen.kt`에서 읽었습니다.
 
+2026-11-09: 팀 코드는 그대로 두고 우리 쪽을 맞췄습니다([팀 앱과 맞추기](team-integration.md)).
+- 팀 앱 연결(`StoryVoice`, `LlmVoiceAgent`)은 용의자 말만 돌려줍니다. 그래서 아래의 증언 저장과 `HINT` 나눠 보이기는 팀이 바꿀 것이 없습니다.
+- 사건 형식은 우리 형식으로 정했습니다.
+- 남은 것은 넷입니다. `confronted` 저장, 정차 중 지목, 운전 중 질문 연결, 진행자 말을 읽을 자리입니다.
+
 | | StoryEngine | VoiceAgent |
 |---|---|---|
 | 이야기 진행률 | 계산하고 화면에 보임 | 쓰지 않음 |
@@ -168,6 +173,7 @@
 - **결말의 지목을 `READY`로 막지 마세요.** 세는 방법이 놓치면(단서를 `mentions`에 없는 말로 꺼낸 질문 등) 반응을 들었어도 게임이 끝까지 `PRESSING`에 머물 수 있습니다. 도착 때 열린 단서의 반응은 아예 끌어낼 수 없습니다(아래). `READY`는 지목을 일찍 여는 데만 씁니다.
 - **증언은 `state.notebook`으로 저장해 주세요.** StoryEngine은 심문 답 전체(`reply.text`)를 `testimonies`에 남깁니다. VoiceAgent의 `AgentReply.text`에는 진행자 말과 대체 대사도 들어 있어서, 이것을 이어하기 때 수첩으로 되살리면 LLM에 용의자가 한 말로 다시 보내집니다. `state.notebook`을 쓰고 `text`는 쓰지 마세요. 턴마다 받는 `AgentReply.suspectText`도 진행자 말은 빼지만 대체 대사는 그대로 담으므로, 수첩이 더 정확합니다.
   - 형식은 거의 같습니다. StoryEngine `Testimony(suspectId, question, answer)`와 VoiceAgent `Testimony(suspect, question, answer)`는 첫 필드 이름만 다릅니다.
+  - 2026-11-09부터 팀 앱 연결에서는 바꿀 것이 없습니다. `StoryVoice`가 용의자 말만 돌려주므로 엔진은 지금처럼 `reply.text`를 저장하면 됩니다. 요약 때 용의자의 연결 실패 대사는 뺍니다.
 - **`Progress`에 `confronted`를 담을 곳이 없습니다.** `Progress`(`scenarioId`, `chapterId`, `lastSceneId`, `lastSentenceIndex`, `playedSceneIds`, `cluesFound`, `testimonies`, `choices`)에 반응 id 목록을 담을 필드를 더해 달라고 할 생각입니다.
   - 이대로면 앱을 다시 켤 때 `confronted`가 비어, 끌어낸 핵심 반응이 모두 안 끌어낸 것이 됩니다. 단서를 다 찾은 게임은 '지목할 때'가 '추궁 중'으로 돌아가고, 진행자는 이미 들은 반응을 다시 권합니다.
   - `confronted`는 질문 턴이 끝날 때 바뀝니다. 바뀔 때마다 저장하려면 `agent.state`를 구독합니다.
@@ -180,7 +186,10 @@
   - 도착하면 아직 듣지 못한 필수 장면의 단서를 한꺼번에 열고 바로 결말(`ENDING`)로 갑니다. 그 뒤로는 심문이 없으므로, 그 단서가 있어야 하는 반응은 끌어낼 수 없습니다.
   - 그래서 결말은 '지목할 때'가 아닌 상태도 받아야 합니다.
 - **`HINT` 답은 나눠 보여 주세요.** `narratorLine`은 진행자 말로 보여 주고 증언에 넣지 않습니다.
-- **사건 형식이 둘입니다.** 어느 쪽이 맡을지 정해야 합니다(열린 질문).
+  - 2026-11-09부터 팀 앱 연결은 진행자 말을 대답에서 빼고 `StoryReply.narratorLine`에만 둡니다. 엔진에 진행자 말을 읽을 자리가 생길 때까지 힌트와 지목 권유는 들리지 않습니다.
+- **사건 형식이 둘입니다.**
+  - 2026-11-09: 우리 형식으로 정했습니다. 팀 시나리오를 같은 id로 옮깁니다(`content/cases/midnight_rest_area/`, [팀 앱과 맞추기](team-integration.md)).
+  - 팀 JSON의 `interrogation`과 `revealable`은 LLM이 쓰지 않습니다. 우리 원고가 없는 시나리오에서만 대본 답(`ScriptedVoiceAgent`)으로 씁니다.
 
   | | StoryEngine(`feat/f02-story-engine`) | VoiceAgent(`content/cases/`) |
   |---|---|---|

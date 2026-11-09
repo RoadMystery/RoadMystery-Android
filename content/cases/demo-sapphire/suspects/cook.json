@@ -1,7 +1,7 @@
 {
   "$schema": "../../../schema/suspect.schema.json",
   "id": "cook",
-  "voice": { "pleosSpeaker": "eunwoo" },
+  "voice": { "pleosSpeaker": "haeun" },
   "profile": {
     "age": 56,
     "background": "20년 넘게 윤씨 저택 부엌을 맡아 온 요리사. 말수는 적지만 저택 사람들의 버릇을 훤히 안다.",

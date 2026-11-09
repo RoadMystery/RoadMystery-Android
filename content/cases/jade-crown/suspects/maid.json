@@ -1,7 +1,7 @@
 {
   "$schema": "../../../schema/suspect.schema.json",
   "id": "maid",
-  "voice": { "pleosSpeaker": "eunwoo" },
+  "voice": { "pleosSpeaker": "haeun" },
   "profile": {
     "age": 22,
     "background": "충청도에서 올라와 삼 년째 서씨 저택에서 일하는 가정부. 부엌일과 청소를 도맡는다.",

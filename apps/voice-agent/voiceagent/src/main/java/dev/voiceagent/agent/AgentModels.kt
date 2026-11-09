@@ -16,8 +16,11 @@ data class AgentConfig(
      * for comparison in tools/voice-eval.
      */
     val variant: PromptVariant = PromptVariant.AWARE,
-    /** Pleos speaker of the narrator (진행자); suspects speak in their persona's voice. */
-    val narratorSpeaker: String = "haeun",
+    /**
+     * Pleos speaker of the narrator (진행자); suspects speak in their persona's voice. The team app's F-03
+     * narration reads the story with the same voice (NarrationVoices: "narrator" -> sanghyeok).
+     */
+    val narratorSpeaker: String = "sanghyeok",
     /** The filler ("음...") plays when no sentence is ready by then (비기능 요구사항: 0.3초). */
     val fillerDelayMs: Long = 300,
     /** Without any text by then the request is dropped and the fallback line is spoken. */

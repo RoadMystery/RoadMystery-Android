@@ -1,7 +1,7 @@
 {
   "$schema": "../../../schema/suspect.schema.json",
   "id": "butler",
-  "voice": { "pleosSpeaker": "sanghyeok" },
+  "voice": { "pleosSpeaker": "eunwoo" },
   "profile": {
     "age": 61,
     "background": "스물여섯 살부터 35년째 윤씨 저택에서 일한 집사. 회장의 돌아가신 부인 때부터 집안 살림을 도맡아 왔고, 윤서진을 어릴 때부터 돌봤다.",

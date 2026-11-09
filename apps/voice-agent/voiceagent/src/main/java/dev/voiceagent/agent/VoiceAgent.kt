@@ -112,9 +112,15 @@ class VoiceAgent(
 
     /**
      * F-05: answers [utterance] in the voice of the suspect it is addressed to. The narrator may end
-     * the turn with one line of its own ([ReplyKind.HINT]).
+     * the turn with one line of its own ([ReplyKind.HINT]). [suspectId], when given, is the suspect the
+     * player chose on screen (the team app's interrogation panel): the question goes to them whatever
+     * name it says, so the answer and its testimony belong to the suspect StoryEngine records it under.
+     * An unknown id throws [IllegalArgumentException].
      */
-    suspend fun ask(utterance: String): AgentReply = runTurn { progress -> askTurn(utterance, progress) }
+    suspend fun ask(utterance: String, suspectId: String? = null): AgentReply {
+        require(suspectId == null || suspectId in scenario.suspects) { "unknown suspect id: $suspectId" }
+        return runTurn { progress -> askTurn(utterance, progress, suspectId) }
+    }
 
     /**
      * Listens to the player and answers what was heard. Listening is part of the turn, so it cuts
@@ -131,7 +137,25 @@ class VoiceAgent(
     }
 
     /** F-06: reads the notebook back in the narrator's voice ("지금까지 정리해줘"). */
-    suspend fun summarize(): AgentReply = runTurn { progress -> summaryTurn(progress) }
+    suspend fun summarize(): AgentReply = runTurn { progress ->
+        mutableState.value.let { summaryTurn(progress, it.unlockedClues, it.notebook) }
+    }
+
+    /**
+     * F-06 for a caller that keeps the clues and the notebook itself (the team's StoryEngine saves them in
+     * its Progress, which outlives an app restart): reads back [notebook] with [unlockedClues] and leaves
+     * [state] as it is. Each testimony is cut to the proxy's message limit, as [ask] records them. An
+     * unknown id throws [IllegalArgumentException] before anything is said.
+     */
+    suspend fun summarize(unlockedClues: Set<String>, notebook: List<Testimony>): AgentReply {
+        unlockedClues.forEach { require(it in clueIds) { "unknown clue id: $it" } }
+        notebook.forEach { require(it.suspect in scenario.suspects) { "unknown suspect id: ${it.suspect}" } }
+        val clues = unlockedClues.toSet()
+        val testimonies = notebook.map {
+            it.copy(question = it.question.take(ProxyContract.MAX_MESSAGE_CHARS), answer = it.answer.take(ProxyContract.MAX_MESSAGE_CHARS))
+        }
+        return runTurn { progress -> summaryTurn(progress, clues, testimonies) }
+    }
 
     /** Stops speech and the request in flight at once (barge-in, 위험 상황 일시정지). */
     fun stop() {
@@ -153,14 +177,15 @@ class VoiceAgent(
         }
     }
 
-    private suspend fun askTurn(utterance: String, progress: TurnProgress): AgentReply {
+    /** [addressee]: the suspect the player chose, or null to find who [utterance] is addressed to. */
+    private suspend fun askTurn(utterance: String, progress: TurnProgress, addressee: String? = null): AgentReply {
         val question = pythonStrip(utterance).take(ProxyContract.MAX_MESSAGE_CHARS)
         val state = mutableState.value
         if (question.isEmpty()) {
-            val suspect = state.currentSuspect?.let(scenario::suspect)
+            val suspect = (addressee ?: state.currentSuspect)?.let(scenario::suspect)
             return speakLine(progress, ReplyKind.NOT_UNDERSTOOD, suspect, suspect?.fallbackNotUnderstood ?: NarratorLines.NOT_UNDERSTOOD)
         }
-        val suspectId = identifier.identify(question, state.currentSuspect)
+        val suspectId = addressee ?: identifier.identify(question, state.currentSuspect)
             ?: return speakLine(progress, ReplyKind.ASK_WHO, null, NarratorLines.askWho(scenario.case))
         val suspect = scenario.suspect(suspectId)
         mutableState.update { if (it.game == progress.game) it.copy(currentSuspect = suspectId) else it }
@@ -269,21 +294,20 @@ class VoiceAgent(
         return progress.reply(ReplyKind.HINT)
     }
 
-    private suspend fun summaryTurn(progress: TurnProgress): AgentReply {
-        val state = mutableState.value
-        if (state.unlockedClues.isEmpty() && state.notebook.isEmpty()) {
+    private suspend fun summaryTurn(progress: TurnProgress, unlocked: Set<String>, notebook: List<Testimony>): AgentReply {
+        if (unlocked.isEmpty() && notebook.isEmpty()) {
             return speakLine(progress, ReplyKind.OVERVIEW, null, SummaryPrompt.overviewFallback(scenario.case))
         }
         val request = LlmRequest(
             task = LlmTask.SUMMARY,
-            system = SummaryPrompt.render(scenario.case, scenario.summaryTemplate, state.unlockedClues, state.notebook),
+            system = SummaryPrompt.render(scenario.case, scenario.summaryTemplate, unlocked, notebook),
             messages = listOf(ChatMessage(Role.USER, SummaryPrompt.REQUEST)),
             requestId = UUID.randomUUID().toString(),
         )
         val answer = speakAnswer(progress, request, config.narratorSpeaker, NarratorLines.SUMMARY_FILLER, config.maxSummarySentences)
         if (answer.sentences.isNotEmpty()) return progress.reply(ReplyKind.SUMMARY)
         if (answer.guarded) progress.update { it.copy(failure = SPOILER_GUARD) }
-        return speakLine(progress, ReplyKind.SUMMARY_FALLBACK, null, NarratorLines.offlineSummary(scenario.case, state.unlockedClues))
+        return speakLine(progress, ReplyKind.SUMMARY_FALLBACK, null, NarratorLines.offlineSummary(scenario.case, unlocked))
     }
 
     /** Earlier exchanges with this suspect, newest [AgentConfig.historyExchanges], then the new question. */

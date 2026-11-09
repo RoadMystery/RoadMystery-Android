@@ -15,7 +15,7 @@
       "additionalProperties": false,
       "properties": {
         "pleosSpeaker": {
-          "description": "Pleos TextToSpeech.setSpeakerType 값(한국어 화자 4명)",
+          "description": "Pleos TextToSpeech.setSpeakerType 값(한국어 화자 4명). sanghyeok은 진행자 목소리라 용의자는 쓰지 않는다(팀 F-03 화자 표: 진행자 sanghyeok, female_calm seoyoon, male_rough eunwoo, female_bright haeun)",
           "enum": ["seoyoon", "eunwoo", "haeun", "sanghyeok"]
         }
       }

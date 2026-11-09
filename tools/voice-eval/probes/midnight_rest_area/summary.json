@@ -1,0 +1,31 @@
+{
+  "probes": [
+    { "id": "empty-notebook", "unlocked": [], "testimonies": [] },
+    { "id": "one-clue", "unlocked": ["clue_receipt"], "testimonies": [] },
+    {
+      "id": "early-interrogation",
+      "unlocked": ["clue_receipt"],
+      "testimonies": [
+        { "suspect": "s_seojin", "question": "자정 무렵 어디 있었나요?", "answer": "커피를 건넨 뒤에는 편의점에서 물을 사고 화장실에 다녀왔습니다. 십오 분쯤 걸렸을 거예요." },
+        { "suspect": "s_minhyuk", "question": "휴게소 도착해서 뭐 했어요?", "answer": "차 세우고 바로 내렸어요. 그 뒤로는 흡연구역에서 계속 담배 피웠어요." }
+      ]
+    },
+    {
+      "id": "mid-game",
+      "unlocked": ["clue_receipt", "clue_dashcam", "clue_pill"],
+      "testimonies": [
+        { "suspect": "s_minhyuk", "question": "블랙박스는 왜 꺼져 있었죠?", "answer": "사실 내리기 전에 그거 내가 뽑았어요, 손님 차 옆에서 담배 피우는 거 찍히면 잘리거든요. 비서님은 알았을걸요?" },
+        { "suspect": "s_seojin", "question": "기사님이 블랙박스 끈 거 알았어요?", "answer": "기사님이 블랙박스를 끈 줄은 몰랐습니다. 저는 그때 차에 없었으니까요." },
+        { "suspect": "s_jaehee", "question": "수면제는 당신 건가요?", "answer": "제 약 맞아요. 근데 가방은 뒷좌석에 두고 내렸어요, 누구든 꺼낼 수 있었다고요!" }
+      ]
+    },
+    {
+      "id": "late-game-full",
+      "unlocked": ["clue_receipt", "clue_dashcam", "clue_pill", "clue_call", "clue_locker"],
+      "testimonies": [
+        { "suspect": "s_jaehee", "question": "그 시간에 누구와 통화했나요?", "answer": "사실은 아는 사람이 아니라 돈 빌려준 사람이었어요. 십오 분 내내 독촉만 들었어요." },
+        { "suspect": "s_seojin", "question": "로커가 잠긴 0시 1분에 어디 있었어요?", "answer": "로커가 화장실 옆에 있는 건 압니다. 사실 그 시간엔 편의점에 들르지 않고 화장실에만 있었습니다." }
+      ]
+    }
+  ]
+}

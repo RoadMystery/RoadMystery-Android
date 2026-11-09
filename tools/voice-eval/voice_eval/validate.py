@@ -28,8 +28,9 @@ from voice_eval.metrics import (
 )
 from voice_eval.prompt import allowed_facts, key_clue_ids, render_system_prompt
 
-NARRATOR_SPEAKER = "haeun"
-"""The app's F-06 narrator voice (AgentConfig.narratorSpeaker), so no suspect may use it."""
+NARRATOR_SPEAKER = "sanghyeok"
+"""The narrator's voice, so no suspect may use it: AgentConfig.narratorSpeaker, and the team app's narrator
+(F-03 NarrationVoices maps "narrator" to sanghyeok and reads the notebook summary with it)."""
 MAX_SHARED_RUN = 8
 """Letters in a row, after normalize_for_match, that a narrator hint or a line offered to a suspect may
 share with a hidden fact or the solution: room for a name, a place or a time, not for the fact."""

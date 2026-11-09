@@ -1,7 +1,7 @@
 {
   "$schema": "../../../schema/suspect.schema.json",
   "id": "son",
-  "voice": { "pleosSpeaker": "sanghyeok" },
+  "voice": { "pleosSpeaker": "eunwoo" },
   "profile": {
     "age": 26,
     "background": "서인호의 외아들. 은행 일을 배우라는 아버지 뜻을 따르지 않고 친구 고정태와 어울려 다니다 빚을 졌다. 어려서부터 함께 자란 사촌 윤하린을 아낀다.",

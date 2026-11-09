@@ -2,13 +2,13 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "case.schema.json",
   "title": "사건(Case)",
-  "description": "시나리오 하나의 공개 사실, 등장인물, 단서, 정답. 단서 ID는 StoryEngine의 pendingClues/획득 단서와 같은 값을 쓴다.",
+  "description": "시나리오 하나의 공개 사실, 등장인물, 단서, 정답. 팀 앱 시나리오(app/src/main/assets/scenarios/{id}.json)를 옮긴 사건은 사건·용의자·단서 id를 그 파일과 같은 값으로 쓴다(StoryEngine의 획득 단서, CaseContext의 용의자 id).",
   "type": "object",
   "required": ["id", "title", "theme", "setting", "publicFacts", "cast", "clues", "solution", "spoilerGuard"],
   "additionalProperties": false,
   "properties": {
     "$schema": { "type": "string" },
-    "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+    "id": { "type": "string", "pattern": "^[a-z0-9_-]+$", "description": "폴더 이름과 같게 쓴다. 팀 시나리오를 옮긴 사건은 그 시나리오 id(예: midnight_rest_area)" },
     "title": { "type": "string", "minLength": 1 },
     "placeholder": { "type": "boolean", "description": "true면 시연 원고가 확정되기 전 테스트용 임시 사건" },
     "placeholderNote": { "type": "string" },
@@ -59,7 +59,7 @@
       "required": ["id", "name", "role", "isSuspect", "aliases", "publicDescription"],
       "additionalProperties": false,
       "properties": {
-        "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+        "id": { "type": "string", "pattern": "^[a-z0-9_-]+$" },
         "name": { "type": "string", "minLength": 1 },
         "role": { "type": "string", "minLength": 1 },
         "isSuspect": { "type": "boolean" },
@@ -77,7 +77,7 @@
       "required": ["id", "title", "summary", "chapter", "keywords"],
       "additionalProperties": false,
       "properties": {
-        "id": { "type": "string", "pattern": "^clue-[a-z0-9-]+$" },
+        "id": { "type": "string", "pattern": "^clue[-_][a-z0-9_-]+$" },
         "title": { "type": "string", "minLength": 1 },
         "summary": { "type": "string", "minLength": 1 },
         "chapter": { "type": "integer", "minimum": 1 },

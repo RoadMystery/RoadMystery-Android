@@ -20,7 +20,8 @@ class EveryCaseTest {
 
     @Test
     fun `the repository cases are all here`() {
-        assertTrue(caseDirs.containsAll(listOf("cases/demo-sapphire", "cases/jade-crown")))
+        // midnight_rest_area is the team app's scenario, ported under its ids (docs/voice-agent/team-integration.md).
+        assertTrue(caseDirs.containsAll(listOf("cases/demo-sapphire", "cases/jade-crown", "cases/midnight_rest_area")))
     }
 
     @Test
