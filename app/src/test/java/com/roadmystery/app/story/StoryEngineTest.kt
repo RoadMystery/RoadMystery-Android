@@ -352,6 +352,73 @@ class StoryEngineTest {
         assertEquals("m2", engine.snapshot.value?.lastSceneId)
     }
 
+    @Test
+    fun `재개 후에도 반복 위험 기록을 유지한다`() {
+        startDriving()
+        send(VehicleEvent.Hazard(HazardReason.HARD_BRAKE))
+        now = 4_000
+        send(VehicleEvent.Driving)
+        finish("reply_0")
+        send(VehicleEvent.Hazard(HazardReason.ADAS_WARNING))
+        now = 10_000
+        send(VehicleEvent.Driving)
+        assertNull(audio.playing)
+        assertEquals(AppMode.PAUSED, engine.mode.value)
+        send(VehicleEvent.Stopped)
+        assertEquals("reply_1", audio.playing)
+    }
+
+    @Test
+    fun `지속 경고는 시간 경과나 정차로 해제되지 않는다`() {
+        startDriving()
+        send(VehicleEvent.HazardState(HazardReason.ADAS_WARNING, true))
+        now = 20_000
+        send(VehicleEvent.Driving, VehicleEvent.Stopped)
+        assertNull(audio.playing)
+        assertFalse(engine.canInteract.value)
+        engine.onAudioEvent(AudioEvent.SentenceStarted("m1", 2))
+        finish("m1")
+        assertEquals("m1", engine.nowPlaying.value?.sceneId)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun `모든 경고 해제 뒤 대기하고 같은 문장으로 돌아간다`() = runTest {
+        val player = RecordingAudioPlayer()
+        val target = DefaultStoryEngine(ScenarioRepository { testScenario }, player,
+            scope = backgroundScope, clock = { testScheduler.currentTime })
+        target.start("test")
+        target.onVehicleEvent(VehicleEvent.Driving)
+        target.onAudioEvent(AudioEvent.SceneFinished("briefing"))
+        player.pauseIndex = 1
+        target.onVehicleEvent(VehicleEvent.HazardState(HazardReason.ADAS_WARNING, true))
+        target.onVehicleEvent(VehicleEvent.HazardState(HazardReason.HARD_BRAKE, true))
+        target.onVehicleEvent(VehicleEvent.HazardState(HazardReason.ADAS_WARNING, false))
+        testScheduler.advanceTimeBy(5_000)
+        testScheduler.runCurrent()
+        assertNull(player.playing)
+        target.onVehicleEvent(VehicleEvent.HazardState(HazardReason.HARD_BRAKE, false))
+        target.onVehicleEvent(VehicleEvent.Stopped)
+        testScheduler.advanceTimeBy(2_999)
+        testScheduler.runCurrent()
+        assertNull(player.playing)
+        testScheduler.advanceTimeBy(1)
+        testScheduler.runCurrent()
+        assertEquals("reply_0", player.playing)
+        target.onAudioEvent(AudioEvent.SceneFinished("reply_0"))
+        assertEquals("m1" to 1, player.history.last())
+    }
+
+    @Test
+    fun `같은 지속 경고의 반복 수신은 새 위험으로 세지 않는다`() {
+        startDriving()
+        repeat(4) { send(VehicleEvent.HazardState(HazardReason.ADAS_WARNING, true)) }
+        send(VehicleEvent.HazardState(HazardReason.ADAS_WARNING, false))
+        now = 4_000
+        send(VehicleEvent.Driving)
+        assertEquals("reply_0", audio.playing)
+    }
+
     private fun startDriving() {
         engine.start("test")
         finish("briefing")

@@ -68,9 +68,7 @@ class PleosTtsAudioPlayer(
     private var focusPaused = false
 
     init {
-        tts.setAudioAttributes(attributes)
-        tts.setLocale(Locale.KOREAN)
-        tts.addEventListener(
+        val listener =
             object : EventListener {
                 override fun onStart() = Unit
 
@@ -88,11 +86,13 @@ class PleosTtsAudioPlayer(
                 override fun onStop() = Unit
 
                 override fun onUpdatedRms(rms: Double) = Unit
-            },
-        )
+            }
         tts.initialize(
             object : OnInitializeListener {
                 override fun onSuccess() {
+                    tts.addEventListener(listener)
+                    tts.setAudioAttributes(attributes)
+                    tts.setLocale(Locale.KOREA)
                     if (!useServer) {
                         _ttsReady.value = true
                         return
