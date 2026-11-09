@@ -1,0 +1,30 @@
+{
+  "probes": [
+    { "id": "empty-notebook", "unlocked": [], "testimonies": [] },
+    { "id": "one-clue", "unlocked": ["clue-chicken"], "testimonies": [] },
+    {
+      "id": "early-interrogation",
+      "unlocked": ["clue-chicken"],
+      "testimonies": [
+        { "suspect": "plumber", "question": "보석이 닭 모이주머니에서 나왔대요.", "answer": "저는 그날 저녁부터 유치장에 있었는데 닭을 어떻게 만져요. 507호도 주임님이 객실이 비었다고 불러서 간 거예요." },
+        { "suspect": "supervisor", "question": "그날 밤 퇴근하고 뭐 했어요?", "answer": "경찰 조사가 끝나고 밤 열 시쯤 퇴근해서 곧장 집에 가서 잤습니다." }
+      ]
+    },
+    {
+      "id": "mid-game",
+      "unlocked": ["clue-chicken", "clue-tea-ticket", "clue-ledger"],
+      "testimonies": [
+        { "suspect": "secretary", "question": "은비 씨 외투에서 다방 성냥갑이 나왔어요.", "answer": "사실은 그날 오후에 지하 청자다방에서 고향 친구를 잠깐 만나고 왔어요. 여사님께 혼날까 봐 말을 못 했어요." },
+        { "suspect": "supervisor", "question": "오복순 알아요?", "answer": "시장 닭집 일은 저하고는 상관없습니다. 오복순이라는 분은 처음 듣는 이름이에요." }
+      ]
+    },
+    {
+      "id": "late-game-full",
+      "unlocked": ["clue-chicken", "clue-tea-ticket", "clue-ledger", "clue-farm"],
+      "testimonies": [
+        { "suspect": "supervisor", "question": "오복순 씨가 주임님 친언니라던데요?", "answer": "네, 오복순은 제 친언니입니다. 사실은 그날 밤 퇴근길에 언니네 양계장에 들러 설에 쓸 닭을 한 마리 받아 왔어요." },
+        { "suspect": "plumber", "question": "주임님이 왜 기사님을 불렀을까요?", "answer": "주임님한테 언니가 있는 줄은 몰랐어요. 생각해 보면 그날 굳이 저를 부른 게 이상했어요." }
+      ]
+    }
+  ]
+}

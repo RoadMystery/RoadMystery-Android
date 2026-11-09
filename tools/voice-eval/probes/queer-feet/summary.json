@@ -1,0 +1,30 @@
+{
+  "probes": [
+    { "id": "empty-notebook", "unlocked": [], "testimonies": [] },
+    { "id": "one-clue", "unlocked": ["clue-footsteps"], "testimonies": [] },
+    {
+      "id": "early-interrogation",
+      "unlocked": ["clue-footsteps"],
+      "testimonies": [
+        { "suspect": "manager", "question": "복도에서 종종걸음이랑 느긋한 걸음이 번갈아 들렸대요.", "answer": "저희 웨이터들은 늘 종종걸음으로 움직이게 가르칩니다. 신사처럼 느긋하게 걷는 웨이터는 없어요." },
+        { "suspect": "guest", "question": "생선 요리 때 어디 있었어요?", "answer": "식탁 끝자리에 앉아서 회원분들이랑 얘기했어요. 자리에서 일어난 적은 없어요." }
+      ]
+    },
+    {
+      "id": "mid-game",
+      "unlocked": ["clue-footsteps", "clue-piano", "clue-roster"],
+      "testimonies": [
+        { "suspect": "pianist", "question": "피아노가 멎었을 때 어디 있었어요?", "answer": "사실은 생선 요리 때 손가락이 곱아서 십 분쯤 테라스에 나가 손을 녹이고 왔어요. 나가는 길에 복도에서 느긋하게 걷는 연미복 신사를 얼핏 봤어요." },
+        { "suspect": "manager", "question": "웨이터는 몇 명이었어요?", "answer": "사실 생선 요리 때 연회실을 오가는 연미복을 세어 보니 열여섯이었습니다. 부른 건 열다섯 명뿐이었어요." }
+      ]
+    },
+    {
+      "id": "late-game-full",
+      "unlocked": ["clue-footsteps", "clue-piano", "clue-roster", "clue-cloakroom"],
+      "testimonies": [
+        { "suspect": "guest", "question": "보관실에서 외투는 왜 찾았어요?", "answer": "사실은 생선 요리 때 잠깐 자리에서 일어났어요. 담배를 꺼내려고 보관실에서 외투를 찾았다가 다시 맡긴 것뿐이에요." },
+        { "suspect": "pianist", "question": "복도에서 본 신사는 어디로 갔어요?", "answer": "제가 복도에서 본 그 신사, 보관실 쪽으로 가던 것 같아요." }
+      ]
+    }
+  ]
+}

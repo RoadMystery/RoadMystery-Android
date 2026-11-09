@@ -6,6 +6,7 @@
 - **2026-11-06에 바뀐 것:** 바라는 것과 태도, 가진 것, 범인의 자백 칸이 생겼고, 키워드는 단서 자체를 가리키는 말만 씁니다([옮겨 가기](game-rules.md#옮겨-가기)).
 - **2026-11-07에 바뀐 것:** 숨긴 자기 일을 덮는 주장과 그것을 거두는 반응(`replaces`)을 짝지어 씁니다(아래 '숨긴 자기 일과 주장'). 프롬프트에 들어가지 않던 `beforeFound` 칸은 지웠습니다([설계안](before-found-denials.md)).
 - **형식:** `content/cases/<사건 id>/case.json`과 `suspects/<용의자 id>.json`입니다. 칸마다의 뜻은 `content/schema/`의 JSON 스키마 설명에 있습니다.
+- **예시 사건:** jade-crown(홈즈 「녹주석 보관」), 저작권이 끝난 추리소설로 만든 blue-carbuncle과 queer-feet([설명](public-domain-cases.md)), 팀 시나리오를 옮긴 midnight_rest_area([팀 앱과 맞추기](team-integration.md))가 있습니다.
 - **검사:** `tools/voice-eval`에서 `python -m voice_eval validate --case-dir <사건 폴더>`가 아래 규칙을 봅니다. `content/cases/`에 넣은 사건은 Python 테스트(`tests/test_cases.py`)와 앱 테스트(`EveryCaseTest`)가 같은 규칙으로 다시 봅니다.
 
 ## 사건
