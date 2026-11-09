@@ -24,7 +24,7 @@ import kotlinx.coroutines.launch
  * - 본편(trigger 없는 장면)은 주행·정차 중 순서대로 재생된다. 첫 출발 전에는 브리핑만 재생한다.
  * - 장면이 끝나면 그 장면의 단서가 열리고, 다음 정차 때까지 pendingClues에 쌓인다.
  * - 위험 이벤트(급제동·ADAS·"멈춰")는 즉시 낭독과 심문을 멈추고, 다음 출발 때 멈춘 문장부터 재개한다.
- * - 남은 도착 시간이 부족하면 required=false 장면을 뺀다.
+ * - 남은 도착 시간이 부족하면 required=false 장면을 뺀다. 목적지가 없으면 10분 챕터로 본다.
  * - 정차 중에는 심문·수첩 요약을 받는다. 출발하면 심문은 즉시 끝나고 낭독으로 돌아간다.
  * - 도착하면 낭독을 멈추고, 아직 못 들은 필수 장면의 단서를 지급한 뒤 범인 지목을 기다린다.
  *
@@ -148,6 +148,7 @@ class DefaultStoryEngine(
         saved?.playedSceneIds?.let { playedIds.addAll(it) }
         queue.addAll(firstChapter.mainScenes.filterNot { it.id in playedIds })
         _mode.value = AppMode.BRIEFING
+        replan()
 
         if (saved == null) {
             firstChapter.sceneFor(SceneTrigger.BRIEFING)?.let { play(it) }
@@ -368,6 +369,7 @@ class DefaultStoryEngine(
                     queue.none { it.id == scene.id }
             } ?: return
         queue.addFirst(scene)
+        replan()
         if (current == null && !held && _mode.value == AppMode.DRIVING) playNext()
     }
 
@@ -438,12 +440,16 @@ class DefaultStoryEngine(
         _pendingClues.value = _pendingClues.value + fresh
     }
 
-    /** 남은 ETA 안에 필수 장면을 먼저 넣고, 남는 시간만큼 선택 장면을 순서대로 넣는다. */
+    /**
+     * 남은 ETA 안에 필수 장면을 먼저 넣고, 남는 시간만큼 선택 장면을 순서대로 넣는다.
+     * 목적지가 없어 ETA를 모르면 [DEFAULT_CHAPTER_SEC]초 챕터로 본다.
+     * 끼어든 이벤트 장면(터널 등)도 남은 시간을 쓰므로 함께 계산한다.
+     */
     private fun replan() {
         skippedIds.clear()
-        val eta = etaSec ?: return
-        val upcoming = queue.filter { it.trigger == null }
-        val currentLeft = current?.takeIf { it.trigger == null }?.let { remainingSec(it, sentenceIndex) } ?: 0
+        val eta = etaSec ?: DEFAULT_CHAPTER_SEC
+        val upcoming = queue.toList()
+        val currentLeft = current?.takeIf { it.isPlanned() }?.let { remainingSec(it, sentenceIndex) } ?: 0
         var slack = eta - currentLeft - upcoming.filter { it.required }.sumOf { it.durationSec }
         upcoming.filterNot { it.required }.forEach { scene ->
             if (scene.durationSec <= slack) slack -= scene.durationSec else skippedIds += scene.id
@@ -504,11 +510,20 @@ class DefaultStoryEngine(
         )
     }
 
+    /** 도착 시간 계산에 들어가는 장면인가. 브리핑(출발 전)·심문 대답·결말은 뺀다. */
+    private fun Scene.isPlanned() =
+        trigger != SceneTrigger.BRIEFING && trigger != SceneTrigger.REPLY && trigger !in SceneTrigger.endings
+
     private fun remainingSec(
         scene: Scene,
         fromSentence: Int,
     ): Int {
         val size = scene.script.size.coerceAtLeast(1)
         return scene.durationSec * (size - fromSentence) / size
+    }
+
+    private companion object {
+        /** 목적지가 없을 때 챕터 길이로 보는 시간. */
+        const val DEFAULT_CHAPTER_SEC = 600
     }
 }
