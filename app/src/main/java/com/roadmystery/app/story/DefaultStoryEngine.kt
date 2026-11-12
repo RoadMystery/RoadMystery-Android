@@ -430,7 +430,9 @@ class DefaultStoryEngine(
         resumeJob?.cancel()
         resumeJob = null
         deferred = false
-        if (_mode.value == AppMode.PAUSED) _mode.value = if (moving) AppMode.DRIVING else AppMode.STOPPED
+        if (_mode.value == AppMode.PAUSED || _mode.value == AppMode.STOPPED) {
+            _mode.value = if (moving) AppMode.DRIVING else AppMode.STOPPED
+        }
 
         val scene = current
         val hasNext = scene != null || queue.isNotEmpty()

@@ -307,6 +307,28 @@ class StoryEngineTest {
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
+    fun `급제동 후 정차했다가 출발하면 주행 모드와 낭독이 함께 돌아온다`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val engine = hazardEngine(backgroundScope) { testScheduler.currentTime }
+            engine.onVehicleEvent(VehicleEvent.Hazard(HazardReason.HARD_BRAKE))
+            testScheduler.advanceTimeBy(1_500)
+            engine.onVehicleEvent(VehicleEvent.Stopped)
+            assertEquals(AppMode.STOPPED, engine.mode.value)
+
+            testScheduler.advanceTimeBy(6_000)
+            assertNull(audio.playing)
+            engine.onVehicleEvent(VehicleEvent.Driving)
+            assertEquals(AppMode.DRIVING, engine.mode.value)
+            assertFalse(engine.canInteract.value)
+            assertEquals("reply_0", audio.playing)
+
+            engine.onAudioEvent(AudioEvent.SceneFinished("reply_0"))
+            assertEquals("m1" to 1, audio.history.last())
+            assertEquals(AppMode.DRIVING, engine.mode.value)
+        }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
     fun `위험이 짧은 시간에 반복되면 정차할 때까지 재개를 보류한다`() =
         runTest(UnconfinedTestDispatcher()) {
             val engine = hazardEngine(backgroundScope) { testScheduler.currentTime }
