@@ -8,13 +8,22 @@ import ai.pleos.playground.stt.listener.OnServerConnectionListener
 import ai.pleos.playground.stt.listener.ResultListener
 import android.content.Context
 import android.util.Log
-import kotlinx.coroutines.suspendCancellableCoroutine
 import java.util.Locale
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.resume
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.selects.select
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withTimeoutOrNull
 
 interface SpeechInput {
     /** 한 번 듣고 인식한 문장을 돌려준다. 실패하면 null. */
-    suspend fun listen(): String?
+    suspend fun listen(onSpeechDetected: () -> Unit = {}): String?
 
     fun cancel()
 }
@@ -29,12 +38,14 @@ class PleosSpeechInput(
     private val stt = SpeechToText(context.applicationContext, if (useServer) Mode.HYBRID else Mode.ON_DEVICE)
 
     @Volatile private var ready = false
+    private val listenMutex = Mutex()
 
     init {
-        stt.setLocale(Locale.KOREAN)
         stt.initialize(
             object : OnInitializeListener {
                 override fun onSuccess() {
+                    runCatching { stt.setLocale(Locale.KOREA) }
+                        .onFailure { Log.w(TAG, "STT 언어 설정 실패", it) }
                     if (!useServer) {
                         ready = true
                         return
@@ -62,27 +73,27 @@ class PleosSpeechInput(
         )
     }
 
-    override suspend fun listen(): String? {
-        if (!ready) return null
-        return suspendCancellableCoroutine { cont ->
-            var partial: String? = null
-            val listener =
-                object : ResultListener {
-                    override fun onUpdated(
-                        text: String,
-                        isFinal: Boolean,
-                    ) {
+    override suspend fun listen(onSpeechDetected: () -> Unit): String? = listenMutex.withLock {
+        if (!ready) return@withLock null
+        var registered: ResultListener? = null
+        try {
+            suspendCancellableCoroutine { continuation ->
+                val completed = AtomicBoolean()
+                val listener = object : ResultListener {
+                    @Volatile private var partial: String? = null
+
+                    override fun onUpdated(text: String, isFinal: Boolean) {
+                        if (completed.get()) return
                         partial = text
+                        if (text.isNotBlank()) onSpeechDetected()
                         if (isFinal) finish(text)
                     }
 
-                    override fun onUpdatedEpdData(
-                        start: Long,
-                        end: Long,
-                    ) = Unit
+                    override fun onUpdatedEpdData(start: Long, end: Long) {
+                        if (!completed.get() && (start > 0 || end > 0)) onSpeechDetected()
+                    }
 
                     override fun onStartedRecognition() = Unit
-
                     override fun onEndedRecognition() = finish(partial)
 
                     override fun onError(errorType: ErrorType) {
@@ -91,20 +102,29 @@ class PleosSpeechInput(
                     }
 
                     override fun onReady() = Unit
-
                     override fun onUpdatedRms(rms: Double) = Unit
 
-                    fun finish(result: String?) {
-                        stt.removeListener(this)
-                        if (cont.isActive) cont.resume(result?.takeIf { it.isNotBlank() })
+                    private fun finish(result: String?) {
+                        if (completed.compareAndSet(false, true)) {
+                            continuation.resume(result?.takeIf { it.isNotBlank() })
+                        }
                     }
                 }
-            stt.addListener(listener)
-            cont.invokeOnCancellation {
-                stt.removeListener(listener)
-                runCatching { stt.stop() }
+                continuation.invokeOnCancellation { completed.set(true) }
+                stt.addListener(listener)
+                registered = listener
+                stt.request()
             }
-            stt.request()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            Log.w(TAG, "STT 요청 실패", error)
+            null
+        } finally {
+            registered?.let { listener ->
+                runCatching { stt.removeListener(listener) }
+                cancel()
+            }
         }
     }
 
@@ -118,5 +138,22 @@ class PleosSpeechInput(
 
     private companion object {
         const val TAG = "PleosSpeechInput"
+    }
+}
+
+/** 3초 동안 말 시작을 기다리고, 시작한 말에는 완료할 시간을 따로 준다. */
+internal suspend fun SpeechInput.listenForDrivingQuestion(): String? = coroutineScope {
+    val speechDetected = CompletableDeferred<Unit>()
+    val result = async { listen { speechDetected.complete(Unit) } }
+    try {
+        val startedOrFinished = withTimeoutOrNull(3_000) {
+            select<Unit> {
+                speechDetected.onAwait { }
+                result.onAwait { }
+            }
+        }
+        if (startedOrFinished == null) null else withTimeoutOrNull(8_000) { result.await() }
+    } finally {
+        result.cancel()
     }
 }

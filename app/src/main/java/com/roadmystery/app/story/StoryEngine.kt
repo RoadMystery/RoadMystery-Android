@@ -46,6 +46,9 @@ interface StoryEngine {
         utterance: String,
     )
 
+    /** 본편 장면 끝의 음성 질문 구간에서 받은 질문. */
+    fun askBetweenScenes(suspectId: String, utterance: String)
+
     /** 정차 중에만 받는다. 지금까지의 단서·증언 요약을 읽어 준다. */
     fun requestSummary()
 

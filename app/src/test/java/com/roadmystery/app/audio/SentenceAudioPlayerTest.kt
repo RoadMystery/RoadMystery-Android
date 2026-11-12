@@ -2,12 +2,14 @@ package com.roadmystery.app.audio
 
 import com.roadmystery.app.story.AppMode
 import com.roadmystery.app.story.DefaultStoryEngine
+import com.roadmystery.app.story.Scenario
 import com.roadmystery.app.story.ScenarioParser
 import com.roadmystery.app.story.ScenarioRepository
 import com.roadmystery.app.story.Scene
 import com.roadmystery.app.vehicle.FakeVehicleState
 import com.roadmystery.app.vehicle.HazardReason
 import com.roadmystery.app.vehicle.VehicleEvent
+import com.roadmystery.app.voice.resolveDrivingQuestionSuspect
 import java.io.File
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -65,6 +67,92 @@ class SentenceAudioPlayerTest {
         engine.onVehicleEvent(VehicleEvent.Stopped)
         runCurrent()
         assertEquals("이어서 들려드릴게요.", output.calls.last().first)
+    }
+
+    @Test
+    fun `driving question after the spoken prompt is answered before the next scene`() = runTest {
+        val output = ControlledSpeech()
+        val player = SentenceAudioPlayer(backgroundScope, output)
+        val scenario = shortDemoScenario()
+        val engine = DefaultStoryEngine(ScenarioRepository { scenario }, player, scope = backgroundScope)
+        val suspect = scenario.suspects.first()
+        val question = "${suspect.name} 씨, 어디에 있었어요?"
+        var listened = false
+        player.onQuestionWindow = {
+            listened = true
+            val target = resolveDrivingQuestionSuspect(question, scenario.suspects, null)
+            checkNotNull(target)
+            engine.askBetweenScenes(target, question)
+            true
+        }
+        engine.bind(FakeVehicleState(), backgroundScope)
+        runCurrent()
+        engine.start(scenario.id)
+        engine.onVehicleEvent(VehicleEvent.Driving)
+        runCurrent()
+        repeat(2) {
+            output.finish()
+            runCurrent()
+        }
+        assertEquals(SentenceAudioPlayer.QUESTION, output.calls.last().first)
+        assertFalse(listened)
+        output.finish()
+        runCurrent()
+
+        assertTrue(listened)
+        assertEquals(suspect.id, engine.testimonies.value.single().suspectId)
+        assertTrue(engine.nowPlaying.value?.sceneId.orEmpty().startsWith("reply_"))
+        engine.onVehicleEvent(VehicleEvent.Driving)
+        assertTrue(engine.nowPlaying.value?.sceneId.orEmpty().startsWith("reply_"))
+        repeat(6) {
+            if (engine.nowPlaying.value?.sceneId.orEmpty().startsWith("reply_")) {
+                output.finish()
+                runCurrent()
+            }
+        }
+        assertEquals("s02_driver", engine.nowPlaying.value?.sceneId)
+    }
+
+    @Test
+    fun `hazard cancels the active question window`() = runTest {
+        val output = ControlledSpeech()
+        val player = SentenceAudioPlayer(backgroundScope, output)
+        val scenario = shortDemoScenario()
+        val engine = DefaultStoryEngine(ScenarioRepository { scenario }, player, scope = backgroundScope)
+        val transcript = CompletableDeferred<String>()
+        var cancelled = false
+        player.onQuestionWindow = {
+            try {
+                transcript.await()
+                true
+            } finally {
+                cancelled = true
+            }
+        }
+        engine.bind(FakeVehicleState(), backgroundScope)
+        runCurrent()
+        engine.start(scenario.id)
+        engine.onVehicleEvent(VehicleEvent.Driving)
+        runCurrent()
+        repeat(3) {
+            output.finish()
+            runCurrent()
+        }
+        assertEquals(PlaybackPhase.WAITING, player.status.value.phase)
+        engine.onVehicleEvent(VehicleEvent.Hazard(HazardReason.HARD_BRAKE))
+        runCurrent()
+        assertTrue(cancelled)
+        assertEquals(AppMode.PAUSED, engine.mode.value)
+        assertTrue(engine.testimonies.value.isEmpty())
+    }
+
+    private fun shortDemoScenario(): Scenario {
+        val scenario = ScenarioParser.parse(File("src/main/assets/scenarios/midnight_rest_area.json").readText())
+        val chapters = scenario.chapters.map { chapter ->
+            val scenes = chapter.scenes.map { it.copy(script = listOf(it.id), sentenceVoices = emptyList()) }
+            chapter.copy(scenes = scenes)
+        }
+        return scenario.copy(chapters = chapters)
     }
 
     private val scene = Scene("scene", "장면", durationSec = 10, script = listOf("첫 문장", "둘째 문장"), sentenceVoices = listOf("narrator", "female_calm"))
