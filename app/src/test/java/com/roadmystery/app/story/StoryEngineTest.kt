@@ -9,10 +9,12 @@ import com.roadmystery.app.vehicle.HazardReason
 import com.roadmystery.app.vehicle.VehicleEvent
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -322,6 +324,92 @@ class StoryEngineTest {
         finish("briefing")
         send(VehicleEvent.Driving)
     }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private fun TestScope.questionWindowEngine(): DefaultStoryEngine {
+        val engine = DefaultStoryEngine(ScenarioRepository { testScenario }, audio, scope = backgroundScope)
+        engine.start("test")
+        engine.onAudioEvent(AudioEvent.SceneFinished("briefing"))
+        engine.onVehicleEvent(VehicleEvent.Driving)
+        return engine
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun `주행 중 질문 구간에서 질문하면 대답을 읽고 다음 장면으로 간다`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val engine = questionWindowEngine()
+            engine.onAudioEvent(AudioEvent.SentenceStarted("m1", 2))
+
+            engine.askBetweenScenes("a", "커피는 왜 샀나요?")
+
+            val reply = audio.playing!!
+            assertTrue(reply.startsWith("reply_"))
+            assertEquals(AppMode.DRIVING, engine.mode.value)
+            assertEquals("대표님이 드실 커피였어요.", engine.interrogation.value?.answer)
+            assertEquals(listOf("c1", "c2"), engine.clues.value.map { it.id })
+            assertEquals(1, engine.testimonies.value.size)
+
+            // 질문 구간 시간이 다 되어 오는 원래 장면의 종료는 대답을 끊지 못한다.
+            engine.onAudioEvent(AudioEvent.SceneFinished("m1"))
+            assertEquals(reply, audio.playing)
+
+            audio.playing = null
+            engine.onAudioEvent(AudioEvent.SceneFinished(reply))
+            assertEquals("opt1" to 0, audio.history.last())
+            assertEquals(AppMode.DRIVING, engine.mode.value)
+        }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun `장면을 아직 읽는 중이거나 정차 중이면 질문 구간 질문을 받지 않는다`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val engine = questionWindowEngine()
+            engine.onAudioEvent(AudioEvent.SentenceStarted("m1", 1))
+            engine.askBetweenScenes("a", "커피")
+            assertEquals("m1", audio.playing)
+            assertNull(engine.interrogation.value)
+
+            engine.onAudioEvent(AudioEvent.SentenceStarted("m1", 2))
+            engine.onVehicleEvent(VehicleEvent.Stopped)
+            engine.askBetweenScenes("a", "커피")
+            assertEquals("m1", audio.playing)
+            assertTrue(engine.testimonies.value.isEmpty())
+        }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun `질문 구간 대답 중 위험이 오면 심문을 끊고, 출발하면 다음 장면으로 간다`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val engine = questionWindowEngine()
+            engine.onAudioEvent(AudioEvent.SentenceStarted("m1", 2))
+            engine.askBetweenScenes("a", "커피")
+            val reply = audio.playing!!
+
+            engine.onVehicleEvent(VehicleEvent.Hazard(HazardReason.HARD_BRAKE))
+            assertEquals(AppMode.PAUSED, engine.mode.value)
+            assertNull(engine.interrogation.value)
+
+            engine.onVehicleEvent(VehicleEvent.Driving)
+            assertEquals(AppMode.DRIVING, engine.mode.value)
+            assertEquals("opt1" to 0, audio.history.last())
+            assertTrue(reply != audio.playing)
+        }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun `질문 구간 대답 중 이미 주행 중이라는 알림이 와도 대답을 끊지 않는다`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val engine = questionWindowEngine()
+            engine.onAudioEvent(AudioEvent.SentenceStarted("m1", 2))
+            engine.askBetweenScenes("a", "커피")
+            val reply = audio.playing!!
+
+            engine.onVehicleEvent(VehicleEvent.Driving)
+
+            assertEquals(reply, audio.playing)
+            assertNotNull(engine.interrogation.value?.answer)
+        }
 }
 
 private class RecordingAudioPlayer : AudioPlayer {

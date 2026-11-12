@@ -46,6 +46,15 @@ interface StoryEngine {
         utterance: String,
     )
 
+    /**
+     * 주행 중 본편 장면 끝의 질문 구간에서 들은 질문. 장면의 마지막 문장을 읽은 뒤에만 받는다.
+     * 그 장면은 끝난 것으로 치고, 대답을 읽은 뒤 다음 장면으로 간다. 위험 정지는 심문을 끊는다.
+     */
+    fun askBetweenScenes(
+        suspectId: String,
+        utterance: String,
+    )
+
     /** 정차 중에만 받는다. 지금까지의 단서·증언 요약을 읽어 준다. */
     fun requestSummary()
 
