@@ -58,8 +58,9 @@ class DemoAutoplay(
             vehicle.send(VehicleEvent.EtaChanged(remainingSec = 60))
             awaitClues(5)
 
-            step("목적지 도착 — 범인을 지목하세요")
+            step("목적지 도착 및 주차 — 범인을 지목하세요")
             vehicle.send(VehicleEvent.Arrived)
+            vehicle.send(VehicleEvent.Parked)
         } finally {
             _step.value = null
         }

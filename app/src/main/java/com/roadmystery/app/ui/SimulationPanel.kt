@@ -71,7 +71,7 @@ fun SimulationPanel(
             PanelButton("주차") { onEvent(VehicleEvent.Parked) }
             PanelButton("터널") { onEvent(VehicleEvent.Place("tunnel")) }
             PanelButton("도착 1분 전") { onEvent(VehicleEvent.EtaChanged(remainingSec = 60)) }
-            PanelButton("도착") { onEvent(VehicleEvent.Arrived) }
+            PanelButton("도착 (이후 주차 누르기)") { onEvent(VehicleEvent.Arrived) }
             PanelButton("급제동", danger = true) { onEvent(VehicleEvent.Hazard(HazardReason.HARD_BRAKE)) }
             PanelButton("ADAS 경고", danger = true) { onEvent(VehicleEvent.Hazard(HazardReason.ADAS_WARNING)) }
             PanelButton("\"멈춰\"", danger = true) { onEvent(VehicleEvent.Hazard(HazardReason.USER_STOP)) }
