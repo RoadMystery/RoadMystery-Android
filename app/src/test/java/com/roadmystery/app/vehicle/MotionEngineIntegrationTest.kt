@@ -7,6 +7,7 @@ import com.roadmystery.app.story.ScenarioParser
 import com.roadmystery.app.story.ScenarioRepository
 import java.io.File
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -48,5 +49,23 @@ class MotionEngineIntegrationTest {
         advanceTimeBy(100)
         runCurrent()
         assertFalse(engine.canInteract.value)
+    }
+
+    @Test fun `demo autoplay ends at accusation after parking`() = runTest {
+        val scenario = ScenarioParser.parse(File("src/main/assets/scenarios/midnight_rest_area.json").readText())
+        val simulated = FakeVehicleState()
+        val selected = SelectedVehicleState(emptyFlow(), simulated.events, VehicleSource.SIMULATION)
+        val engine = DefaultStoryEngine(
+            ScenarioRepository { scenario },
+            FakeAudioPlayer(backgroundScope, speed = 10f)
+        )
+        engine.bind(selected, backgroundScope)
+        runCurrent()
+
+        DemoAutoplay(simulated, engine).run(scenario.id)
+        runCurrent()
+
+        assertEquals(AppMode.ENDING, engine.mode.value)
+        assertTrue(engine.canInteract.value)
     }
 }
