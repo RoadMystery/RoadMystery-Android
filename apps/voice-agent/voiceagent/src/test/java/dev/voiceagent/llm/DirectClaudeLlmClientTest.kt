@@ -90,7 +90,7 @@ class DirectClaudeLlmClientTest {
         assertEquals("2023-06-01", sent.headers["anthropic-version"])
         assertFalse("sk-test-key" in sent.body)
         val body = JSONObject(sent.body)
-        assertEquals("claude-sonnet-5-5", body.getString("model"))
+        assertEquals("claude-haiku-5-5", body.getString("model"))
         assertEquals(2048, body.getInt("max_tokens"))
         assertTrue(body.getBoolean("stream"))
         assertEquals("low", body.getJSONObject("output_config").getString("effort"))
@@ -98,6 +98,19 @@ class DirectClaudeLlmClientTest {
         assertEquals("정전 때 어디 계셨어요?", body.getJSONArray("messages").getJSONObject(0).getString("content"))
         assertFalse(body.has("fallbacks"))
         assertFalse(body.has("task"))
+    }
+
+    @Test(timeout = 10_000)
+    fun `the summary uses the model chosen for summaries`() = runBlocking {
+        val client = serve { _, out ->
+            out.start()
+            out.finish()
+        }
+
+        client.stream(request.copy(task = LlmTask.SUMMARY)).toList()
+
+        val body = JSONObject(server!!.requests.poll(1, TimeUnit.SECONDS)!!.body)
+        assertEquals("claude-sonnet-5-5", body.getString("model"))
     }
 
     @Test(timeout = 10_000)

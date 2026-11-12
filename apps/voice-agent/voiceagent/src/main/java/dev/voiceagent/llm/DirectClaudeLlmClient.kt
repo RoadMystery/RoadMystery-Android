@@ -20,12 +20,24 @@ import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
 
-/** Model settings sent with every request. The proxy used to pick these per task; now the app does. */
+/** Model settings for one request. The proxy used to pick these per task; now the app does. */
 data class ClaudeProfile(
-    val model: String = "claude-sonnet-5-5",
+    val model: String,
     val effort: String = "low",
     val maxTokens: Int = 2_048,
-)
+) {
+    companion object {
+        /**
+         * Same choice as the dev proxy (`python -m voice_eval proxy`) and docs/voice-agent/llm-evaluation.md:
+         * interrogation runs on Haiku 5.5 (first sound in about a second, 1/20 the price of Sonnet);
+         * the notebook summary runs on Sonnet 5.5 because Haiku overran five sentences in 3 of 12 runs.
+         */
+        fun forTask(task: LlmTask): ClaudeProfile = when (task) {
+            LlmTask.INTERROGATION -> ClaudeProfile("claude-haiku-5-5")
+            LlmTask.SUMMARY -> ClaudeProfile("claude-sonnet-5-5")
+        }
+    }
+}
 
 /**
  * [LlmClient] that calls the Claude Messages API directly, without the proxy. The API key is inside
@@ -37,7 +49,7 @@ data class ClaudeProfile(
  */
 class DirectClaudeLlmClient(
     private val apiKey: String,
-    private val profile: ClaudeProfile = ClaudeProfile(),
+    private val profileFor: (LlmTask) -> ClaudeProfile = ClaudeProfile::forTask,
     baseUrl: String = DEFAULT_BASE_URL,
     /** Plain HTTP is only for tests against a local stand-in. */
     allowCleartext: Boolean = false,
@@ -110,6 +122,7 @@ class DirectClaudeLlmClient(
     }
 
     private fun requestBody(request: LlmRequest): String {
+        val profile = profileFor(request.task)
         val messages = JSONArray()
         request.messages.forEach { messages.put(JSONObject().put("role", it.role.wireName).put("content", it.content)) }
         return JSONObject()

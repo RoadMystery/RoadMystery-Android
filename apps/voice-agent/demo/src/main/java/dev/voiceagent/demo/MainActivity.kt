@@ -118,8 +118,8 @@ class MainActivity : Activity() {
             output.release()
             throw e
         }
-        val llm: LlmClient = if (BuildConfig.ANTHROPIC_API_KEY.isNotEmpty()) {
-            DirectClaudeLlmClient(BuildConfig.ANTHROPIC_API_KEY)
+        val llm: LlmClient = if (BuildConfig.DEMO_ANTHROPIC_API_KEY.isNotEmpty()) {
+            DirectClaudeLlmClient(BuildConfig.DEMO_ANTHROPIC_API_KEY)
         } else {
             ProxyLlmClient(BuildConfig.PROXY_URL, BuildConfig.PROXY_TOKEN, allowCleartext = BuildConfig.DEBUG)
         }
@@ -328,7 +328,7 @@ class MainActivity : Activity() {
 
     /** Never shows the token itself. */
     private fun connectionStatus(): String {
-        if (BuildConfig.ANTHROPIC_API_KEY.isNotEmpty()) return "Claude 직접 호출 · 키 있음"
+        if (BuildConfig.DEMO_ANTHROPIC_API_KEY.isNotEmpty()) return "Claude 직접 호출 · 키 있음"
         val token = if (BuildConfig.PROXY_TOKEN.isEmpty()) "없음 (tools/voice-eval/.env의 VOICE_PROXY_TOKEN)" else "있음"
         return "프록시 ${BuildConfig.PROXY_URL} · 토큰 $token"
     }

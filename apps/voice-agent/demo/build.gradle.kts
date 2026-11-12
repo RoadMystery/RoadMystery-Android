@@ -36,6 +36,14 @@ fun envValue(raw: String): String {
     return raw.split(Regex("\\s+#"), limit = 2)[0].trimEnd()
 }
 
+/**
+ * Key for calling Claude directly from the debug build. Deliberately not ANTHROPIC_API_KEY, the name the
+ * measurement tools use for the real key: a PC that has that key must not put it in an APK by accident.
+ * Use a separate demo key with a low spend limit, from DEMO_ANTHROPIC_API_KEY or -PdemoAnthropicApiKey.
+ */
+fun demoAnthropicKey(): String =
+    providers.gradleProperty("demoAnthropicApiKey").orNull?.takeIf { it.isNotEmpty() } ?: devSecret("DEMO_ANTHROPIC_API_KEY")
+
 fun javaString(value: String): String = "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
 
 android {
@@ -52,14 +60,14 @@ android {
         // The emulator reaches the PC's dev proxy at 10.0.2.2; override with -PvoiceProxyUrl=...
         buildConfigField("String", "PROXY_URL", javaString(providers.gradleProperty("voiceProxyUrl").getOrElse(defaultProxyUrl)))
         buildConfigField("String", "PROXY_TOKEN", javaString(""))
-        // With a key the debug build calls Claude directly; without one it uses the proxy.
-        buildConfigField("String", "ANTHROPIC_API_KEY", javaString(""))
+        // With a demo key the debug build calls Claude directly; without one it uses the proxy.
+        buildConfigField("String", "DEMO_ANTHROPIC_API_KEY", javaString(""))
     }
 
     buildTypes {
         debug {
             buildConfigField("String", "PROXY_TOKEN", javaString(devSecret("VOICE_PROXY_TOKEN")))
-            buildConfigField("String", "ANTHROPIC_API_KEY", javaString(devSecret("ANTHROPIC_API_KEY")))
+            buildConfigField("String", "DEMO_ANTHROPIC_API_KEY", javaString(demoAnthropicKey()))
         }
     }
 
