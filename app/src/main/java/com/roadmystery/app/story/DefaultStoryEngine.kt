@@ -110,6 +110,7 @@ class DefaultStoryEngine(
     /** 심문 때문에 멈춘 낭독 장면과 문장. */
     private var interrupted: Pair<Scene, Int>? = null
     private var askJob: Job? = null
+    private var askedWhileDriving = false
     private var replyCount = 0
     private val heardAnswers = mutableMapOf<String, MutableSet<String>>()
 
@@ -128,6 +129,7 @@ class DefaultStoryEngine(
     fun stop() {
         director.stop()
         askJob?.cancel()
+        askedWhileDriving = false
         askJob = null
         cancelHazardState()
         audio.stop()
@@ -147,6 +149,7 @@ class DefaultStoryEngine(
         performedEffects.clear()
         audio.stop()
         askJob?.cancel()
+        askedWhileDriving = false
         cancelHazardState()
         val loaded = repository.load(scenarioId)
         val errors = ScenarioParser.validate(loaded)
@@ -256,13 +259,22 @@ class DefaultStoryEngine(
         publishSnapshot()
     }
 
-    override fun ask(
-        suspectId: String,
-        utterance: String,
-    ) {
+    override fun ask(suspectId: String, utterance: String) = askSuspect(suspectId, utterance, whileDriving = false)
+
+    override fun askBetweenScenes(suspectId: String, utterance: String) {
+        val scene = current ?: return
+        if (scope == null || held || !moving || _mode.value != AppMode.DRIVING) return
+        if (scene.trigger != null || sentenceIndex < scene.script.lastIndex || utterance.isBlank()) return
+        if (_scenario.value?.suspect(suspectId) == null || askJob?.isActive == true) return
+
+        completeScene(scene)
+        askSuspect(suspectId, utterance, whileDriving = true)
+    }
+
+    private fun askSuspect(suspectId: String, utterance: String, whileDriving: Boolean) {
         val loaded = _scenario.value ?: return
         val suspect = loaded.suspect(suspectId) ?: return
-        respond(suspectId = suspectId, question = utterance, title = "${suspect.name}의 대답") {
+        respond(suspectId, utterance, "${suspect.name}의 대답", whileDriving) {
             val context =
                 CaseContext(
                     scenario = loaded,
@@ -286,11 +298,14 @@ class DefaultStoryEngine(
         suspectId: String?,
         question: String,
         title: String,
+        whileDriving: Boolean = false,
         produce: suspend () -> SuspectReply,
     ) {
         val asyncScope = scope ?: return
-        if (_mode.value != AppMode.STOPPED || moving || question.isBlank()) return
-        if (askJob?.isActive == true) return
+        if (held || question.isBlank() || askJob?.isActive == true) return
+        val canAsk = if (whileDriving) _mode.value == AppMode.DRIVING && moving else _mode.value == AppMode.STOPPED && !moving
+        if (!canAsk) return
+        askedWhileDriving = whileDriving
         director.stop()
 
         // 진행 중이던 대답은 끊고, 낭독 중이었다면 멈춘 자리를 기억해 둔다.
@@ -311,7 +326,9 @@ class DefaultStoryEngine(
         askJob =
             asyncScope.launch {
                 val reply = produce()
-                if (_mode.value != AppMode.STOPPED || moving) return@launch
+                val canAnswer = (_mode.value == AppMode.STOPPED && !moving) ||
+                    (whileDriving && _mode.value == AppMode.DRIVING && moving)
+                if (!canAnswer || held) return@launch
                 if (suspectId != null) {
                     reply.answerId?.let { heardAnswers.getOrPut(suspectId) { mutableSetOf() } += it }
                     _testimonies.value = _testimonies.value + Testimony(suspectId, question, reply.text)
@@ -328,6 +345,7 @@ class DefaultStoryEngine(
     private fun abortInterrogation(): Boolean {
         val thinking = askJob?.isActive == true
         askJob?.cancel()
+        askedWhileDriving = false
         askJob = null
         val inReply = current?.trigger == SceneTrigger.REPLY
         _interrogation.value = null
@@ -348,6 +366,10 @@ class DefaultStoryEngine(
             AppMode.ENDING -> return
             AppMode.STOPPED -> _pendingClues.value = emptyList()
             else -> Unit
+        }
+        if (askedWhileDriving) {
+            _mode.value = AppMode.DRIVING
+            return
         }
         val aborted = abortInterrogation()
         val scene = current
@@ -378,8 +400,9 @@ class DefaultStoryEngine(
 
     private fun onHazard() {
         director.stop()
+        val hadDrivingQuestion = askedWhileDriving
         if (abortInterrogation()) {
-            if (current != null) held = true
+            if (current != null || hadDrivingQuestion) held = true
         } else if (current != null && !held) {
             sentenceIndex = audio.pause()
             held = true
@@ -417,7 +440,9 @@ class DefaultStoryEngine(
         resumeJob?.cancel()
         resumeJob = null
         deferred = false
-        if (_mode.value == AppMode.PAUSED) _mode.value = if (moving) AppMode.DRIVING else AppMode.STOPPED
+        if (_mode.value == AppMode.PAUSED || _mode.value == AppMode.STOPPED) {
+            _mode.value = if (moving) AppMode.DRIVING else AppMode.STOPPED
+        }
 
         val scene = current
         val hasNext = scene != null || queue.isNotEmpty()
@@ -471,7 +496,7 @@ class DefaultStoryEngine(
                     queue.none { it.id == scene.id }
             } ?: return
         queue.addFirst(scene)
-        if (current == null && !held && _mode.value == AppMode.DRIVING) playNext()
+        if (current == null && !held && !askedWhileDriving && _mode.value == AppMode.DRIVING) playNext()
     }
 
     private fun finishScene(scene: Scene) {
@@ -480,6 +505,7 @@ class DefaultStoryEngine(
         _nowPlaying.value = null
 
         if (scene.trigger == SceneTrigger.REPLY) {
+            askedWhileDriving = false
             val back = interrupted
             interrupted = null
             val canPlay = !held && (_mode.value == AppMode.STOPPED || _mode.value == AppMode.DRIVING)
@@ -494,12 +520,18 @@ class DefaultStoryEngine(
             return
         }
 
+        completeScene(scene)
+        if (scene.trigger in SceneTrigger.endings) return
+        if (_mode.value == AppMode.DRIVING || _mode.value == AppMode.STOPPED) playNext()
+    }
+
+    private fun completeScene(scene: Scene) {
+        current = null
+        _nowPlaying.value = null
         playedIds += scene.id
         unlock(scene.unlocks)
         updateProgress()
         publishSnapshot()
-        if (scene.trigger in SceneTrigger.endings) return
-        if (_mode.value == AppMode.DRIVING || _mode.value == AppMode.STOPPED) playNext()
     }
 
     private fun playNext() {

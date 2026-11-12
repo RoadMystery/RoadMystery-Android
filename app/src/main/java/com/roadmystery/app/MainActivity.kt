@@ -25,6 +25,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import com.roadmystery.app.audio.AudioPlayer
 import com.roadmystery.app.audio.FakeAudioPlayer
@@ -35,10 +36,12 @@ import com.roadmystery.app.audio.SpeechOutput
 import com.roadmystery.app.director.Director
 import com.roadmystery.app.director.PleosDirector
 import com.roadmystery.app.director.ToneDirector
+import com.roadmystery.app.story.AppMode
 import com.roadmystery.app.story.AssetScenarioRepository
 import com.roadmystery.app.story.DataStoreProgressStore
 import com.roadmystery.app.story.DefaultStoryEngine
 import com.roadmystery.app.story.Progress
+import com.roadmystery.app.story.Scene
 import com.roadmystery.app.story.StoryEngine
 import com.roadmystery.app.ui.GameActions
 import com.roadmystery.app.ui.GameScreen
@@ -56,6 +59,8 @@ import com.roadmystery.app.vehicle.VehicleSource
 import com.roadmystery.app.voice.PleosSpeechInput
 import com.roadmystery.app.voice.ScriptedVoiceAgent
 import com.roadmystery.app.voice.SpeechInput
+import com.roadmystery.app.voice.listenForDrivingQuestion
+import com.roadmystery.app.voice.resolveDrivingQuestionSuspect
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collectLatest
@@ -123,6 +128,11 @@ class MainActivity : ComponentActivity() {
                 director = director,
                 scope = lifecycleScope
             )
+        val questionWindow: suspend (Scene) -> Boolean = { handleDrivingQuestion(it.id) }
+        when (val player = audio) {
+            is PleosTtsAudioPlayer -> player.onQuestionWindow = questionWindow
+            is SentenceAudioPlayer -> player.onQuestionWindow = questionWindow
+        }
         engine.bind(selectedVehicle, lifecycleScope)
         autoplay = DemoAutoplay(simulated, engine)
 
@@ -251,14 +261,17 @@ class MainActivity : ComponentActivity() {
                         }) { Text("F-01 단독 판정 테스트") }
                         Button(onClick = {
                             engine.stop()
+                            (audio as? PleosTtsAudioPlayer)?.disconnect()
                             startActivity(Intent().setClassName(packageName, "$packageName.audio.NarrationTestActivity"))
                         }) { Text("F-03 낭독 테스트") }
                         Button(onClick = {
                             engine.stop()
+                            (audio as? PleosTtsAudioPlayer)?.disconnect()
                             startActivity(Intent().setClassName(packageName, "$packageName.director.TunnelTestActivity"))
                         }) { Text("F-09 터널 연출 테스트") }
                         Button(onClick = {
                             engine.stop()
+                            (audio as? PleosTtsAudioPlayer)?.disconnect()
                             startActivity(Intent().setClassName(packageName, "$packageName.director.GpsTunnelTestActivity"))
                         }) { Text("F-09 GPS 터널 자동 감지 테스트") }
                         Text(gpsStatus)
@@ -272,6 +285,29 @@ class MainActivity : ComponentActivity() {
                 GameScreen(state = gameState, actions = gameActions, modifier = Modifier.weight(1f))
             }
         }
+    }
+
+    private suspend fun handleDrivingQuestion(sceneId: String): Boolean {
+        if (!canListenForDrivingQuestion(sceneId)) return false
+        val question = speech?.listenForDrivingQuestion()?.trim().orEmpty()
+        if (question.isBlank() || !canListenForDrivingQuestion(sceneId)) return true
+        val suspect = resolveDrivingQuestionSuspect(
+            question,
+            engine.scenario.value?.suspects.orEmpty(),
+            engine.testimonies.value.lastOrNull()?.suspectId
+        ) ?: return true
+        engine.askBetweenScenes(suspect, question)
+        return true
+    }
+
+    private fun canListenForDrivingQuestion(sceneId: String): Boolean {
+        val foreground = lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
+        return foreground && engine.mode.value == AppMode.DRIVING && engine.nowPlaying.value?.sceneId == sceneId
+    }
+
+    override fun onPause() {
+        speech?.cancel()
+        super.onPause()
     }
 
     override fun onDestroy() {

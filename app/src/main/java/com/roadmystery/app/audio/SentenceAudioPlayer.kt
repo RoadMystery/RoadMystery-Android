@@ -6,6 +6,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -57,6 +58,7 @@ class SentenceAudioPlayer(
     private var index = 0
     private var focusHeld = false
     private var suspendedForFocus = false
+    var onQuestionWindow: (suspend (Scene) -> Boolean)? = null
 
     override fun play(scene: Scene, fromSentence: Int) {
         cancelPlayback()
@@ -87,7 +89,8 @@ class SentenceAudioPlayer(
                     publish(PlaybackPhase.QUESTION, QUESTION)
                     output.speak(QUESTION, NarrationVoices.speaker("narrator"))
                     publish(PlaybackPhase.WAITING, "질문 대기")
-                    delay(questionWaitMs)
+                    if (onQuestionWindow?.invoke(scene) != true) delay(questionWaitMs)
+                    ensureActive()
                 }
                 publish(PlaybackPhase.IDLE, "장면 재생 완료")
                 current = null
