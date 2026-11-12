@@ -96,6 +96,9 @@ class DefaultStoryEngine(
     /** 심문 때문에 멈춘 낭독 장면과 문장. */
     private var interrupted: Pair<Scene, Int>? = null
     private var askJob: Job? = null
+
+    /** 주행 중 질문 구간에서 던진 질문의 대답이 진행 중이다. 같은 주행 상태의 Driving 이벤트로 끊지 않는다. */
+    private var askedWhileDriving = false
     private var replyCount = 0
     private val heardAnswers = mutableMapOf<String, MutableSet<String>>()
 
@@ -116,6 +119,7 @@ class DefaultStoryEngine(
     ) {
         audio.stop()
         askJob?.cancel()
+        askedWhileDriving = false
         val loaded = repository.load(scenarioId)
         val errors = ScenarioParser.validate(loaded)
         check(errors.isEmpty()) { "시나리오 오류: ${errors.joinToString()}" }
@@ -239,6 +243,34 @@ class DefaultStoryEngine(
         }
     }
 
+    override fun askBetweenScenes(
+        suspectId: String,
+        utterance: String,
+    ) {
+        val loaded = _scenario.value ?: return
+        val suspect = loaded.suspect(suspectId) ?: return
+        val scene = current ?: return
+        val asking = scene.trigger == null && _mode.value == AppMode.DRIVING && moving && !held
+        // 질문 구간은 장면의 마지막 문장을 읽은 뒤다. 아직 읽는 중이면 받지 않는다.
+        if (!asking || sentenceIndex < scene.script.size - 1) return
+        if (utterance.isBlank() || askJob?.isActive == true) return
+
+        // 질문 구간이 끝나면서 오는 SceneFinished가 대답을 기다리는 동안 다음 장면을 시작하지 못하게,
+        // 이 장면은 지금 끝난 것으로 치고 대답이 끝나면 다음 장면으로 간다.
+        completeScene(scene)
+        respond(suspectId = suspectId, question = utterance, title = "${suspect.name}의 대답", whileDriving = true) {
+            val context =
+                CaseContext(
+                    scenario = loaded,
+                    suspect = suspect,
+                    foundClueIds = _clues.value.map { it.id }.toSet(),
+                    heardAnswerIds = heardAnswers[suspectId].orEmpty(),
+                )
+            voice.ask(utterance, context)
+        }
+        if (askJob == null) playNext() // 대답을 시작하지 못했으면 질문이 없었던 것처럼 이어간다.
+    }
+
     override fun requestSummary() {
         val loaded = _scenario.value ?: return
         val progress = _snapshot.value ?: return
@@ -251,11 +283,17 @@ class DefaultStoryEngine(
         suspectId: String?,
         question: String,
         title: String,
+        whileDriving: Boolean = false,
         produce: suspend () -> SuspectReply,
     ) {
         val asyncScope = scope ?: return
-        if (_mode.value != AppMode.STOPPED || moving || question.isBlank()) return
-        if (askJob?.isActive == true) return
+        if (question.isBlank() || askJob?.isActive == true) return
+        if (whileDriving) {
+            if (_mode.value != AppMode.DRIVING || !moving) return
+        } else if (_mode.value != AppMode.STOPPED || moving) {
+            return
+        }
+        askedWhileDriving = whileDriving
 
         // 진행 중이던 대답은 끊고, 낭독 중이었다면 멈춘 자리를 기억해 둔다.
         val playing = current
@@ -275,7 +313,15 @@ class DefaultStoryEngine(
         askJob =
             asyncScope.launch {
                 val reply = produce()
-                if (_mode.value != AppMode.STOPPED || moving) return@launch
+                // 주행 중 던진 질문은 그 사이 정차했어도 대답한다. 정차 중에 던진 질문은 출발하면 버린다.
+                val canAnswer =
+                    (_mode.value == AppMode.DRIVING && moving && whileDriving) ||
+                        (_mode.value == AppMode.STOPPED && !moving)
+                if (!canAnswer) {
+                    askedWhileDriving = false
+                    _interrogation.value = null
+                    return@launch
+                }
                 if (suspectId != null) {
                     reply.answerId?.let { heardAnswers.getOrPut(suspectId) { mutableSetOf() } += it }
                     _testimonies.value = _testimonies.value + Testimony(suspectId, question, reply.text)
@@ -292,6 +338,7 @@ class DefaultStoryEngine(
         val thinking = askJob?.isActive == true
         askJob?.cancel()
         askJob = null
+        askedWhileDriving = false
         val inReply = current?.trigger == SceneTrigger.REPLY
         _interrogation.value = null
         if (!thinking && !inReply) return false
@@ -307,6 +354,8 @@ class DefaultStoryEngine(
     }
 
     private fun onDriving() {
+        // 주행 중 질문의 대답을 하는 동안 들어온 Driving은 이미 가고 있다는 알림이다.
+        if (_mode.value == AppMode.DRIVING && askedWhileDriving) return
         when (_mode.value) {
             AppMode.ENDING -> return
             AppMode.STOPPED -> _pendingClues.value = emptyList()
@@ -378,6 +427,7 @@ class DefaultStoryEngine(
         _nowPlaying.value = null
 
         if (scene.trigger == SceneTrigger.REPLY) {
+            askedWhileDriving = false
             val back = interrupted
             interrupted = null
             val canPlay = !held && (_mode.value == AppMode.STOPPED || _mode.value == AppMode.DRIVING)
@@ -392,12 +442,19 @@ class DefaultStoryEngine(
             return
         }
 
+        completeScene(scene)
+        if (scene.trigger in SceneTrigger.endings) return
+        if (_mode.value == AppMode.DRIVING || _mode.value == AppMode.STOPPED) playNext()
+    }
+
+    /** 장면을 끝난 것으로 기록한다: 단서를 열고 진행률과 저장 상태를 갱신한다. 다음 장면은 시작하지 않는다. */
+    private fun completeScene(scene: Scene) {
+        current = null
+        _nowPlaying.value = null
         playedIds += scene.id
         unlock(scene.unlocks)
         updateProgress()
         publishSnapshot()
-        if (scene.trigger in SceneTrigger.endings) return
-        if (_mode.value == AppMode.DRIVING || _mode.value == AppMode.STOPPED) playNext()
     }
 
     private fun playNext() {
