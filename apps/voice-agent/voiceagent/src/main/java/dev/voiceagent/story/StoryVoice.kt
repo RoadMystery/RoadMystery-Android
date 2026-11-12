@@ -24,7 +24,8 @@ import kotlinx.coroutines.sync.withLock
  * with every question. Within one game the clues found only grow: a question with fewer clues than the last
  * one starts a new game and forgets the conversation, as StoryEngine.start does with its own state.
  * Questions and summaries run one at a time. By default (AnswerMode.LINES) an answer is lines of the
- * suspect's persona file, so it says nothing the case file does not (docs/voice-agent/line-answers.md).
+ * suspect's persona file and the summary reads the notebook back, so neither says anything the case file
+ * does not (docs/voice-agent/line-answers.md).
  */
 class StoryVoice(
     private val scenario: Scenario,

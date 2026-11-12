@@ -28,7 +28,7 @@ import dev.voiceagent.content.Scenario as CaseScenario
 
 /**
  * LlmVoiceAgent를 이 앱의 DefaultStoryEngine에 끼워 데모 시나리오로 심문과 수첩 요약을 해 본다. LLM은 가짜이고,
- * 기본값인 대사 고르기 방식대로 심문에는 대사 id로 답한다. 앱은 그 id의 원고 대사만 읽는다.
+ * 기본값인 대사 고르기 방식대로 대사 id로 답한다. 앱은 그 id의 원고 대사만 읽고, 요약은 LLM 없이 수첩을 읽는다.
  * 사건 원고를 VoiceAgent 저장소에서 읽으므로 `-Dvoiceagent.repo=<저장소 경로>`(content/와 tools/voice-eval/prompts/가
  * 있는 곳)를 줄 때만 돌고, 없으면 건너뛴다. JVM 단위 테스트의 Android org.json은 빈 껍데기라
  * `testImplementation("org.json:json:20240303")`이 있어야 사건을 연다(기기에서는 필요 없음). 엔진의 심문은 backgroundScope에서 돌므로 팀 StoryEngineTest처럼
@@ -61,7 +61,7 @@ class LlmVoiceAgentTest {
         runTest(UnconfinedTestDispatcher()) {
             assumeTrue("-Dvoiceagent.repo가 없어 건너뜀", repo?.isDirectory == true)
             // 대사 id 뒤에 덧붙인 말은 읽지 않는다.
-            val llm = FakeLlm("k-seojin-receipt 사실 가방은 제가 로커에 넣었어요.", "박서진은 커피를 두 잔 샀다고 했어요.")
+            val llm = FakeLlm("k-seojin-receipt 사실 가방은 제가 로커에 넣었어요.")
             engine = DefaultStoryEngine(ScenarioRepository { scenario }, audio, voice = LlmVoiceAgent(voices(llm)), scope = backgroundScope)
             val receipt = "대표님은 졸음을 쫓으려고 늘 진하게 두 잔을 드십니다. 제 법인카드로 사는 건 매일 있는 일이에요."
 
@@ -89,10 +89,12 @@ class LlmVoiceAgentTest {
             finish(audio.playing!!)
             engine.requestSummary()
 
-            assertEquals("박서진은 커피를 두 잔 샀다고 했어요.", engine.interrogation.value?.answer)
-            val summary = llm.requests.last()
-            assertEquals(LlmTask.SUMMARY, summary.task)
-            assertTrue(summary.system.contains(testimony.answer))
+            assertEquals(
+                "지금까지 찾은 단서는 찢어진 영수증이에요. 박서진 씨가 마지막으로 한 말은 이래요. $receipt 아직 찾지 못한 단서가 4개 남아 있어요.",
+                engine.interrogation.value?.answer,
+            )
+            // 요약은 LLM을 부르지 않는다.
+            assertEquals(1, llm.requests.size)
         }
 
     @Test

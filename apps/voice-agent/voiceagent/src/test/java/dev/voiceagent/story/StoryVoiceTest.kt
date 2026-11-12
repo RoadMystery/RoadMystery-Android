@@ -1,6 +1,8 @@
 package dev.voiceagent.story
 
 import dev.voiceagent.RepoFiles
+import dev.voiceagent.agent.AgentConfig
+import dev.voiceagent.agent.AnswerMode
 import dev.voiceagent.agent.ReplyKind
 import dev.voiceagent.agent.ScriptedLlm
 import dev.voiceagent.agent.answer
@@ -140,9 +142,27 @@ class StoryVoiceTest {
     }
 
     @Test
-    fun `the summary reads StoryEngine's notebook without the lines for a dropped connection`() = runTest {
-        val llm = ScriptedLlm(answer("박서진은 편의점과 화장실에 있었다고 했어요."))
+    fun `the summary reads StoryEngine's notebook back as written, without an LLM`() = runTest {
+        val llm = ScriptedLlm()
         val voice = StoryVoice(scenario, llm)
+        val heard = Testimony("s_seojin", "자정 무렵 어디 있었나요?", line(seojin, "k-seojin-alibi"))
+        val offline = Testimony("s_minhyuk", "블랙박스는 왜 꺼져 있었죠?", minhyuk.fallbackOffline)
+
+        val summary = voice.summarize(listOf("clue_receipt"), listOf(heard, offline))
+
+        assertEquals(
+            "지금까지 찾은 단서는 찢어진 영수증이에요. 박서진 씨가 마지막으로 한 말은 이래요. ${heard.answer} " +
+                "아직 찾지 못한 단서가 4개 남아 있어요.",
+            summary,
+        )
+        assertTrue(llm.requests.isEmpty())
+        assertTrue(voice.state.value.notebook.isEmpty())
+    }
+
+    @Test
+    fun `in the model's own words the summary reads StoryEngine's notebook without the lines for a dropped connection`() = runTest {
+        val llm = ScriptedLlm(answer("박서진은 편의점과 화장실에 있었다고 했어요."))
+        val voice = StoryVoice(scenario, llm, AgentConfig(answers = AnswerMode.FREE))
         val heard = Testimony("s_seojin", "자정 무렵 어디 있었나요?", "편의점에서 물을 사고 화장실에 다녀왔습니다.")
         val offline = Testimony("s_minhyuk", "블랙박스는 왜 꺼져 있었죠?", minhyuk.fallbackOffline)
 

@@ -63,7 +63,7 @@ import kotlin.random.Random
  * clues found and the key reactions drawn out; the narrator's hints and the nudge to accuse follow it.
  *
  * With [AnswerMode.LINES], the default, the suspect only ever says lines of its persona file, picked by the
- * model by id; a case with a public line or reaction that has no
+ * model by id, and the summary reads the notebook back; a case with a public line or reaction that has no
  * `line` throws [IllegalArgumentException] here.
  */
 class VoiceAgent(
@@ -417,6 +417,12 @@ class VoiceAgent(
     private suspend fun summaryTurn(progress: TurnProgress, unlocked: Set<String>, notebook: List<Testimony>): AgentReply {
         if (unlocked.isEmpty() && notebook.isEmpty()) {
             return speakLine(progress, ReplyKind.OVERVIEW, null, SummaryPrompt.overviewFallback(scenario.case))
+        }
+        if (lineAnswers) {
+            // Read back, not summarized: nothing is said that the case file and the clues found do not hold.
+            val readout = NarratorLines.notebook(scenario.case, scenario.suspects, unlocked, notebook)
+            splitSentences(readout).forEach { say(progress, it, config.narratorSpeaker, isFiller = false) }
+            return progress.reply(ReplyKind.SUMMARY)
         }
         val request = LlmRequest(
             task = LlmTask.SUMMARY,

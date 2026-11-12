@@ -6,6 +6,7 @@ import dev.voiceagent.content.InvestigationStage
 import dev.voiceagent.content.Suspect
 import dev.voiceagent.llm.ProxyContract
 import dev.voiceagent.prompt.KoreanParticles
+import dev.voiceagent.prompt.LinePrompt
 import dev.voiceagent.prompt.PromptVariant
 import dev.voiceagent.prompt.Testimony
 
@@ -14,7 +15,8 @@ enum class AnswerMode {
     /**
      * The model only picks the suspect's lines by id and the app reads them as the case file has them
      * (prompt/LinePrompt), so an answer holds nothing the case file does not, and a reaction to a clue not found
-     * yet is never on the list to pick. Every public line and reaction needs its `line`.
+     * yet is never on the list to pick. The F-06 summary reads the notebook back without an LLM
+     * ([NarratorLines.notebook]). Every public line and reaction needs its `line`.
      */
     LINES,
 
@@ -51,7 +53,7 @@ data class AgentConfig(
      * [AnswerMode.LINES] a line is never cut: the first one is read whole, and a second only if both fit.
      */
     val maxAnswerSentences: Int = 3,
-    /** About 30 seconds of speech (F-06). */
+    /** About 30 seconds of speech (F-06), for the LLM summary of [AnswerMode.FREE] only. */
     val maxSummarySentences: Int = 5,
     /** Earlier exchanges with the same suspect sent along with a new question. */
     val historyExchanges: Int = MAX_HISTORY_EXCHANGES,
@@ -148,7 +150,7 @@ enum class ReplyKind {
     /** The utterance was empty, so the player was asked to say it again. */
     NOT_UNDERSTOOD,
 
-    /** The narrator summarized the notebook. */
+    /** The narrator summarized the notebook, or with [AnswerMode.LINES] read it back ([NarratorLines.notebook]). */
     SUMMARY,
 
     /** The notebook was empty, so the narrator replayed the case overview without an LLM. */
@@ -265,6 +267,30 @@ object NarratorLines {
         if (locked.isNotEmpty()) return locked.firstNotNullOfOrNull { it.hint }
         // The case's hint is for an investigation that is done, not one waiting on the reaction just tried.
         return if (pending.isEmpty()) case.spoilerHint else null
+    }
+
+    /**
+     * F-06 with [AnswerMode.LINES]: the notebook read back without an LLM, so the summary says nothing the case
+     * file and the clues found do not (the team's ScriptedVoiceAgent.summarize reads it the same way). The
+     * clues found; for each suspect in cast order, the case lines of its latest testimony that has any, word for
+     * word ([LinePrompt.heardCaseLines]: deflections are left out); how many clues are still to come.
+     */
+    fun notebook(case: Case, suspects: Map<String, Suspect>, unlocked: Set<String>, testimonies: List<Testimony>): String {
+        val titles = case.clues.filter { it.id in unlocked }.map { it.title }
+        val parts = mutableListOf(
+            if (titles.isEmpty()) "아직 찾은 단서는 없어요." else "지금까지 찾은 단서는 ${KoreanParticles.withCopula(titles.joinToString(", "))}.",
+        )
+        for (member in case.suspects) {
+            val suspect = suspects[member.id] ?: continue
+            val said = testimonies.asReversed().asSequence()
+                .filter { it.suspect == suspect.id }
+                .map { LinePrompt.heardCaseLines(suspect, it.answer) }
+                .firstOrNull { it.isNotEmpty() } ?: continue
+            parts += "${suspect.name} 씨가 마지막으로 한 말은 이래요. ${said.joinToString(" ")}"
+        }
+        val missing = case.clues.size - titles.size
+        if (missing > 0) parts += "아직 찾지 못한 단서가 ${missing}개 남아 있어요."
+        return parts.joinToString(" ")
     }
 
     fun offlineSummary(case: Case, unlocked: Set<String>): String {

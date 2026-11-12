@@ -260,6 +260,29 @@ class LineAnswersTest {
     }
 
     @Test
+    fun `the summary reads the notebook back without an LLM, case lines only`() = runTest {
+        val llm = ScriptedLlm(answer("k-maid-crown"), answer("deflect-2"))
+        val speech = speech()
+        val agent = agent(llm, speech)
+        agent.unlockClue("clue-back-door")
+        agent.ask("옥분 씨, 화관 얘기 들었어요?")
+        agent.ask("하린 씨, 오늘 날씨 어때요?")
+
+        val summary = agent.summarize()
+
+        assertEquals(2, llm.requests.size)
+        assertEquals(ReplyKind.SUMMARY, summary.kind)
+        assertNull(summary.suspectId)
+        assertEquals(
+            "지금까지 찾은 단서는 부엌 뒷문 발자국이에요. 김옥분 씨가 마지막으로 한 말은 이래요. ${line(maid, "k-maid-crown")} " +
+                "아직 찾지 못한 단서가 3개 남아 있어요.",
+            summary.text,
+        )
+        val narrator = AgentConfig().narratorSpeaker
+        assertTrue(speech.spoken.takeLast(summary.sentences.size).all { it.speaker == narrator })
+    }
+
+    @Test
     fun `a claim is compared with the clue that broke it only when its line was said`() = runTest {
         val compare = NarratorLines.compare(son, jade.case.clue("clue-barefoot"))
 
@@ -322,6 +345,24 @@ class LineAnswersTest {
         assertEquals(listOf(maid.filler), speech.spoken.map { it.text })
         assertTrue(agent.state.value.notebook.isEmpty())
         assertTrue(agent.state.value.confronted.isEmpty())
+    }
+
+    @Test
+    fun `the notebook read back keeps only the case lines of testimony the model worded`() = runTest {
+        val llm = ScriptedLlm()
+        val crown = line(maid, "k-maid-crown")
+        val notebook = listOf(
+            Testimony("maid", "옥분 씨, 화관 얘기 들었어요?", "모델이 보탠 말이에요. $crown 화관은 부엌 찬장에 있어요."),
+            Testimony("son", "준기 씨, 그날 밤 뭐 했어요?", "모델이 제 말로 지어낸 대답이에요."),
+        )
+
+        val summary = agent(llm, speech()).summarize(setOf("clue-back-door"), notebook)
+
+        assertTrue(llm.requests.isEmpty())
+        assertEquals(
+            "지금까지 찾은 단서는 부엌 뒷문 발자국이에요. 김옥분 씨가 마지막으로 한 말은 이래요. $crown 아직 찾지 못한 단서가 3개 남아 있어요.",
+            summary.text,
+        )
     }
 
     @Test

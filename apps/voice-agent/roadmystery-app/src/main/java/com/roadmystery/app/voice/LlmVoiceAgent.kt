@@ -12,7 +12,7 @@ import dev.voiceagent.story.StoryVoices
  * - MainActivity에서 ScriptedVoiceAgent 대신 넣는다. 우리 사건 원고(content/cases/<시나리오 id>)가 없는
  *   시나리오는 [fallback]이 지금처럼 대본으로 답한다.
  * - 대답은 글로만 돌려준다. 읽기는 StoryEngine의 대답 장면이 한다(F-03에서는 용의자 voice).
- * - 대답은 사건 원고의 대사를 그대로 읽은 것이다. 모델은 대사 id만 고른다
+ * - 대답은 사건 원고의 대사를 그대로 읽은 것이다. 모델은 대사 id만 고르고, 요약도 수첩을 그대로 읽는다
  *   (docs/voice-agent/line-answers.md). answerId에는 처음 읽은 대사 id를 넣는다.
  * - 대답으로 단서를 열지 않으므로 reveals는 비어 있다. 단서는 장면이 끝날 때 열린다(모든 단서가 필수 본편
  *   장면에서 열린다는 ScenarioParser.validate 규칙).
