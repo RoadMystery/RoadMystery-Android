@@ -77,6 +77,33 @@ def test_a_line_ending_in_plain_da_reads_as_an_instruction(jade_copy: Path) -> N
     assert any("k-son-crown" in problem for problem in _problems(jade_copy))
 
 
+STOCK_LINES: dict[str, Callable[[Any, str], None]] = {
+    "화제 돌리기": lambda data, line: data["deflections"].__setitem__(0, line),
+    "못 알아들었을 때": lambda data, line: data["fallbackLines"].update(notUnderstood=line),
+    "연결이 끊겼을 때": lambda data, line: data["fallbackLines"].update(offline=line),
+    "뜸 들이는 말": lambda data, line: data["fallbackLines"].update(filler=line),
+}
+"""The lines the app says on its own, by the name a problem gives them, and how to rewrite each in a persona file."""
+BROKEN_LINES: dict[str, tuple[Callable[[Any], str], str]] = {
+    "a clue keyword": (lambda case: f"{case['clues'][0]['keywords'][0]} 얘기는 저도 몰라요.", "단서 키워드"),
+    "an instruction": (lambda case: "나는 그날 일찍 잠들었다.", "지시문처럼"),
+    "a note in English": (lambda case: "Sorry, 다시 말해 봐요.", "지시문처럼"),
+    # The motive, said as hearsay: speech with no clue keyword in it, so only the hidden-fact rule sees it.
+    "the solution": (lambda case: f"{case['solution']['motive'].rstrip('.')}라고 하던데요.", "숨긴 사실이나 정답"),
+}
+"""What no line may be, as the line to put in and the words of the problem that names it."""
+
+
+@pytest.mark.parametrize("where", STOCK_LINES)
+@pytest.mark.parametrize("broken", BROKEN_LINES)
+def test_a_line_the_app_says_on_its_own_is_held_to_the_rules_of_any_line(jade_copy: Path, where: str, broken: str) -> None:
+    line, problem_says = BROKEN_LINES[broken]
+    text = line(_case_json(jade_copy))
+    _edit(jade_copy / "suspects" / "son.json", lambda data: STOCK_LINES[where](data, text))
+
+    assert any(f"son/{where}" in problem and problem_says in problem for problem in _problems(jade_copy))
+
+
 def test_a_hint_naming_another_clue_is_reported_with_its_clue(jade_copy: Path) -> None:
     clues = _case_json(jade_copy)["clues"]
     _edit(

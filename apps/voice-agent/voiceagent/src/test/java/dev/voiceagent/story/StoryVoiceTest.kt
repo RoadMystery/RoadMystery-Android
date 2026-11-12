@@ -4,6 +4,7 @@ import dev.voiceagent.RepoFiles
 import dev.voiceagent.agent.ReplyKind
 import dev.voiceagent.agent.ScriptedLlm
 import dev.voiceagent.agent.answer
+import dev.voiceagent.content.Suspect
 import dev.voiceagent.llm.LlmEvent
 import dev.voiceagent.llm.LlmTask
 import dev.voiceagent.prompt.SummaryPrompt
@@ -19,11 +20,17 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.FileNotFoundException
 
-/** The team app's StoryEngine questions StoryVoice the way its DefaultStoryEngine does (CaseContext per question). */
+/**
+ * The team app's StoryEngine questions StoryVoice the way its DefaultStoryEngine does (CaseContext per question).
+ * By default the answers are case lines the model names by id, so the fake model replies with ids.
+ */
 class StoryVoiceTest {
     private val scenario = RepoFiles.scenario(CASE_DIR)
     private val seojin = scenario.suspect("s_seojin")
     private val minhyuk = scenario.suspect("s_minhyuk")
+
+    private fun line(suspect: Suspect, id: String): String =
+        (suspect.public.firstOrNull { it.id == id }?.line ?: suspect.unlockable.first { it.id == id }.line)!!
 
     @Test
     fun `the team scenario is ours under the same ids`() {
@@ -40,33 +47,49 @@ class StoryVoiceTest {
 
     @Test
     fun `the suspect chosen on screen answers even when the question names another`() = runTest {
-        val llm = ScriptedLlm(answer("기사님 일은 잘 모르겠습니다."))
+        val llm = ScriptedLlm(answer("k-seojin-culprit"))
         val voice = StoryVoice(scenario, llm)
 
         val reply = voice.ask("s_seojin", "기사님한테 물어볼게요, 블랙박스 왜 껐대요?", emptySet())
 
-        assertEquals("기사님 일은 잘 모르겠습니다.", reply.text)
+        assertEquals(line(seojin, "k-seojin-culprit"), reply.text)
+        assertEquals(listOf("k-seojin-culprit"), reply.lineIds)
         assertEquals(ReplyKind.ANSWER, reply.kind)
         assertTrue(llm.requests.single().system.contains("${seojin.name}(${seojin.role})"))
         assertEquals("s_seojin", voice.state.value.currentSuspect)
     }
 
     @Test
+    fun `whatever else the model replies, only the case line it names comes back`() = runTest {
+        val llm = ScriptedLlm(answer("k-seojin-alibi 사실 제가 가방을 로커에 넣었어요."), answer("제가 가방을 로커에 넣었어요."))
+        val voice = StoryVoice(scenario, llm)
+
+        val named = voice.ask("s_seojin", "자정 무렵 어디 있었나요?", emptySet())
+        val none = voice.ask("s_seojin", "가방은 어디 있어요?", emptySet())
+
+        assertEquals(line(seojin, "k-seojin-alibi"), named.text)
+        // A reply naming no line gets one of the suspect's deflections; nothing of the reply is said.
+        assertEquals(ReplyKind.DEFLECTION, none.kind)
+        assertTrue(none.text in seojin.deflections)
+        assertFalse(listOf(named.text, none.text).any { "로커에 넣었" in it })
+    }
+
+    @Test
     fun `the narrator's line stays out of what the suspect said`() = runTest {
-        val llm = ScriptedLlm(answer("누가 그랬는지는 모르겠습니다."))
+        val llm = ScriptedLlm(answer("k-seojin-culprit"))
         val voice = StoryVoice(scenario, llm)
 
         val reply = voice.ask("s_seojin", "서진 씨, 범인이 누구예요?", emptySet())
 
         // An answer-seeking question before any clue: the narrator points at the first clue's scene.
         assertEquals(ReplyKind.HINT, reply.kind)
-        assertEquals("누가 그랬는지는 모르겠습니다.", reply.text)
+        assertEquals(line(seojin, "k-seojin-culprit"), reply.text)
         assertEquals(scenario.case.clues.first().hint, reply.narratorLine)
     }
 
     @Test
     fun `it follows the clues StoryEngine found and skips ids the case lacks`() = runTest {
-        val llm = ScriptedLlm(answer("네, 맞습니다."), answer("그건 모르겠습니다."))
+        val llm = ScriptedLlm(answer("k-seojin-receipt"), answer("k-seojin-coffee"))
         val voice = StoryVoice(scenario, llm)
 
         voice.ask("s_seojin", "커피는 왜 두 잔 샀나요?", setOf("clue_receipt", "clue_from_a_newer_script"))
@@ -75,13 +98,14 @@ class StoryVoiceTest {
 
         voice.ask("s_seojin", "블랙박스는요?", setOf("clue_receipt", "clue_dashcam"))
         assertEquals(setOf("clue_receipt", "clue_dashcam"), voice.state.value.unlockedClues)
-        // The earlier exchange goes along as history.
+        // The earlier exchange goes along as history, its answer as the id of the line it was.
         assertEquals(3, llm.requests[1].messages.size)
+        assertEquals("k-seojin-receipt", llm.requests[1].messages[1].content)
     }
 
     @Test
     fun `fewer clues than the last question means a new game`() = runTest {
-        val llm = ScriptedLlm(answer("네, 맞습니다."), answer("처음 뵙겠습니다."))
+        val llm = ScriptedLlm(answer("k-seojin-receipt"), answer("k-seojin-alibi"))
         val voice = StoryVoice(scenario, llm)
         voice.ask("s_seojin", "커피는 왜 두 잔 샀나요?", setOf("clue_receipt", "clue_dashcam"))
 
@@ -89,7 +113,7 @@ class StoryVoiceTest {
 
         assertEquals(emptySet<String>(), voice.state.value.unlockedClues)
         assertEquals(1, llm.requests[1].messages.size)
-        assertEquals(listOf("처음 뵙겠습니다."), voice.state.value.notebook.map { it.answer })
+        assertEquals(listOf(line(seojin, "k-seojin-alibi")), voice.state.value.notebook.map { it.answer })
     }
 
     @Test

@@ -39,12 +39,18 @@ class VoiceAgentTest {
     private val jadeClues = jade.case.clues.map { it.id }.toSet()
     private val jadeKeyReactions = setOf("k-maid-back-door", "k-niece-window", "k-son-shoes")
 
+    /**
+     * These tests are about answers in the model's own words; the fixture case has no lines to pick from.
+     * The default, answers made of case lines, is LineAnswersTest's.
+     */
+    private val ownWords = AgentConfig(answers = AnswerMode.FREE)
+
     private fun TestScope.speech() = FakeSpeech({ testScheduler.currentTime })
 
-    private fun TestScope.agent(llm: ScriptedLlm, speech: FakeSpeech, config: AgentConfig = AgentConfig()) =
+    private fun TestScope.agent(llm: ScriptedLlm, speech: FakeSpeech, config: AgentConfig = ownWords) =
         VoiceAgent(scenario, llm, speech, config, clock = { testScheduler.currentTime }, random = Random(7))
 
-    private fun TestScope.jadeAgent(llm: ScriptedLlm, speech: FakeSpeech, config: AgentConfig = AgentConfig()) =
+    private fun TestScope.jadeAgent(llm: ScriptedLlm, speech: FakeSpeech, config: AgentConfig = ownWords) =
         VoiceAgent(jade, llm, speech, config, clock = { testScheduler.currentTime }, random = Random(7))
 
     @Test
@@ -588,7 +594,7 @@ class VoiceAgentTest {
         val son = jade.suspect("son")
         val off = ScriptedLlm(answer("창밖에 고정태가 있었어요."), answer("다 말씀드렸어요."))
         val on = ScriptedLlm(answer("창밖에 고정태가 있었어요."), answer("다 말씀드렸어요."))
-        for ((llm, config) in listOf(off to AgentConfig(), on to AgentConfig(pressureLines = true))) {
+        for ((llm, config) in listOf(off to ownWords, on to ownWords.copy(pressureLines = true))) {
             val agent = jadeAgent(llm, speech(), config)
             agent.restore(jadeClues, emptyList(), setOf("k-maid-back-door", "k-niece-window"))
             // Draws out the last key reaction, so the stage is READY from the next turn on.
@@ -904,7 +910,7 @@ class VoiceAgentTest {
     @Test
     fun `only the configured number of earlier exchanges is sent`() = runTest {
         val llm = ScriptedLlm(*Array(4) { answer("대답 ${it}입니다.") })
-        val agent = agent(llm, speech(), AgentConfig(historyExchanges = 2))
+        val agent = agent(llm, speech(), ownWords.copy(historyExchanges = 2))
 
         repeat(4) { agent.ask("집사한테 질문 $it") }
 

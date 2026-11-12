@@ -15,6 +15,7 @@ from difflib import SequenceMatcher
 from pathlib import Path
 
 from voice_eval.content import STAGES, Case, ContentError, Suspect, load_case, load_suspect
+from voice_eval.lines import is_line_id, is_reserved
 from voice_eval.metrics import (
     MAX_SENTENCES,
     address_terms,
@@ -92,9 +93,21 @@ def _case_text_shown_before_any_clue(case: Case) -> list[tuple[str, str]]:
     return [("사건 개요", case.setting), *(("공개 사실", fact) for fact in case.public_facts)]
 
 
+def _stock_lines(suspect: Suspect) -> list[tuple[str, str]]:
+    """(where, text) of the lines the app says for [suspect] on its own, read as they are and whatever the
+    player has found: when no line fits the question, when it could not hear, when no answer came, and
+    while one is on its way."""
+    return [
+        *(("화제 돌리기", deflection) for deflection in suspect.deflections),
+        ("못 알아들었을 때", suspect.fallback_not_understood),
+        ("연결이 끊겼을 때", suspect.fallback_offline),
+        ("뜸 들이는 말", suspect.filler),
+    ]
+
+
 def _persona_shown_before_any_clue(suspect: Suspect) -> list[tuple[str, str]]:
-    """(where, text) of the persona text in every prompt of [suspect], and the answer keys of its public
-    facts, which the judge and the sentence check treat as said."""
+    """(where, text) of the persona text in every prompt of [suspect], the answer keys of its public
+    facts, which the judge and the sentence check treat as said, and the lines the app says on its own."""
     return [
         ("배경", suspect.background),
         *(("성격", trait) for trait in suspect.personality),
@@ -105,7 +118,7 @@ def _persona_shown_before_any_clue(suspect: Suspect) -> list[tuple[str, str]]:
         *(("예시 대사", example) for example in suspect.speech_examples),
         *((fact.id, text) for fact in suspect.public for text in dict.fromkeys((fact.text, fact.prompt_text))),
         *(("관계", relationship.attitude) for relationship in suspect.relationships),
-        *(("화제 돌리기", deflection) for deflection in suspect.deflections),
+        *_stock_lines(suspect),
     ]
 
 
@@ -409,6 +422,22 @@ def deflections_do_not_refuse(subject: Subject) -> list[str]:
     ]
 
 
+def stock_lines(subject: Subject) -> list[str]:
+    # With AnswerMode.LINES the app reads these word for word, at any point of any game, so each is held to
+    # what a fact's line is: speech, and nothing of a hidden fact or the solution. Their clue keywords and
+    # forbidden phrases are caught with the text shown before any clue.
+    case, problems = subject.case, []
+    answer = _answer(case)
+    for suspect in subject.suspects.values():
+        for where, line in _stock_lines(suspect):
+            for sentence in split_sentences(line):
+                if looks_like_readout(sentence, suspect.name):
+                    problems.append(f"{suspect.id}/{where}: 대사가 말이 아니라 지시문처럼 보입니다: {sentence}")
+            if any(text in line for text in answer) or overlong_runs(line, answer):
+                problems.append(f"{suspect.id}/{where}: 대사가 아직 숨긴 사실이나 정답을 옮깁니다")
+    return problems
+
+
 def example_openings_vary(subject: Subject) -> list[str]:
     # The model copies an opening interjection most of a persona's lines share into nearly every answer.
     # The app drops a repeat as it speaks (metrics.drop_repeated_opening), but then most answers would
@@ -434,6 +463,21 @@ def hidden_facts_are_not_allowed_facts(subject: Subject) -> list[str]:
         for suspect in subject.suspects.values()
         if (copied := hidden & set(allowed_facts(case, suspect, frozenset())))
     ]
+
+
+def line_ids_are_free(subject: Subject) -> list[str]:
+    # The app answers with case lines the model names by id (voice_eval.lines). Ids are matched whole, so one with
+    # a "." or a Hangul letter could stop early and name another line. The deflections, the pressure line, the
+    # confession and the line for a question not caught go by ids of their own, so a public fact or reaction with
+    # one of those ids would be read in its place.
+    problems = []
+    for suspect in subject.suspects.values():
+        for fact in (*suspect.public, *suspect.unlockable):
+            if not is_line_id(fact.id):
+                problems.append(f"{suspect.id}/{fact.id}: id에는 영문자, 숫자, '_', '-'만 씁니다")
+            elif is_reserved(fact.id):
+                problems.append(f"{suspect.id}/{fact.id}: 대사를 고를 때 앱이 쓰는 id입니다. 다른 id를 쓰세요")
+    return problems
 
 
 def comparisons_do_not_point_at_the_culprit(subject: Subject) -> list[str]:
@@ -471,6 +515,8 @@ CHECKS: tuple[Check, ...] = (
     hidden_facts_are_not_allowed_facts,
     sheet_items,
     deflections_do_not_refuse,
+    stock_lines,
     example_openings_vary,
     comparisons_do_not_point_at_the_culprit,
+    line_ids_are_free,
 )

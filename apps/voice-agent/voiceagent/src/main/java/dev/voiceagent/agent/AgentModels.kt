@@ -9,11 +9,30 @@ import dev.voiceagent.prompt.KoreanParticles
 import dev.voiceagent.prompt.PromptVariant
 import dev.voiceagent.prompt.Testimony
 
+/** How a suspect's answer is made (docs/voice-agent/line-answers.md). */
+enum class AnswerMode {
+    /**
+     * The model only picks the suspect's lines by id and the app reads them as the case file has them
+     * (prompt/LinePrompt), so an answer holds nothing the case file does not, and a reaction to a clue not found
+     * yet is never on the list to pick. Every public line and reaction needs its `line`.
+     */
+    LINES,
+
+    /**
+     * The model says the answer in its own words, as measured in tools/voice-eval: more natural, but it can add
+     * case facts the file does not have (지어냄, about 1 to 8 in 100 answers in the measured cases).
+     */
+    FREE,
+}
+
 data class AgentConfig(
+    /** [AnswerMode.LINES] unless a case is to be answered in the model's own words. */
+    val answers: AnswerMode = AnswerMode.LINES,
     /**
      * Prompt variant sent to the LLM. AWARE is the game's rule (docs/voice-agent/game-rules.md): the culprit
      * knows it hides something and confesses once cornered. COVER, the variant measured before it, stays
-     * for comparison in tools/voice-eval.
+     * for comparison in tools/voice-eval. With [AnswerMode.LINES] only AWARE's cornering decides anything:
+     * the confession is on the list once the culprit can confess.
      */
     val variant: PromptVariant = PromptVariant.AWARE,
     /**
@@ -27,7 +46,10 @@ data class AgentConfig(
     val firstTextTimeoutMs: Long = 8_000,
     /** Upper bound for a whole answer, like the proxy's 30 s upstream timeout. */
     val answerTimeoutMs: Long = 30_000,
-    /** Up to two short openers ("하, 참.", "맨발이요?") at the start do not count (text/Sentences.kt). */
+    /**
+     * Up to two short openers ("하, 참.", "맨발이요?") at the start do not count (text/Sentences.kt). With
+     * [AnswerMode.LINES] a line is never cut: the first one is read whole, and a second only if both fit.
+     */
     val maxAnswerSentences: Int = 3,
     /** About 30 seconds of speech (F-06). */
     val maxSummarySentences: Int = 5,
@@ -62,8 +84,9 @@ data class AgentState(
     /** Counts [VoiceAgent.reset]s and [VoiceAgent.restore]s, so a turn they cut off cannot write into the new game. */
     val game: Int = 0,
     /**
-     * Ids of the key reactions drawn out: the player heard the suspect answer a question bringing up
-     * their clue ([Investigation.isAnswer]).
+     * Ids of the key reactions drawn out. With [AnswerMode.LINES], those whose line the player heard, whatever the
+     * question; with [AnswerMode.FREE], the player heard the suspect answer a question bringing up their clue
+     * ([Investigation.isAnswer]).
      */
     val confronted: Set<String> = emptySet(),
     /** 수사 진척도 from [unlockedClues] and [confronted] ([Investigation.stage]); never shown to the player. */
@@ -103,8 +126,9 @@ enum class ReplyKind {
     ANSWER,
 
     /**
-     * Nothing of the answer could be spoken (its first sentence read out instructions or leaked), so
-     * one of the suspect's deflections was, and no narrator line followed.
+     * Nothing of the answer could be spoken (its first sentence read out instructions or leaked, or, with
+     * [AnswerMode.LINES], the reply named no line), so one of the suspect's deflections was, and no narrator
+     * line followed.
      */
     DEFLECTION,
 
@@ -155,6 +179,12 @@ data class AgentReply(
      * one a barge-in cut off ([ReplyKind.INTERRUPTED]). It is also the last of [sentences].
      */
     val narratorLine: String? = null,
+    /**
+     * With [AnswerMode.LINES], the ids ([dev.voiceagent.prompt.SpeakableLine.id]) of the suspect's lines handed
+     * to speech, in order; a line counts once its first sentence is. Empty otherwise, and for a deflection the
+     * agent picked itself.
+     */
+    val lineIds: List<String> = emptyList(),
 ) {
     /** Everything spoken, the narrator's line included: for subtitles, never for testimony. */
     val text: String get() = sentences.joinToString(" ")

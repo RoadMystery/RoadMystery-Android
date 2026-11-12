@@ -15,8 +15,17 @@ from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any
 
-from voice_eval.content import ContentError, load_case, load_suspect
+from voice_eval.content import Case, ContentError, Suspect, load_case, load_suspect
 from voice_eval.identify import decompose_jamo, identify_suspect, suspect_aliases
+from voice_eval.lines import (
+    CONFESSION_ID,
+    NOT_UNDERSTOOD_ID,
+    chosen_lines,
+    heard_case_lines,
+    heard_line_ids,
+    render_line_prompt,
+    speakable_lines,
+)
 from voice_eval.metrics import (
     address_terms,
     counted_sentences,
@@ -31,9 +40,10 @@ from voice_eval.metrics import (
 from voice_eval.prompt import VARIANTS, confession_opens, raised_topics, render_system_prompt
 from voice_eval.summary import load_summary_probes, overview_fallback, render_summary_prompt
 
-GOLDEN_VERSION = 3
+GOLDEN_VERSION = 4
 """What the Kotlin parity test expects; 2 added the "gathering" prompt entry, 3 the "aware" variant, the
-culprit's confession and the opening the app drops as it speaks."""
+culprit's confession and the opening the app drops as it speaks, 4 the answers made of case lines (lines,
+line_choices, heard)."""
 GOLDEN_CASE = "jade-crown"
 """The case the app ships (Kotlin AndroidAssets.kt DEMO_CASE_DIR)."""
 PRESSURE_STAGES = ("pressing", "ready")
@@ -202,9 +212,45 @@ OPENING_SAMPLES: tuple[tuple[str, str, str], ...] = (
 )
 """(suspect, an answer's first sentence, the suspect's previous heard answer): the opening the app drops."""
 
+LINE_CHOICES: tuple[tuple[str, tuple[str, ...], bool, str], ...] = (
+    ("maid", (), False, "k-maid-night"),
+    ("maid", (), False, "k-maid-night 그리고 범인은 하린 아가씨예요."),
+    ("maid", (), False, "K-MAID-CROWN, k-maid-study, k-maid-culprit"),
+    ("maid", (), False, "deflect-1, k-maid-culprit"),
+    ("maid", (), False, "deflect-2"),
+    ("maid", (), False, "deflect-9"),
+    ("maid", (), False, "k-maid-back-door"),
+    ("maid", ("clue-back-door",), False, "k-maid-night"),
+    ("maid", ("clue-back-door",), False, "[k-maid-back-door]"),
+    ("son", ("clue-window", "clue-shoes"), False, "k-son-shoes"),
+    ("son", (), False, "k-son"),
+    ("son", (), False, "k-son-crownx, k-son-room"),
+    ("son", (), False, "not-understood, deflect-1"),
+    ("son", (), False, ""),
+    ("niece", ("clue-back-door", "clue-window", "clue-barefoot", "clue-shoes"), True, "confession, k-niece-lock"),
+    ("niece", ("clue-back-door", "clue-window", "clue-barefoot", "clue-shoes"), False, "confession"),
+)
+"""(suspect, clues found, whether the confession is on offer, the model's reply): which lines the app reads."""
+
+HEARD_LINES: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("maid", ("k-maid-crown",)),
+    ("maid", ("deflect-1", "k-maid-study")),
+    ("son", ("k-son-shoes", "k-son-friend")),
+    ("niece", ("confession",)),
+    ("niece", ("not-understood",)),
+)
+"""(suspect, ids): an answer made of those lines, as the notebook keeps it, and the ids found back in it."""
+
+HEARD_TEXTS: tuple[tuple[str, str], ...] = (
+    ("maid", "모델이 제 말로 지어낸 대답이에요."),
+    ("son", "서재에 내려가기 전엔   방에서 나간 적 없어요!"),
+    ("son", ""),
+)
+"""(suspect, answer): answers not made of lines word for word, or only with spacing and marks changed."""
+
 
 def build_golden(
-    case_dir: Path, suspect_template: str, summary_template: str, summary_probes: Path
+    case_dir: Path, suspect_template: str, summary_template: str, summary_probes: Path, lines_template: str
 ) -> dict[str, Any]:
     case = load_case(case_dir)
     if case.id != GOLDEN_CASE:
@@ -342,7 +388,75 @@ def build_golden(
             _readout_entry(text, speaker_id, by_id[speaker_id].name if speaker_id else "")
             for text, speaker_id in [*((text, None) for text in READOUT_SAMPLES), *SPEAKER_READOUT_SAMPLES]
         ],
+        **_line_entries(case, suspects, clue_sets, lines_template),
     }
+
+
+def _line_entries(
+    case: Case, suspects: list[Suspect], clue_sets: list[tuple[str, ...]], lines_template: str
+) -> dict[str, list[dict[str, Any]]]:
+    """The answers made of case lines (voice_eval.lines): the lines on offer and the prompt for each clue set,
+    at the pressure stages with every clue found, and for the cornered culprit; which lines a reply names; and
+    the lines found back in an answer the notebook kept."""
+    every = tuple(clue.id for clue in case.clues)
+    by_id = {suspect.id: suspect for suspect in suspects}
+    turns = [
+        *((suspect, unlocked, "opening", False) for suspect in suspects for unlocked in clue_sets),
+        *((suspect, every, stage, False) for suspect in suspects if suspect.pressure for stage in PRESSURE_STAGES),
+        *((suspect, every, "ready", True) for suspect in suspects if suspect.id == case.solution.culprit),
+    ]
+    lines = []
+    for suspect, unlocked, stage, confession in turns:
+        found = frozenset(unlocked)
+        offered = speakable_lines(case, suspect, found, stage=stage, confession=confession)
+        lines.append(
+            {
+                "suspect": suspect.id,
+                "unlocked": list(unlocked),
+                "stage": stage,
+                "confession": confession,
+                "lines": [asdict(line) for line in offered],
+                "prompt": render_line_prompt(case, suspect, found, lines_template, stage=stage, confession=confession),
+            }
+        )
+    choices = []
+    for suspect_id, unlocked, confession, reply in LINE_CHOICES:
+        # As the app asks by default: pressure lines are off, so the stage adds none.
+        offered = speakable_lines(case, by_id[suspect_id], frozenset(unlocked), confession=confession)
+        choices.append(
+            {
+                "suspect": suspect_id,
+                "unlocked": list(unlocked),
+                "confession": confession,
+                "reply": reply,
+                "chosen": [line.id for line in chosen_lines(reply, offered)],
+            }
+        )
+    answers = [
+        (suspect_id, " ".join(_line_text(by_id[suspect_id], line_id) for line_id in ids))
+        for suspect_id, ids in HEARD_LINES
+    ]
+    heard = [
+        {
+            "suspect": suspect_id,
+            "answer": answer,
+            "ids": list(heard_line_ids(by_id[suspect_id], answer)),
+            "case_lines": list(heard_case_lines(by_id[suspect_id], answer)),
+        }
+        for suspect_id, answer in [*answers, *HEARD_TEXTS]
+    ]
+    return {"lines": lines, "line_choices": choices, "heard": heard}
+
+
+def _line_text(suspect: Suspect, line_id: str) -> str:
+    """The text of [suspect]'s line [line_id], whatever the clues found, for HEARD_LINES; the ids are those of
+    voice_eval.lines ("deflect-1" is the first deflection)."""
+    texts = {fact.id: fact.line for fact in (*suspect.public, *suspect.unlockable) if fact.line}
+    texts.update({f"deflect-{index}": text for index, text in enumerate(suspect.deflections, start=1)})
+    texts[NOT_UNDERSTOOD_ID] = suspect.fallback_not_understood
+    if suspect.confession:
+        texts[CONFESSION_ID] = suspect.confession
+    return texts[line_id]
 
 
 def _readout_entry(text: str, speaker_id: str | None, speaker: str) -> dict[str, Any]:

@@ -148,15 +148,18 @@ data class Scenario(
     val suspects: Map<String, Suspect>,
     val suspectTemplate: String,
     val summaryTemplate: String,
+    /** The prompt that has the model pick a suspect's lines by id (prompt/LinePrompt), when answers are lines only. */
+    val linesTemplate: String,
 ) {
     fun suspect(id: String): Suspect = suspects[id] ?: throw NoSuchElementException("no suspect '$id'")
 
     companion object {
         const val SUSPECT_TEMPLATE = "suspect_system.ko.md"
         const val SUMMARY_TEMPLATE = "summary_system.ko.md"
+        const val LINES_TEMPLATE = "suspect_lines.ko.md"
 
         /**
-         * Loads `<caseDir>/case.json`, `<caseDir>/suspects/<id>.json` for every suspect, and both
+         * Loads `<caseDir>/case.json`, `<caseDir>/suspects/<id>.json` for every suspect, and the three
          * templates. [read] returns a file's text by asset path: the app's merged assets, or the
          * repository directories in JVM tests.
          */
@@ -167,7 +170,7 @@ data class Scenario(
                 member.id to ScenarioParser.parseSuspect(text("$caseDir/suspects/${member.id}.json"), case)
             }
             ScenarioParser.checkCast(suspects.values)
-            return Scenario(case, suspects, text(SUSPECT_TEMPLATE), text(SUMMARY_TEMPLATE))
+            return Scenario(case, suspects, text(SUSPECT_TEMPLATE), text(SUMMARY_TEMPLATE), text(LINES_TEMPLATE))
         }
 
         /** Python reads text with universal newlines; a Windows checkout can hand the app CRLF files. */

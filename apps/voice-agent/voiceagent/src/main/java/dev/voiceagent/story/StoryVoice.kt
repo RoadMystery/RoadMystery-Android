@@ -23,7 +23,8 @@ import kotlinx.coroutines.sync.withLock
  * (F-03). So this answers in text and speaks nothing itself, and it follows the clues StoryEngine passes
  * with every question. Within one game the clues found only grow: a question with fewer clues than the last
  * one starts a new game and forgets the conversation, as StoryEngine.start does with its own state.
- * Questions and summaries run one at a time.
+ * Questions and summaries run one at a time. By default (AnswerMode.LINES) an answer is lines of the
+ * suspect's persona file, so it says nothing the case file does not (docs/voice-agent/line-answers.md).
  */
 class StoryVoice(
     private val scenario: Scenario,
@@ -53,7 +54,7 @@ class StoryVoice(
         follow(foundClueIds)
         val reply = agent.ask(utterance, suspectId)
         val text = reply.suspectText.ifBlank { scenario.suspect(suspectId).fallbackOffline }
-        StoryReply(text, reply.narratorLine, reply.kind, reply.failure)
+        StoryReply(text, reply.narratorLine, reply.kind, reply.failure, reply.lineIds)
     }
 
     /**
@@ -111,4 +112,9 @@ data class StoryReply(
     val kind: ReplyKind,
     /** Why no LLM answer came, when [text] is the suspect's line for that (VoiceAgent's failure codes). */
     val failure: String?,
+    /**
+     * The ids of the case lines [text] reads (AnswerMode.LINES, the default), in order: the team's
+     * SuspectReply.answerId takes the first. Empty for a deflection or fallback the agent chose itself.
+     */
+    val lineIds: List<String> = emptyList(),
 )

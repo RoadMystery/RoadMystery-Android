@@ -69,6 +69,8 @@ DEFAULT_RUNS_DIR = TOOL_ROOT / "runs"
 DEFAULT_ENV_FILE = TOOL_ROOT / ".env"
 """Holds ANTHROPIC_API_KEY; gitignored, read at startup, values never printed."""
 DEFAULT_SUMMARY_TEMPLATE = TOOL_ROOT / "prompts" / "summary_system.ko.md"
+DEFAULT_LINES_TEMPLATE = TOOL_ROOT / "prompts" / "suspect_lines.ko.md"
+"""The app's default answers: the model picks the suspect's lines by id (voice_eval.lines)."""
 DEFAULT_SUMMARY_PROBES = TOOL_ROOT / "probes" / "summary.json"
 DEFAULT_GOLDEN = TOOL_ROOT / "golden" / "voice-agent-golden.json"
 DEFAULT_GOLDEN_CASE_DIR = REPO_ROOT / "content" / "cases" / GOLDEN_CASE
@@ -332,6 +334,7 @@ def _cmd_golden(args: argparse.Namespace) -> int:
         args.template.read_text(encoding="utf-8"),
         DEFAULT_SUMMARY_TEMPLATE.read_text(encoding="utf-8"),
         args.summary_probes,
+        DEFAULT_LINES_TEMPLATE.read_text(encoding="utf-8"),
     )
     args.out.parent.mkdir(parents=True, exist_ok=True)
     # LF on every OS: the committed file is LF and the Kotlin parity test reads it as is.

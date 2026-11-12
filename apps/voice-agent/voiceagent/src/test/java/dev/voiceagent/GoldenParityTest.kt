@@ -6,6 +6,7 @@ import dev.voiceagent.identify.SequenceMatcher
 import dev.voiceagent.identify.SuspectIdentifier
 import dev.voiceagent.identify.decomposeJamo
 import dev.voiceagent.platform.DEMO_CASE_DIR
+import dev.voiceagent.prompt.LinePrompt
 import dev.voiceagent.prompt.PromptVariant
 import dev.voiceagent.prompt.SummaryPrompt
 import dev.voiceagent.prompt.SuspectPrompt
@@ -37,7 +38,7 @@ class GoldenParityTest {
 
     @Test
     fun `golden file is the version and case this port implements`() {
-        assertEquals(3, golden.getInt("version"))
+        assertEquals(4, golden.getInt("version"))
         assertEquals(DEMO_CASE_DIR, "cases/${golden.getString("case")}")
         assertEquals(scenario.case.id, golden.getString("case"))
     }
@@ -164,6 +165,49 @@ class GoldenParityTest {
             val spoken = stripStageDirections(sentence)
             assertEquals("'$sentence'", entry.getString("spoken"), spoken)
             assertEquals("'$sentence'", entry.getBoolean("spoken_readout"), looksLikeReadout(spoken, speaker))
+        }
+    }
+
+    @Test
+    fun `the lines on offer and the prompt picking them match Python`() {
+        val entries = golden.getJSONArray("lines").objects()
+        assertTrue(entries.any { it.getBoolean("confession") } && entries.any { it.getString("stage") == "ready" })
+        for (entry in entries) {
+            val suspect = scenario.suspect(entry.getString("suspect"))
+            val unlocked = entry.getJSONArray("unlocked").strings().toSet()
+            val stage = InvestigationStage.entries.first { it.id == entry.getString("stage") }
+            val confession = entry.getBoolean("confession")
+            val where = "${suspect.id} $unlocked ${stage.id} confession=$confession"
+            val expected = entry.getJSONArray("lines").objects().map { Triple(it.getString("id"), it.getString("label"), it.getString("text")) }
+            val lines = LinePrompt.speakableLines(scenario.case, suspect, unlocked, stage, confession)
+            assertEquals(where, expected, lines.map { Triple(it.id, it.label, it.text) })
+            val actual = LinePrompt.render(scenario.case, suspect, unlocked, scenario.linesTemplate, stage, confession)
+            assertEquals(where, entry.getString("prompt"), actual)
+        }
+    }
+
+    @Test
+    fun `the lines a reply names match Python`() {
+        val entries = golden.getJSONArray("line_choices").objects()
+        assertTrue(entries.any { it.getJSONArray("chosen").length() == 0 } && entries.any { it.getJSONArray("chosen").length() == 2 })
+        for (entry in entries) {
+            val suspect = scenario.suspect(entry.getString("suspect"))
+            val unlocked = entry.getJSONArray("unlocked").strings().toSet()
+            val lines = LinePrompt.speakableLines(scenario.case, suspect, unlocked, confession = entry.getBoolean("confession"))
+            val reply = entry.getString("reply")
+            assertEquals("'$reply'", entry.getJSONArray("chosen").strings(), LinePrompt.chosen(reply, lines).map { it.id })
+        }
+    }
+
+    @Test
+    fun `the lines found back in a kept answer match Python`() {
+        val entries = golden.getJSONArray("heard").objects()
+        assertTrue(entries.any { it.getJSONArray("ids").length() == 0 } && entries.any { it.getJSONArray("ids").length() == 2 })
+        for (entry in entries) {
+            val suspect = scenario.suspect(entry.getString("suspect"))
+            val answer = entry.getString("answer")
+            assertEquals("'$answer'", entry.getJSONArray("ids").strings(), LinePrompt.heardLineIds(suspect, answer))
+            assertEquals("'$answer'", entry.getJSONArray("case_lines").strings(), LinePrompt.heardCaseLines(suspect, answer))
         }
     }
 

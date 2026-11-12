@@ -20,13 +20,13 @@ import dev.voiceagent.agent.AgentReply
 import dev.voiceagent.agent.AgentState
 import dev.voiceagent.agent.VoiceAgent
 import dev.voiceagent.content.Scenario
-import dev.voiceagent.content.ScenarioParser
 import dev.voiceagent.llm.LlmClient
 import dev.voiceagent.llm.ProxyLlmClient
 import dev.voiceagent.platform.DEMO_CASE_DIR
 import dev.voiceagent.platform.PleosSpeechInput
 import dev.voiceagent.platform.PleosSpeechOutput
 import dev.voiceagent.platform.fromAssets
+import dev.voiceagent.prompt.LinePrompt
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -194,6 +194,8 @@ class MainActivity : Activity() {
             .put("elapsedMs", SystemClock.elapsedRealtime() - startedAt)
             .put("failure", reply.failure ?: JSONObject.NULL)
             .put("speechError", reply.speechError ?: JSONObject.NULL)
+            // The case lines read, by id: answers are lines of the persona file only (AnswerMode.LINES).
+            .put("lineIds", JSONArray(reply.lineIds))
         // Debug builds only: these lines are the player's conversation (llm-proxy-contract.md).
         if (BuildConfig.DEBUG) Log.i(TAG, "DEMO_REPLY $json")
         logReply(reply)
@@ -220,16 +222,23 @@ class MainActivity : Activity() {
     }
 
     /**
-     * The cases packed as assets (content/cases/), each one a directory holding a case.json. Only case.json
-     * is read for the button title; the whole case loads when it is picked.
+     * The cases packed as assets (content/cases/), each one a directory holding a case.json, that the agent can
+     * answer in case lines, its default (AnswerMode.LINES). A case with a public line or reaction that has no
+     * line, like the measured fixture demo-sapphire, is left out with a log line.
      */
     private fun listCases(): List<CaseEntry> = assets.list("cases").orEmpty()
         .filter { CASE_ID.matches(it) && assets.list("cases/$it").orEmpty().contains("case.json") }
         .sorted()
         .mapNotNull { id ->
             try {
-                val text = assets.open("cases/$id/case.json").bufferedReader(Charsets.UTF_8).use { it.readText() }
-                CaseEntry(id, ScenarioParser.parseCase(text).title)
+                val case = Scenario.fromAssets(assets, "cases/$id")
+                val problems = LinePrompt.problems(case)
+                if (problems.isEmpty()) {
+                    CaseEntry(id, case.case.title)
+                } else {
+                    Log.i(TAG, "사건 $id: 대사로 답할 수 없어 뺌 (${problems.first()} 등 ${problems.size}개)")
+                    null
+                }
             } catch (e: Exception) {
                 Log.w(TAG, "사건 $id 을(를) 읽지 못함", e)
                 null

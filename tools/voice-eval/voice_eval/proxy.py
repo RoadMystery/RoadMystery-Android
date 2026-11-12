@@ -190,6 +190,10 @@ def claude_upstream(client: anthropic.Anthropic, profiles: Mapping[str, Candidat
     return stream
 
 
+_MOCK_LINE = re.compile(r"^# 고를 수 있는 대사\n- ([A-Za-z0-9_-]+) \(", re.MULTILINE)
+"""The first line on offer in a prompt that has the model pick lines by id (voice_eval.lines)."""
+
+
 def mock_upstream(
     answers: Mapping[str, str],
     first_delay_s: float = 0.4,
@@ -198,10 +202,13 @@ def mock_upstream(
     sleep: Callable[[float], None] = time.sleep,
 ) -> Upstream:
     """Streams a canned answer per task like Claude would, so the app can be tested end to end
-    without an API key or cost. The first delay is past the app's 0.3 s filler threshold."""
+    without an API key or cost. The first delay is past the app's 0.3 s filler threshold. A prompt
+    that has the model pick a suspect's lines gets the id of its first line instead, the app's
+    default (the canned answer names no line, so the app would only ever deflect)."""
 
     def stream(request: RespondRequest) -> Iterator[ProxyEvent]:
-        text = answers[request.task]
+        line = _MOCK_LINE.search(request.system)
+        text = line.group(1) if line else answers[request.task]
         sleep(first_delay_s)
         for start in range(0, len(text), chunk_chars):
             if start:

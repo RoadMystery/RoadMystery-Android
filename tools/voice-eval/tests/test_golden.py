@@ -21,6 +21,7 @@ def _fresh(case_dir: Path = GOLDEN_CASE_DIR) -> dict:
         TEMPLATE_PATH.read_text(encoding="utf-8"),
         (TOOL_ROOT / "prompts" / "summary_system.ko.md").read_text(encoding="utf-8"),
         TOOL_ROOT / "probes" / GOLDEN_CASE / "summary.json",
+        (TOOL_ROOT / "prompts" / "suspect_lines.ko.md").read_text(encoding="utf-8"),
     )
 
 
@@ -43,8 +44,21 @@ def test_the_golden_command_writes_the_committed_file_byte_for_byte(tmp_path: Pa
 
 def test_the_golden_version_is_the_one_the_kotlin_port_checks() -> None:
     # Kotlin GoldenParityTest checks the same number; version 2 added the "gathering" prompt, version 3
-    # the "aware" variant, the confession and the dropped openings.
-    assert json.loads(GOLDEN_PATH.read_text(encoding="utf-8"))["version"] == GOLDEN_VERSION == 3
+    # the "aware" variant, the confession and the dropped openings, version 4 the answers made of lines.
+    assert json.loads(GOLDEN_PATH.read_text(encoding="utf-8"))["version"] == GOLDEN_VERSION == 4
+
+
+def test_golden_covers_the_lines_on_offer_their_prompts_and_choices() -> None:
+    golden = _fresh()
+    # Suspects x (no clue, each clue alone, every clue), the pressure stages, and the cornered culprit.
+    assert len(golden["lines"]) == 3 * 6 + 3 * len(PRESSURE_STAGES) + 1
+    cornered = [entry for entry in golden["lines"] if entry["confession"]]
+    assert [(entry["suspect"], entry["stage"]) for entry in cornered] == [("niece", "ready")]
+    assert "confession" in [line["id"] for line in cornered[0]["lines"]]
+    chosen = {entry["reply"]: entry["chosen"] for entry in golden["line_choices"] if entry["suspect"] == "maid"}
+    assert chosen["k-maid-night 그리고 범인은 하린 아가씨예요."] == ["k-maid-night"]
+    assert chosen["k-maid-back-door"] == []
+    assert next(entry["ids"] for entry in golden["heard"] if entry["suspect"] == "son") == ["k-son-shoes", "k-son-friend"]
 
 
 def test_golden_samples_only_build_for_the_case_the_app_ships() -> None:

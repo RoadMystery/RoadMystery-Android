@@ -13,6 +13,8 @@ import dev.voiceagent.llm.LlmRequest
 import dev.voiceagent.llm.LlmTask
 import dev.voiceagent.llm.ProxyContract
 import dev.voiceagent.llm.Role
+import dev.voiceagent.prompt.LinePrompt
+import dev.voiceagent.prompt.SpeakableLine
 import dev.voiceagent.prompt.SummaryPrompt
 import dev.voiceagent.prompt.SuspectPrompt
 import dev.voiceagent.prompt.Testimony
@@ -26,6 +28,7 @@ import dev.voiceagent.text.dropRepeatedOpening
 import dev.voiceagent.text.looksLikeReadout
 import dev.voiceagent.text.phraseHits
 import dev.voiceagent.text.pythonStrip
+import dev.voiceagent.text.splitSentences
 import dev.voiceagent.text.stripStageDirections
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineStart
@@ -58,6 +61,10 @@ import kotlin.random.Random
  *
  * It also keeps the investigation's hidden progress ([AgentState.stage], see [Investigation]) from the
  * clues found and the key reactions drawn out; the narrator's hints and the nudge to accuse follow it.
+ *
+ * With [AnswerMode.LINES], the default, the suspect only ever says lines of its persona file, picked by the
+ * model by id; a case with a public line or reaction that has no
+ * `line` throws [IllegalArgumentException] here.
  */
 class VoiceAgent(
     private val scenario: Scenario,
@@ -72,6 +79,14 @@ class VoiceAgent(
     private val keyReactionIds = scenario.suspects.values.flatMap { it.unlockable }.filter { it.key }.map { it.id }.toSet()
     private val mutableState = MutableStateFlow(AgentState())
     private val activeTurn = AtomicReference<Job?>(null)
+    private val lineAnswers = config.answers == AnswerMode.LINES
+
+    init {
+        if (lineAnswers) {
+            val problems = LinePrompt.problems(scenario)
+            require(problems.isEmpty()) { "'${scenario.case.id}' cannot be answered in lines: ${problems.joinToString(", ")}" }
+        }
+    }
 
     val state: StateFlow<AgentState> = mutableState.asStateFlow()
 
@@ -190,7 +205,6 @@ class VoiceAgent(
         val suspect = scenario.suspect(suspectId)
         mutableState.update { if (it.game == progress.game) it.copy(currentSuspect = suspectId) else it }
         progress.update { it.copy(suspectId = suspectId) }
-        val topics = SuspectPrompt.raisedTopics(scenario.case, state.unlockedClues, question)
         // The stage only adds pressure lines, and how the LLM answers with them is not measured yet, so
         // off every turn gets the OPENING prompt. Either way the golden file pins it to Python's.
         val stage = if (config.pressureLines) state.stage else InvestigationStage.OPENING
@@ -198,37 +212,143 @@ class VoiceAgent(
         // it answer such a question it stays able to; the stage counts here whether or not pressure lines are on.
         val confession = (state.cornered && Confession.canConfess(scenario.case, suspect, config.variant)) ||
             Confession.opens(scenario.case, suspect, config.variant, state.stage, listOf(question))
+        val answer = try {
+            if (lineAnswers) {
+                speakLines(progress, state, suspect, question, stage, confession)
+            } else {
+                speakOwnWords(progress, state, suspect, question, stage, confession)
+            }
+        } catch (e: CancellationException) {
+            // The player cut in: keep what they heard so a follow-up question has its context, and
+            // count a reaction they heard as drawn out.
+            val heard = progress.snapshot.sentences
+            val lineIds = progress.snapshot.lineIds.takeIf { lineAnswers }
+            remember(progress.game, suspectId, question, heard)
+            confront(progress.game, suspect, state.unlockedClues, question, heard, lineIds)
+            // With lines the claims the player started hearing are known, so a later comparison can point at them.
+            if (lineIds != null && heard.isNotEmpty()) noteClaims(progress.game, suspect, state.unlockedClues, question, lineIds)
+            if (confession && heard.isNotEmpty()) corner(progress.game)
+            throw e
+        }
+        return endTurn(progress, suspect, state.unlockedClues, question, answer, confession)
+    }
+
+    /** [AnswerMode.FREE]: the model's own words, under the spoiler guard and the read-out rules. */
+    private suspend fun speakOwnWords(
+        progress: TurnProgress,
+        state: AgentState,
+        suspect: Suspect,
+        question: String,
+        stage: InvestigationStage,
+        confession: Boolean,
+    ): Answer {
+        val topics = SuspectPrompt.raisedTopics(scenario.case, state.unlockedClues, question)
         val request = LlmRequest(
             task = LlmTask.INTERROGATION,
             system = SuspectPrompt.render(
                 scenario.case, suspect, state.unlockedClues, config.variant, scenario.suspectTemplate, topics, stage, confession,
             ),
-            messages = conversation(state.notebook, suspectId, question),
+            messages = conversation(state.notebook, suspect.id, question),
             requestId = UUID.randomUUID().toString(),
         )
         val blocked = unsentClueWords(request, state.unlockedClues)
         // The interjections the suspect's previous heard answer opened with are not said again.
-        val previous = state.notebook.lastOrNull { it.suspect == suspectId }?.answer.orEmpty()
+        val previous = state.notebook.lastOrNull { it.suspect == suspect.id }?.answer.orEmpty()
         val keep = addressTerms(suspect.speechRules)
-        val answer = try {
-            speakAnswer(
-                progress, request, suspect.speaker, suspect.filler, config.maxAnswerSentences, blocked,
-                // A confession is meant to give the culprit away; only what the prompt did not send stops it.
-                forbidden = if (confession) emptyList() else scenario.case.forbiddenPhrases,
-                countSentences = ::countedSentences, clean = ::stripStageDirections,
-                cleanFirst = { dropRepeatedOpening(stripStageDirections(it), previous, keep) },
-                isReadout = { looksLikeReadout(it, suspect.name) },
-            )
-        } catch (e: CancellationException) {
-            // The player cut in: keep what they heard so a follow-up question has its context, and
-            // count a reaction they heard as drawn out.
-            val heard = progress.snapshot.sentences
-            remember(progress.game, suspectId, question, heard)
-            confront(progress.game, suspect, state.unlockedClues, question, heard)
-            if (confession && heard.isNotEmpty()) corner(progress.game)
-            throw e
+        return speakAnswer(
+            progress, request, suspect.speaker, suspect.filler, config.maxAnswerSentences, blocked,
+            // A confession is meant to give the culprit away; only what the prompt did not send stops it.
+            forbidden = if (confession) emptyList() else scenario.case.forbiddenPhrases,
+            countSentences = ::countedSentences, clean = ::stripStageDirections,
+            cleanFirst = { dropRepeatedOpening(stripStageDirections(it), previous, keep) },
+            isReadout = { looksLikeReadout(it, suspect.name) },
+        )
+    }
+
+    /**
+     * [AnswerMode.LINES]: the model names lines by id ([LinePrompt.render]) and only the lines it names are
+     * spoken, each whole and sentence by sentence; nothing else of its reply ever is. A reply naming none is
+     * answered with a deflection ([Answer.guarded]); one that fails or times out, with the fallback line.
+     */
+    private suspend fun speakLines(
+        progress: TurnProgress,
+        state: AgentState,
+        suspect: Suspect,
+        question: String,
+        stage: InvestigationStage,
+        confession: Boolean,
+    ): Answer = coroutineScope {
+        val lines = LinePrompt.speakableLines(scenario.case, suspect, state.unlockedClues, stage, confession)
+        val request = LlmRequest(
+            task = LlmTask.INTERROGATION,
+            system = LinePrompt.render(scenario.case, suspect, state.unlockedClues, scenario.linesTemplate, stage, confession),
+            messages = lineConversation(state.notebook, suspect, question),
+            requestId = UUID.randomUUID().toString(),
+        )
+        val queue = Channel<Line>(Channel.UNLIMITED)
+        val talker = launch {
+            for (line in queue) {
+                line.lineId?.let { id -> progress.update { it.copy(lineIds = it.lineIds + id) } }
+                say(progress, line.text, suspect.speaker, isFiller = line.isFiller)
+            }
         }
-        return endTurn(progress, suspect, state.unlockedClues, question, answer, confession)
+        val fillerJob = launch {
+            delay(config.fillerDelayMs)
+            queue.trySend(Line(suspect.filler, isFiller = true))
+        }
+        val events = llm.stream(request)
+            .catch { emit(LlmEvent.Failure(CLIENT_ERROR, it.javaClass.simpleName)) }
+            .produceIn(this)
+        val picked = try {
+            val (reply, failure) = receiveReply(events, progress)
+            val chosen = if (failure == null) fit(LinePrompt.chosen(reply, lines)) else emptyList()
+            progress.update { it.copy(failure = failure ?: NO_LINE.takeIf { chosen.isEmpty() }) }
+            chosen
+        } finally {
+            events.cancel()
+            fillerJob.cancel()
+        }
+        for (line in picked) {
+            splitSentences(line.text).forEachIndexed { index, sentence ->
+                queue.trySend(Line(sentence, isFiller = false, lineId = line.id.takeIf { index == 0 }))
+            }
+        }
+        queue.close()
+        talker.join()
+        val failed = progress.snapshot.failure.let { it != null && it != NO_LINE }
+        Answer(picked.flatMap { splitSentences(it.text) }, guarded = picked.isEmpty() && !failed, leaked = emptyList(), lineIds = picked.map { it.id })
+    }
+
+    /** The lines to speak of [chosen]: the first whole, then each further one only if all fit [AgentConfig.maxAnswerSentences]. */
+    private fun fit(chosen: List<SpeakableLine>): List<SpeakableLine> {
+        val first = chosen.firstOrNull() ?: return emptyList()
+        return chosen.drop(1).fold(listOf(first)) { picked, line ->
+            val together = (picked + line).flatMap { splitSentences(it.text) }
+            if (countedSentences(together) <= config.maxAnswerSentences) picked + line else picked
+        }
+    }
+
+    /** The whole reply naming lines, with null, or what came before a failure or a timeout, with its code. */
+    private suspend fun receiveReply(events: ReceiveChannel<LlmEvent>, progress: TurnProgress): Pair<String, String?> {
+        val reply = StringBuilder()
+        val startedAt = clock()
+        val deadline = startedAt + config.answerTimeoutMs
+        while (true) {
+            val waitingForText = reply.isEmpty()
+            val limit = if (waitingForText) minOf(startedAt + config.firstTextTimeoutMs, deadline) else deadline
+            val next = withTimeoutOrNull((limit - clock()).coerceAtLeast(0)) { events.receiveCatching() }
+                ?: return reply.toString() to if (waitingForText) FIRST_TEXT_TIMEOUT else ANSWER_TIMEOUT
+            when (val event = next.getOrNull()) {
+                null -> return reply.toString() to INCOMPLETE
+                is LlmEvent.Failure -> return reply.toString() to event.code
+                is LlmEvent.Done -> return reply.toString() to null
+                is LlmEvent.Delta -> {
+                    if (event.text.isEmpty()) continue
+                    if (waitingForText) progress.update { it.copy(firstTextMs = clock() - startedAt) }
+                    reply.append(event.text)
+                }
+            }
+        }
     }
 
     /**
@@ -251,8 +371,8 @@ class VoiceAgent(
         val heard = answer.sentences.isNotEmpty()
         if (heard) remember(progress.game, suspect.id, question, answer.sentences)
         if (heard && confession) corner(progress.game)
-        val drawn = confront(progress.game, suspect, unlocked, question, answer.sentences)
-        if (heard) noteClaims(progress.game, suspect, unlocked, question)
+        val drawn = confront(progress.game, suspect, unlocked, question, answer.sentences, answer.lineIds)
+        if (heard) noteClaims(progress.game, suspect, unlocked, question, answer.lineIds)
         // A reaction the question went after but did not draw out stays pending; "ask about it" would
         // only repeat the question just asked, so the hint moves on. That holds when the answer was
         // heard but did not count (only an opener, or asking to repeat) as much as when it was cut.
@@ -318,6 +438,24 @@ class VoiceAgent(
     }
 
     /**
+     * [conversation] for [AnswerMode.LINES]: an earlier answer goes back as the ids of the lines it holds
+     * ([LinePrompt.heardLineIds]), so the model keeps naming lines instead of copying words; an exchange
+     * whose answer holds no line of [suspect] (saved from the model's own words) is left out.
+     */
+    private fun lineConversation(notebook: List<Testimony>, suspect: Suspect, question: String): List<ChatMessage> {
+        val past = notebook.filter { it.suspect == suspect.id }.takeLast(config.historyExchanges)
+        val history = past.flatMap { testimony ->
+            val ids = LinePrompt.heardLineIds(suspect, testimony.answer)
+            if (ids.isEmpty()) {
+                emptyList()
+            } else {
+                listOf(ChatMessage(Role.USER, testimony.question), ChatMessage(Role.ASSISTANT, ids.joinToString(", ")))
+            }
+        }
+        return history + ChatMessage(Role.USER, question)
+    }
+
+    /**
      * Keywords of clues not found yet that appear nowhere in [request]: neither the player nor the
      * prompt brought them up, so a suspect saying one is volunteering the clue.
      */
@@ -342,11 +480,23 @@ class VoiceAgent(
     /**
      * Adds the key reactions [question] drew out of [suspect] if what the player [heard] answers it
      * ([Investigation.isAnswer]), and returns them. [unlocked] is what the prompt was made with: it had
-     * a reaction only if all its clues were in it.
+     * a reaction only if all its clues were in it. With [lineIds], the lines handed to speech
+     * ([AnswerMode.LINES]), a key reaction is drawn out exactly when its line was, whatever the question.
      */
-    private fun confront(game: Int, suspect: Suspect, unlocked: Set<String>, question: String, heard: List<String>): Set<String> {
-        if (!Investigation.isAnswer(suspect, heard)) return emptySet()
-        val drawn = Investigation.drawnOut(scenario.case, suspect, unlocked, question)
+    private fun confront(
+        game: Int,
+        suspect: Suspect,
+        unlocked: Set<String>,
+        question: String,
+        heard: List<String>,
+        lineIds: List<String>? = null,
+    ): Set<String> {
+        val drawn = if (lineIds != null) {
+            suspect.unlockable.filter { it.key && it.id in lineIds }.map { it.id }.toSet()
+        } else {
+            if (!Investigation.isAnswer(suspect, heard)) return emptySet()
+            Investigation.drawnOut(scenario.case, suspect, unlocked, question)
+        }
         if (drawn.isNotEmpty()) {
             mutableState.update { if (it.game == game) staged(it.copy(confronted = it.confronted + drawn)) else it }
         }
@@ -380,13 +530,16 @@ class VoiceAgent(
     /**
      * Records the claims [suspect]'s prompt carried with [unlocked] when the player heard it answer, and
      * counts as caught the reactions taking a claim back that [question] already confronted it with: pointing
-     * at them afterwards would repeat what the player just did.
+     * at them afterwards would repeat what the player just did. With [lineIds] ([AnswerMode.LINES]) the player
+     * is known to have heard exactly those lines: a claim counts once its line was said, and so does a reaction
+     * taking one back.
      */
-    private fun noteClaims(game: Int, suspect: Suspect, unlocked: Set<String>, question: String) {
-        val held = Investigation.standingClaims(suspect, unlocked).map { suspect.id to it }
+    private fun noteClaims(game: Int, suspect: Suspect, unlocked: Set<String>, question: String, lineIds: List<String>? = null) {
+        val claims = Investigation.standingClaims(suspect, unlocked)
+        val held = (if (lineIds == null) claims else claims.filter { it in lineIds }).map { suspect.id to it }
         val raised = Investigation.mentionedClues(scenario.case, question).map { it.id }.toSet()
         val confronting = Investigation.claimBreakers(suspect, unlocked)
-            .filter { fact -> fact.unlockedBy.any(raised::contains) }
+            .filter { fact -> if (lineIds == null) fact.unlockedBy.any(raised::contains) else fact.id in lineIds }
             .map { suspect.id to it.id }
         if (held.isEmpty() && confronting.isEmpty()) return
         mutableState.update {
@@ -423,10 +576,14 @@ class VoiceAgent(
         mutableState.update { staged(start.copy(game = it.game + 1)) }
     }
 
-    /** [leaked]: the blocked phrases that stopped the answer, if a leak is what stopped it. */
-    private data class Answer(val sentences: List<String>, val guarded: Boolean, val leaked: List<String>)
+    /**
+     * [leaked]: the blocked phrases that stopped the answer, if a leak is what stopped it. [lineIds]: with
+     * [AnswerMode.LINES], the lines spoken; null for the model's own words.
+     */
+    private data class Answer(val sentences: List<String>, val guarded: Boolean, val leaked: List<String>, val lineIds: List<String>? = null)
 
-    private data class Line(val text: String, val isFiller: Boolean)
+    /** [lineId]: on the first sentence of a case line ([AnswerMode.LINES]), the line it starts. */
+    private data class Line(val text: String, val isFiller: Boolean, val lineId: String? = null)
 
     /** Streams [request] into speech; returns once everything accepted has been spoken. */
     private suspend fun speakAnswer(
@@ -528,6 +685,9 @@ class VoiceAgent(
         const val EMPTY_ANSWER = "empty_answer"
         const val CLIENT_ERROR = "client_error"
         const val SPOILER_GUARD = "spoiler_guard"
+
+        /** [AnswerMode.LINES]: the reply named none of the lines it was given, so a deflection was spoken. */
+        const val NO_LINE = "no_line"
     }
 }
 
@@ -542,6 +702,8 @@ private class TurnProgress(val game: Int) {
         val speechError: String? = null,
         /** Set as the narrator's line is handed to speech, so it is always the last of [sentences]. */
         val narratorLine: String? = null,
+        /** With AnswerMode.LINES, each case line once its first sentence is handed to speech. */
+        val lineIds: List<String> = emptyList(),
     )
 
     private val current = AtomicReference(Snapshot())
@@ -553,7 +715,7 @@ private class TurnProgress(val game: Int) {
     }
 
     fun reply(kind: ReplyKind): AgentReply = snapshot.let {
-        AgentReply(kind, it.suspectId, it.sentences, it.fillerPlayed, it.firstTextMs, it.failure, it.speechError, it.narratorLine)
+        AgentReply(kind, it.suspectId, it.sentences, it.fillerPlayed, it.firstTextMs, it.failure, it.speechError, it.narratorLine, it.lineIds)
     }
 }
 
