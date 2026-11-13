@@ -68,4 +68,33 @@ class MotionEngineIntegrationTest {
         assertEquals(AppMode.ENDING, engine.mode.value)
         assertTrue(engine.canInteract.value)
     }
+
+    @Test fun `a hazard still held at arrival does not block the accusation`() = runTest {
+        val scenario = ScenarioParser.parse(File("src/main/assets/scenarios/midnight_rest_area.json").readText())
+        val simulated = FakeVehicleState()
+        val selected = SelectedVehicleState(emptyFlow(), simulated.events, VehicleSource.SIMULATION)
+        val engine = DefaultStoryEngine(
+            ScenarioRepository { scenario },
+            FakeAudioPlayer(backgroundScope),
+            scope = backgroundScope,
+            clock = { testScheduler.currentTime }
+        )
+        engine.bind(selected, backgroundScope)
+        runCurrent()
+        engine.start(scenario.id)
+        simulated.send(VehicleEvent.Driving)
+        advanceTimeBy(5_000)
+
+        // 급제동 뒤 3초 안에 서면 낭독은 다음 출발까지 멈춘 채로 남는다. 그대로 도착해 주차한다.
+        simulated.send(VehicleEvent.Hazard(HazardReason.HARD_BRAKE))
+        advanceTimeBy(1_500)
+        simulated.send(VehicleEvent.Stopped)
+        advanceTimeBy(10_000)
+        simulated.send(VehicleEvent.Arrived)
+        simulated.send(VehicleEvent.Parked)
+        runCurrent()
+
+        assertEquals(AppMode.ENDING, engine.mode.value)
+        assertTrue(engine.canInteract.value)
+    }
 }
