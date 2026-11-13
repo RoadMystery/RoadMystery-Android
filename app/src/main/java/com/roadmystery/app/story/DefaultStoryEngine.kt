@@ -26,7 +26,7 @@ import kotlinx.coroutines.launch
  * - 장면이 끝나면 그 장면의 단서가 열리고, 다음 정차 때까지 pendingClues에 쌓인다.
  * - 위험 이벤트(급제동·ADAS·"멈춰")는 즉시 낭독과 심문을 멈춘다. 일정 시간 조용하면 "이어서 들려드릴게요" 안내 후
  *   멈춘 문장부터 재개한다. 짧은 시간 안에 반복되면 다음 정차 때까지 재개를 보류한다.
- * - 남은 도착 시간이 부족하면 required=false 장면을 뺀다.
+ * - 남은 도착 시간이 부족하면 required=false 장면을 뺀다. 목적지가 없으면 10분 챕터로 본다.
  * - 정차 중에는 심문·수첩 요약을 받는다. 출발하면 심문은 즉시 끝나고 낭독으로 돌아간다.
  * - 도착하면 낭독을 멈추고, 아직 못 들은 필수 장면의 단서를 지급한 뒤 범인 지목을 기다린다.
  *
@@ -109,6 +109,8 @@ class DefaultStoryEngine(
     /** 심문 때문에 멈춘 낭독 장면과 문장. */
     private var interrupted: Pair<Scene, Int>? = null
     private var askJob: Job? = null
+
+    /** 주행 중 질문 구간에서 던진 질문의 대답이 진행 중이다. 같은 주행 상태의 Driving 이벤트로 끊지 않는다. */
     private var askedWhileDriving = false
     private var replyCount = 0
     private val heardAnswers = mutableMapOf<String, MutableSet<String>>()
@@ -179,6 +181,7 @@ class DefaultStoryEngine(
         saved?.playedSceneIds?.let { playedIds.addAll(it) }
         queue.addAll(firstChapter.mainScenes.filterNot { it.id in playedIds })
         _mode.value = AppMode.BRIEFING
+        replan()
 
         if (saved == null) {
             firstChapter.sceneFor(SceneTrigger.BRIEFING)?.let { play(it) }
@@ -253,16 +256,6 @@ class DefaultStoryEngine(
 
     override fun ask(suspectId: String, utterance: String) = askSuspect(suspectId, utterance, whileDriving = false)
 
-    override fun askBetweenScenes(suspectId: String, utterance: String) {
-        val scene = current ?: return
-        if (scope == null || held || !moving || _mode.value != AppMode.DRIVING) return
-        if (scene.trigger != null || sentenceIndex < scene.script.lastIndex || utterance.isBlank()) return
-        if (_scenario.value?.suspect(suspectId) == null || askJob?.isActive == true) return
-
-        completeScene(scene)
-        askSuspect(suspectId, utterance, whileDriving = true)
-    }
-
     private fun askSuspect(suspectId: String, utterance: String, whileDriving: Boolean) {
         val loaded = _scenario.value ?: return
         val suspect = loaded.suspect(suspectId) ?: return
@@ -276,6 +269,34 @@ class DefaultStoryEngine(
                 )
             voice.ask(utterance, context)
         }
+    }
+
+    override fun askBetweenScenes(
+        suspectId: String,
+        utterance: String,
+    ) {
+        val loaded = _scenario.value ?: return
+        val suspect = loaded.suspect(suspectId) ?: return
+        val scene = current ?: return
+        val asking = scene.trigger == null && _mode.value == AppMode.DRIVING && moving && !held
+        // 질문 구간은 장면의 마지막 문장을 읽은 뒤다. 아직 읽는 중이면 받지 않는다.
+        if (!asking || sentenceIndex < scene.script.size - 1) return
+        if (utterance.isBlank() || askJob?.isActive == true) return
+
+        // 질문 구간이 끝나면서 오는 SceneFinished가 대답을 기다리는 동안 다음 장면을 시작하지 못하게,
+        // 이 장면은 지금 끝난 것으로 치고 대답이 끝나면 다음 장면으로 간다.
+        completeScene(scene)
+        respond(suspectId = suspectId, question = utterance, title = "${suspect.name}의 대답", whileDriving = true) {
+            val context =
+                CaseContext(
+                    scenario = loaded,
+                    suspect = suspect,
+                    foundClueIds = _clues.value.map { it.id }.toSet(),
+                    heardAnswerIds = heardAnswers[suspectId].orEmpty(),
+                )
+            voice.ask(utterance, context)
+        }
+        if (askJob == null) playNext() // 대답을 시작하지 못했으면 질문이 없었던 것처럼 이어간다.
     }
 
     override fun requestSummary() {
@@ -317,9 +338,15 @@ class DefaultStoryEngine(
         askJob =
             asyncScope.launch {
                 val reply = produce()
-                val canAnswer = (_mode.value == AppMode.STOPPED && !moving) ||
-                    (whileDriving && _mode.value == AppMode.DRIVING && moving)
-                if (!canAnswer || held) return@launch
+                // 주행 중 던진 질문은 그 사이 정차했어도 대답한다. 정차 중에 던진 질문은 출발하면 버린다.
+                val canAnswer =
+                    (_mode.value == AppMode.DRIVING && moving && whileDriving) ||
+                        (_mode.value == AppMode.STOPPED && !moving)
+                if (!canAnswer || held) {
+                    askedWhileDriving = false
+                    _interrogation.value = null
+                    return@launch
+                }
                 if (suspectId != null) {
                     reply.answerId?.let { heardAnswers.getOrPut(suspectId) { mutableSetOf() } += it }
                     _testimonies.value = _testimonies.value + Testimony(suspectId, question, reply.text)
@@ -338,6 +365,7 @@ class DefaultStoryEngine(
         askJob?.cancel()
         askedWhileDriving = false
         askJob = null
+        askedWhileDriving = false
         val inReply = current?.trigger == SceneTrigger.REPLY
         _interrogation.value = null
         if (!thinking && !inReply) return false
@@ -353,6 +381,8 @@ class DefaultStoryEngine(
     }
 
     private fun onDriving() {
+        // 주행 중 질문의 대답을 하는 동안 들어온 Driving은 이미 가고 있다는 알림이다.
+        if (_mode.value == AppMode.DRIVING && askedWhileDriving) return
         when (_mode.value) {
             AppMode.ENDING -> return
             AppMode.STOPPED -> _pendingClues.value = emptyList()
@@ -482,6 +512,7 @@ class DefaultStoryEngine(
                     queue.none { it.id == scene.id }
             } ?: return
         queue.addFirst(scene)
+        replan()
         if (current == null && !held && !askedWhileDriving && _mode.value == AppMode.DRIVING) playNext()
     }
 
@@ -510,6 +541,7 @@ class DefaultStoryEngine(
         if (_mode.value == AppMode.DRIVING || _mode.value == AppMode.STOPPED) playNext()
     }
 
+    /** 장면을 끝난 것으로 기록한다: 단서를 열고 진행률과 저장 상태를 갱신한다. 다음 장면은 시작하지 않는다. */
     private fun completeScene(scene: Scene) {
         current = null
         _nowPlaying.value = null
@@ -559,12 +591,16 @@ class DefaultStoryEngine(
         _pendingClues.value = _pendingClues.value + fresh
     }
 
-    /** 남은 ETA 안에 필수 장면을 먼저 넣고, 남는 시간만큼 선택 장면을 순서대로 넣는다. */
+    /**
+     * 남은 ETA 안에 필수 장면을 먼저 넣고, 남는 시간만큼 선택 장면을 순서대로 넣는다.
+     * 목적지가 없어 ETA를 모르면 [DEFAULT_CHAPTER_SEC]초 챕터로 본다.
+     * 끼어든 이벤트 장면(터널 등)도 남은 시간을 쓰므로 함께 계산한다.
+     */
     private fun replan() {
         skippedIds.clear()
-        val eta = etaSec ?: return
-        val upcoming = queue.filter { it.trigger == null }
-        val currentLeft = current?.takeIf { it.trigger == null }?.let { remainingSec(it, sentenceIndex) } ?: 0
+        val eta = etaSec ?: DEFAULT_CHAPTER_SEC
+        val upcoming = queue.toList()
+        val currentLeft = current?.takeIf { it.isPlanned() }?.let { remainingSec(it, sentenceIndex) } ?: 0
         var slack = eta - currentLeft - upcoming.filter { it.required }.sumOf { it.durationSec }
         upcoming.filterNot { it.required }.forEach { scene ->
             if (scene.durationSec <= slack) slack -= scene.durationSec else skippedIds += scene.id
@@ -625,6 +661,10 @@ class DefaultStoryEngine(
         )
     }
 
+    /** 도착 시간 계산에 들어가는 장면인가. 브리핑(출발 전)·심문 대답·결말은 뺀다. */
+    private fun Scene.isPlanned() =
+        trigger != SceneTrigger.BRIEFING && trigger != SceneTrigger.REPLY && trigger !in SceneTrigger.endings
+
     private fun remainingSec(
         scene: Scene,
         fromSentence: Int,
@@ -634,6 +674,8 @@ class DefaultStoryEngine(
     }
 
     private companion object {
+        /** 목적지가 없을 때 챕터 길이로 보는 시간. */
+        const val DEFAULT_CHAPTER_SEC = 600
         const val REPEAT_THRESHOLD = 2
         const val RESUME_NOTICE = "이어서 들려드릴게요."
     }
