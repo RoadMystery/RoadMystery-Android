@@ -16,6 +16,9 @@ sealed interface VehicleEvent {
 
     data class Hazard(val reason: HazardReason) : VehicleEvent
 
+    /** 지속 경고의 발생/해제. 해제 전에는 자동 재개하지 않는다. */
+    data class HazardState(val reason: HazardReason, val active: Boolean) : VehicleEvent
+
     /** "tunnel", 지역명 등 */
     data class Place(val tag: String) : VehicleEvent
 

@@ -59,6 +59,7 @@ import com.roadmystery.app.vehicle.SelectedVehicleState
 import com.roadmystery.app.vehicle.VehicleSource
 import com.roadmystery.app.voice.PleosSpeechInput
 import com.roadmystery.app.voice.ScriptedVoiceAgent
+import com.roadmystery.app.voice.isStopCommand
 import com.roadmystery.app.voice.SpeechInput
 import com.roadmystery.app.voice.listenForDrivingQuestion
 import com.roadmystery.app.voice.listenForQuestion
@@ -210,7 +211,7 @@ class MainActivity : ComponentActivity() {
         val gameActions =
             GameActions(
                 onAccuse = { engine.choose(StoryEngine.DECISION_ACCUSE, it) },
-                onAsk = { suspectId, question -> engine.ask(suspectId, question) },
+                onAsk = { suspectId, question -> handleUtterance(suspectId, question) },
                 onListen = { suspectId ->
                     listenJob?.cancel()
                     listenJob =
@@ -220,7 +221,7 @@ class MainActivity : ComponentActivity() {
                             engine.beginListening()
                             try {
                                 val text = speech?.listenForQuestion()
-                                if (text != null) engine.ask(suspectId, text)
+                                if (text != null) handleUtterance(suspectId, text)
                             } finally {
                                 listening = false
                                 engine.endListening()
@@ -328,6 +329,14 @@ class MainActivity : ComponentActivity() {
         listenJob?.cancel()
         speech?.cancel()
         super.onPause()
+    }
+
+    private fun handleUtterance(suspectId: String, text: String) {
+        if (isStopCommand(text)) {
+            engine.onVehicleEvent(com.roadmystery.app.vehicle.VehicleEvent.Hazard(com.roadmystery.app.vehicle.HazardReason.USER_STOP))
+        } else {
+            engine.ask(suspectId, text)
+        }
     }
 
     override fun onDestroy() {
