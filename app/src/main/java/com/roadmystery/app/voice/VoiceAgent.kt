@@ -20,7 +20,7 @@ data class SuspectReply(
     val reveals: List<String> = emptyList(),
     /**
      * 증언으로 남길 답인지. 연결이 끊겨 준비된 말로 대신한 답처럼 사건에 대해 말한 것이 없는 답은 false로 준다.
-     * 그런 답은 화면에 보이고 읽어 주지만, 증언 목록과 저장에는 남기지 않는다.
+     * 그런 답은 화면에 보이고 읽어 주지만, 증언 목록과 저장에는 남기지 않는다. answerId와 reveals는 그대로 반영한다.
      */
     val isTestimony: Boolean = true,
 )

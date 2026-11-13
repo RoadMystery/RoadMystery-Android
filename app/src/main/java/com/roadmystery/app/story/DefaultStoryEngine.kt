@@ -95,6 +95,9 @@ class DefaultStoryEngine(
     private val activeHazards = mutableSetOf<HazardReason>()
     private var waitsForClearDelay = false
 
+    /** 지속 경고 중에 도착이 왔다. 경고가 모두 풀리면 그때 도착을 처리한다. */
+    private var arrivedDuringHazard = false
+
     /** 위험이 반복돼 다음 정차 때까지 재개하지 않는 상태. */
     private var deferred = false
     private var lastHazardAt = 0L
@@ -434,6 +437,11 @@ class DefaultStoryEngine(
             return
         }
         if (!activeHazards.remove(event.reason) || activeHazards.isNotEmpty() || !held) return
+        if (arrivedDuringHazard) {
+            // 경고 중에 미뤄 둔 도착: 낭독을 재개하지 않고 바로 지목 화면으로 간다.
+            onArrived()
+            return
+        }
         lastHazardAt = clock()
         waitsForClearDelay = true
         resumeJob?.cancel()
@@ -498,10 +506,14 @@ class DefaultStoryEngine(
         hazardTimes.clear()
         activeHazards.clear()
         waitsForClearDelay = false
+        arrivedDuringHazard = false
     }
 
     private fun onArrived() {
-        if (held && activeHazards.isNotEmpty()) return
+        if (held && activeHazards.isNotEmpty()) {
+            arrivedDuringHazard = true
+            return
+        }
         if (_mode.value == AppMode.ENDING) return
         abortInterrogation()
         cancelHazardState()
