@@ -119,6 +119,9 @@ class DefaultStoryEngine(
 
     /** 정차 중 "음성으로 묻기"로 듣는 중이다. 듣는 동안 낭독은 [interrupted]에 멈춰 둔다. */
     private var listening = false
+
+    /** 듣기 시작하면서 읽던 대답을 끊었다. 이을 낭독이 없으면 듣기가 끝날 때 다음 장면으로 간다. */
+    private var cutReply = false
     private var replyCount = 0
     private val heardAnswers = mutableMapOf<String, MutableSet<String>>()
 
@@ -139,6 +142,7 @@ class DefaultStoryEngine(
         askJob?.cancel()
         askedWhileDriving = false
         listening = false
+        cutReply = false
         askJob = null
         cancelHazardState()
         audio.stop()
@@ -160,6 +164,7 @@ class DefaultStoryEngine(
         askJob?.cancel()
         askedWhileDriving = false
         listening = false
+        cutReply = false
         cancelHazardState()
         val loaded = repository.load(scenarioId)
         val errors = ScenarioParser.validate(loaded)
@@ -316,24 +321,38 @@ class DefaultStoryEngine(
         if (askJob == null) playNext() // 대답을 시작하지 못했으면 질문이 없었던 것처럼 이어간다.
     }
 
-    override fun beginListening() {
-        if (listening || held || moving || _mode.value != AppMode.STOPPED || askJob?.isActive == true) return
+    override fun beginListening(): Boolean {
+        if (listening || held || moving || _mode.value != AppMode.STOPPED || askJob?.isActive == true) return false
         listening = true
         // 읽던 대답은 끊고, 낭독 중이었다면 멈춘 자리를 기억해 둔다(respond와 같다).
-        val playing = current ?: return
-        if (playing.trigger == SceneTrigger.REPLY) audio.stop() else interrupted = playing to audio.pause()
+        val playing = current ?: return true
+        if (playing.trigger == SceneTrigger.REPLY) {
+            audio.stop()
+            // 끊은 대답은 끝난 것으로 친다. 주행 중 질문의 대답이었어도 더 기다리지 않는다.
+            askedWhileDriving = false
+            cutReply = true
+        } else {
+            interrupted = playing to audio.pause()
+        }
         current = null
         _nowPlaying.value = null
+        return true
     }
 
     override fun endListening() {
         if (!listening) return
         listening = false
+        val cut = cutReply
+        cutReply = false
         // 질문이 이어졌으면 대답이 끝난 뒤에 낭독을 잇는다.
         if (askJob?.isActive == true || current != null) return
-        val back = interrupted ?: return
+        val back = interrupted
         interrupted = null
-        play(back.first, back.second)
+        when {
+            back != null -> play(back.first, back.second)
+            // 끊은 대답 뒤에 이을 낭독이 없으면(주행 중 질문의 대답, 재개 안내) 대답이 끝났을 때처럼 다음 장면으로 간다.
+            cut -> playNext()
+        }
     }
 
     override fun requestSummary() {
@@ -404,6 +423,7 @@ class DefaultStoryEngine(
         askJob?.cancel()
         askedWhileDriving = false
         listening = false
+        cutReply = false
         askJob = null
         val inReply = current?.trigger == SceneTrigger.REPLY
         _interrogation.value = null
