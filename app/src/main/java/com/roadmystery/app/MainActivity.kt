@@ -18,6 +18,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.VerticalDivider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -59,7 +60,9 @@ import com.roadmystery.app.voice.PleosSpeechInput
 import com.roadmystery.app.voice.ScriptedVoiceAgent
 import com.roadmystery.app.voice.SpeechInput
 import com.roadmystery.app.voice.listenForDrivingQuestion
+import com.roadmystery.app.voice.listenForQuestion
 import com.roadmystery.app.voice.resolveDrivingQuestionSuspect
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -85,6 +88,9 @@ class MainActivity : ComponentActivity() {
     private var vehicleSdk: Vehicle? = null
     private lateinit var audio: AudioPlayer
     private var speech: SpeechInput? = null
+
+    /** 정차 중 "음성으로 묻기"로 듣는 작업. 정차 화면을 벗어나면 끝낸다. */
+    private var listenJob: Job? = null
     private lateinit var director: Director
     private lateinit var engine: DefaultStoryEngine
     private lateinit var store: DataStoreProgressStore
@@ -178,6 +184,7 @@ class MainActivity : ComponentActivity() {
             ).collectAsState()
         var fastAudio by remember { mutableStateOf(false) }
         var listening by remember { mutableStateOf(false) }
+        LaunchedEffect(mode) { if (mode != AppMode.STOPPED) listenJob?.cancel() }
 
         val gameState =
             GameUiState(
@@ -198,12 +205,20 @@ class MainActivity : ComponentActivity() {
                 onAccuse = { engine.choose(StoryEngine.DECISION_ACCUSE, it) },
                 onAsk = { suspectId, question -> engine.ask(suspectId, question) },
                 onListen = { suspectId ->
-                    lifecycleScope.launch {
-                        listening = true
-                        val text = speech?.listen()
-                        listening = false
-                        if (text != null) engine.ask(suspectId, text)
-                    }
+                    listenJob?.cancel()
+                    listenJob =
+                        lifecycleScope.launch {
+                            listening = true
+                            // 마이크가 낭독을 듣지 않게 듣는 동안 낭독을 멈춘다. 말이 없으면 정해 둔 시간 뒤에 끝난다.
+                            engine.beginListening()
+                            try {
+                                val text = speech?.listenForQuestion()
+                                if (text != null) engine.ask(suspectId, text)
+                            } finally {
+                                listening = false
+                                engine.endListening()
+                            }
+                        }
                 },
                 onSummary = { engine.requestSummary() }
             )
@@ -289,6 +304,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onPause() {
+        listenJob?.cancel()
         speech?.cancel()
         super.onPause()
     }

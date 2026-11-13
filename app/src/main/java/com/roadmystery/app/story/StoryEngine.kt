@@ -55,6 +55,12 @@ interface StoryEngine {
         utterance: String,
     )
 
+    /** 정차 중 "음성으로 묻기"로 듣기 시작한다. 마이크가 낭독을 듣지 않게, 듣는 동안 낭독을 멈춘다. */
+    fun beginListening() {}
+
+    /** 듣기가 끝났다. 질문이 이어지지 않았으면 멈춘 문장부터 낭독을 잇는다. */
+    fun endListening() {}
+
     /** 정차 중에만 받는다. 지금까지의 단서·증언 요약을 읽어 준다. */
     fun requestSummary()
 

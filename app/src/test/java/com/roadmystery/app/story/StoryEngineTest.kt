@@ -267,6 +267,66 @@ class StoryEngineTest {
             assertEquals("m1" to 2, audio.history.last())
         }
 
+    @Test
+    fun `음성으로 묻기로 듣는 동안 낭독을 멈추고, 말이 없이 끝나면 멈춘 문장부터 잇는다`() {
+        startDriving()
+        send(VehicleEvent.Stopped)
+        audio.pauseIndex = 1
+
+        engine.beginListening()
+        assertNull(audio.playing)
+        assertNull(engine.nowPlaying.value)
+
+        engine.endListening()
+        assertEquals("m1" to 1, audio.history.last())
+        // 끝난 듣기를 다시 끝내도 낭독을 다시 시작하지 않는다.
+        val plays = audio.history.size
+        engine.endListening()
+        assertEquals(plays, audio.history.size)
+    }
+
+    @Test
+    fun `듣는 중에 출발하면 멈춘 문장부터 낭독으로 돌아가고, 주행 중에는 듣기를 시작하지 않는다`() {
+        startDriving()
+        send(VehicleEvent.Stopped)
+        audio.pauseIndex = 1
+        engine.beginListening()
+
+        send(VehicleEvent.Driving)
+        assertEquals(AppMode.DRIVING, engine.mode.value)
+        assertEquals("m1" to 1, audio.history.last())
+        val plays = audio.history.size
+        engine.endListening()
+        assertEquals(plays, audio.history.size)
+
+        engine.beginListening()
+        assertEquals("m1", audio.playing)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun `듣고 나서 질문하면 대답을 읽은 뒤 멈춘 문장부터 이어 읽는다`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val engine = DefaultStoryEngine(ScenarioRepository { testScenario }, audio, scope = backgroundScope)
+            engine.start("test")
+            engine.onAudioEvent(AudioEvent.SceneFinished("briefing"))
+            engine.onVehicleEvent(VehicleEvent.Driving)
+            engine.onAudioEvent(AudioEvent.SentenceStarted("m1", 2))
+            audio.pauseIndex = 2
+            engine.onVehicleEvent(VehicleEvent.Stopped)
+
+            engine.beginListening()
+            assertNull(audio.playing)
+            engine.ask("a", "커피는 왜 샀나요?")
+            engine.endListening()
+            val reply = audio.playing!!
+            assertTrue(reply.startsWith("reply_"))
+
+            audio.playing = null
+            engine.onAudioEvent(AudioEvent.SceneFinished(reply))
+            assertEquals("m1" to 2, audio.history.last())
+        }
+
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun `주행 중에는 심문을 받지 않고, 대답 중 출발하면 대답을 끊고 낭독으로 돌아간다`() =

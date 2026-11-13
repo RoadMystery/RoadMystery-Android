@@ -22,8 +22,11 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
 
 interface SpeechInput {
-    /** 한 번 듣고 인식한 문장을 돌려준다. 실패하면 null. */
-    suspend fun listen(onSpeechDetected: () -> Unit = {}): String?
+    /**
+     * 한 번 듣고 인식한 문장을 돌려준다. 실패하면 null.
+     * [onListening]은 인식기가 들을 준비를 마쳤을 때, [onSpeechDetected]는 말이 들리기 시작했을 때 부른다.
+     */
+    suspend fun listen(onListening: () -> Unit = {}, onSpeechDetected: () -> Unit = {}): String?
 
     fun cancel()
 }
@@ -73,7 +76,7 @@ class PleosSpeechInput(
         )
     }
 
-    override suspend fun listen(onSpeechDetected: () -> Unit): String? = listenMutex.withLock {
+    override suspend fun listen(onListening: () -> Unit, onSpeechDetected: () -> Unit): String? = listenMutex.withLock {
         if (!ready) return@withLock null
         var registered: ResultListener? = null
         try {
@@ -93,7 +96,7 @@ class PleosSpeechInput(
                         if (!completed.get() && (start > 0 || end > 0)) onSpeechDetected()
                     }
 
-                    override fun onStartedRecognition() = Unit
+                    override fun onStartedRecognition() = onListening()
                     override fun onEndedRecognition() = finish(partial)
 
                     override fun onError(errorType: ErrorType) {
@@ -101,7 +104,7 @@ class PleosSpeechInput(
                         finish(null)
                     }
 
-                    override fun onReady() = Unit
+                    override fun onReady() = onListening()
                     override fun onUpdatedRms(rms: Double) = Unit
 
                     private fun finish(result: String?) {
@@ -141,19 +144,41 @@ class PleosSpeechInput(
     }
 }
 
-/** 3초 동안 말 시작을 기다리고, 시작한 말에는 완료할 시간을 따로 준다. */
-internal suspend fun SpeechInput.listenForDrivingQuestion(): String? = coroutineScope {
+/**
+ * 인식기가 준비된 뒤 [startMs] 동안 말 시작을 기다리고, 시작한 말에는 [finishMs]까지 끝낼 시간을 따로 준다.
+ * 준비되지 않거나 말이 없으면 null. 준비에 걸리는 시간은 기기마다 달라서 듣는 시간에 넣지 않는다.
+ */
+internal suspend fun SpeechInput.listenWithin(startMs: Long, finishMs: Long): String? = coroutineScope {
+    val listening = CompletableDeferred<Unit>()
     val speechDetected = CompletableDeferred<Unit>()
-    val result = async { listen { speechDetected.complete(Unit) } }
+    val result = async {
+        listen(onListening = { listening.complete(Unit) }, onSpeechDetected = { speechDetected.complete(Unit) })
+    }
     try {
-        val startedOrFinished = withTimeoutOrNull(3_000) {
+        val ready = withTimeoutOrNull(READY_LIMIT_MS) {
+            select<Unit> {
+                listening.onAwait { }
+                speechDetected.onAwait { }
+                result.onAwait { }
+            }
+        }
+        val startedOrFinished = if (ready == null) null else withTimeoutOrNull(startMs) {
             select<Unit> {
                 speechDetected.onAwait { }
                 result.onAwait { }
             }
         }
-        if (startedOrFinished == null) null else withTimeoutOrNull(8_000) { result.await() }
+        if (startedOrFinished == null) null else withTimeoutOrNull(finishMs) { result.await() }
     } finally {
         result.cancel()
     }
 }
+
+/** 주행 중 질문 구간: 준비된 뒤 3초 동안 말 시작을 기다린다. */
+internal suspend fun SpeechInput.listenForDrivingQuestion(): String? = listenWithin(startMs = 3_000, finishMs = 8_000)
+
+/** 정차 중 "음성으로 묻기": 준비된 뒤 6초 동안 말 시작을 기다리고, 말이 없으면 끝낸다. */
+internal suspend fun SpeechInput.listenForQuestion(): String? = listenWithin(startMs = 6_000, finishMs = 10_000)
+
+/** 인식기가 이 시간 안에 준비되지 않으면 듣기를 끝낸다. */
+private const val READY_LIMIT_MS = 5_000L

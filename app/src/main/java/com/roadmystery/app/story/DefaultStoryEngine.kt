@@ -112,6 +112,9 @@ class DefaultStoryEngine(
 
     /** 주행 중 질문 구간에서 던진 질문의 대답이 진행 중이다. 같은 주행 상태의 Driving 이벤트로 끊지 않는다. */
     private var askedWhileDriving = false
+
+    /** 정차 중 "음성으로 묻기"로 듣는 중이다. 듣는 동안 낭독은 [interrupted]에 멈춰 둔다. */
+    private var listening = false
     private var replyCount = 0
     private val heardAnswers = mutableMapOf<String, MutableSet<String>>()
 
@@ -130,6 +133,7 @@ class DefaultStoryEngine(
     fun stop() {
         askJob?.cancel()
         askedWhileDriving = false
+        listening = false
         askJob = null
         cancelHazardState()
         audio.stop()
@@ -148,6 +152,7 @@ class DefaultStoryEngine(
         audio.stop()
         askJob?.cancel()
         askedWhileDriving = false
+        listening = false
         cancelHazardState()
         val loaded = repository.load(scenarioId)
         val errors = ScenarioParser.validate(loaded)
@@ -299,6 +304,26 @@ class DefaultStoryEngine(
         if (askJob == null) playNext() // 대답을 시작하지 못했으면 질문이 없었던 것처럼 이어간다.
     }
 
+    override fun beginListening() {
+        if (listening || held || moving || _mode.value != AppMode.STOPPED || askJob?.isActive == true) return
+        listening = true
+        // 읽던 대답은 끊고, 낭독 중이었다면 멈춘 자리를 기억해 둔다(respond와 같다).
+        val playing = current ?: return
+        if (playing.trigger == SceneTrigger.REPLY) audio.stop() else interrupted = playing to audio.pause()
+        current = null
+        _nowPlaying.value = null
+    }
+
+    override fun endListening() {
+        if (!listening) return
+        listening = false
+        // 질문이 이어졌으면 대답이 끝난 뒤에 낭독을 잇는다.
+        if (askJob?.isActive == true || current != null) return
+        val back = interrupted ?: return
+        interrupted = null
+        play(back.first, back.second)
+    }
+
     override fun requestSummary() {
         val loaded = _scenario.value ?: return
         val progress = _snapshot.value ?: return
@@ -359,16 +384,17 @@ class DefaultStoryEngine(
             }
     }
 
-    /** 생각 중이거나 대답 중인 심문을 끝내고 멈췄던 낭독 장면을 current로 되돌린다. 재생은 하지 않는다. */
+    /** 듣는 중이거나 생각 중이거나 대답 중인 심문을 끝내고 멈췄던 낭독 장면을 current로 되돌린다. 재생은 하지 않는다. */
     private fun abortInterrogation(): Boolean {
         val thinking = askJob?.isActive == true
+        val waiting = listening
         askJob?.cancel()
         askedWhileDriving = false
+        listening = false
         askJob = null
-        askedWhileDriving = false
         val inReply = current?.trigger == SceneTrigger.REPLY
         _interrogation.value = null
-        if (!thinking && !inReply) return false
+        if (!thinking && !inReply && !waiting) return false
 
         if (inReply) audio.stop()
         val back = interrupted
