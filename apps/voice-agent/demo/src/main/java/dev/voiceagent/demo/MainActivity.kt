@@ -20,6 +20,7 @@ import dev.voiceagent.agent.AgentReply
 import dev.voiceagent.agent.AgentState
 import dev.voiceagent.agent.VoiceAgent
 import dev.voiceagent.content.Scenario
+import dev.voiceagent.llm.DirectClaudeLlmClient
 import dev.voiceagent.llm.LlmClient
 import dev.voiceagent.llm.ProxyLlmClient
 import dev.voiceagent.platform.DEMO_CASE_DIR
@@ -117,7 +118,11 @@ class MainActivity : Activity() {
             output.release()
             throw e
         }
-        val llm = ProxyLlmClient(BuildConfig.PROXY_URL, BuildConfig.PROXY_TOKEN, allowCleartext = BuildConfig.DEBUG)
+        val llm: LlmClient = if (BuildConfig.DEMO_ANTHROPIC_API_KEY.isNotEmpty()) {
+            DirectClaudeLlmClient(BuildConfig.DEMO_ANTHROPIC_API_KEY)
+        } else {
+            ProxyLlmClient(BuildConfig.PROXY_URL, BuildConfig.PROXY_TOKEN, allowCleartext = BuildConfig.DEBUG)
+        }
         return Services(output, input, llm).also {
             startAgent(it)
             ready = it
@@ -332,6 +337,7 @@ class MainActivity : Activity() {
 
     /** Never shows the token itself. */
     private fun connectionStatus(): String {
+        if (BuildConfig.DEMO_ANTHROPIC_API_KEY.isNotEmpty()) return "Claude 직접 호출 · 키 있음"
         val token = if (BuildConfig.PROXY_TOKEN.isEmpty()) "없음 (tools/voice-eval/.env의 VOICE_PROXY_TOKEN)" else "있음"
         return "프록시 ${BuildConfig.PROXY_URL} · 토큰 $token"
     }
