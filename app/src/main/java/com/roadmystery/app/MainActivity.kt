@@ -313,6 +313,11 @@ class MainActivity : ComponentActivity() {
         if (!canListenForDrivingQuestion(sceneId)) return false
         val question = speech?.listenForDrivingQuestion()?.trim().orEmpty()
         if (question.isBlank() || !canListenForDrivingQuestion(sceneId)) return true
+        // 주행 중에 열리는 마이크는 여기뿐이다. "멈춰"는 질문이 아니라 정지 명령으로 받는다.
+        if (isStopCommand(question)) {
+            engine.onVehicleEvent(com.roadmystery.app.vehicle.VehicleEvent.Hazard(com.roadmystery.app.vehicle.HazardReason.USER_STOP))
+            return true
+        }
         val suspect = resolveDrivingQuestionSuspect(
             question,
             engine.scenario.value?.suspects.orEmpty(),
