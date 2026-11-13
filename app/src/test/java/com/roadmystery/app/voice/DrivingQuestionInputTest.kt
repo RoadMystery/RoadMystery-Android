@@ -7,6 +7,7 @@ import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -78,6 +79,95 @@ class DrivingQuestionInputTest {
     }
 
     @Test
+    fun `a question cut at a pause is joined with what follows`() = runTest {
+        val input = pieces(
+            { started -> delay(500); started(); delay(1_000); "윤재희 씨" },
+            { started -> delay(300); started(); delay(2_000); "수면제를 본 적 있나요?" },
+        )
+        assertEquals("윤재희 씨 수면제를 본 적 있나요?", input.listenForDrivingQuestion())
+        // 물음표로 끝맺었으니 더 기다리지 않는다.
+        assertEquals(3_800L, testScheduler.currentTime)
+    }
+
+    @Test
+    fun `a finished question is not kept waiting for more`() = runTest {
+        var listens = 0
+        val input = pieces(
+            { started -> listens++; started(); delay(2_000); "커피는 왜 두 잔 샀나요?" },
+            { listens++; awaitCancellation() },
+        )
+        assertEquals("커피는 왜 두 잔 샀나요?", input.listenForQuestion())
+        assertEquals(2_000L, testScheduler.currentTime)
+        assertEquals(1, listens)
+    }
+
+    @Test
+    fun `words with nothing after them are returned once the follow-up wait is over`() = runTest {
+        var closed = false
+        val input = pieces(
+            { started -> started(); delay(1_000); "그날 밤에" },
+            {
+                try {
+                    awaitCancellation()
+                } finally {
+                    closed = true
+                }
+            },
+        )
+        assertEquals("그날 밤에", input.listenForDrivingQuestion())
+        assertEquals(2_500L, testScheduler.currentTime)
+        assertTrue(closed)
+    }
+
+    @Test
+    fun `an answer that there is no question is not kept waiting for more`() = runTest {
+        var listens = 0
+        val input = pieces(
+            { started -> listens++; started(); delay(1_000); "아니요 괜찮아요" },
+            { listens++; awaitCancellation() },
+        )
+        assertEquals("아니요 괜찮아요", input.listenForDrivingQuestion())
+        assertEquals(1_000L, testScheduler.currentTime)
+        assertEquals(1, listens)
+    }
+
+    @Test
+    fun `the follow-up wait is counted from when the recognizer is ready again`() = runTest {
+        val input = pieces(
+            { started -> started(); delay(1_000); "윤재희 씨" },
+            { started -> delay(1_400); started(); delay(1_000); "수면제를 본 적 있나요?" },
+            readyAfter = 400,
+        )
+        assertEquals("윤재희 씨 수면제를 본 적 있나요?", input.listenForQuestion())
+        assertEquals(4_200L, testScheduler.currentTime)
+    }
+
+    @Test
+    fun `a follow-up that fails keeps what was already heard`() = runTest {
+        val input = pieces({ started -> started(); delay(1_000); "윤재희 씨" }, { null })
+        assertEquals("윤재희 씨", input.listenForQuestion())
+        assertEquals(1_000L, testScheduler.currentTime)
+    }
+
+    @Test
+    fun `no more than two follow-ups are joined`() = runTest {
+        var listens = 0
+        val piece: suspend (() -> Unit) -> String? = { started -> listens++; started(); delay(500); "그러니까" }
+        val input = pieces(piece, piece, piece, piece)
+        assertEquals("그러니까 그러니까 그러니까", input.listenForQuestion())
+        assertEquals(3, listens)
+    }
+
+    @Test
+    fun `words that end a sentence or say there is no question are taken as finished`() {
+        assertTrue(isCompleteUtterance("수면제를 본 적 있나요? "))
+        assertTrue(isCompleteUtterance("그건 말씀드릴 수 없어요."))
+        assertTrue(isCompleteUtterance("아니요, 괜찮아요"))
+        assertFalse(isCompleteUtterance("윤재희 씨"))
+        assertFalse(isCompleteUtterance(""))
+    }
+
+    @Test
     fun `no question continues even when a previous suspect is available`() {
         val scenario = ScenarioParser.parse(File("src/main/assets/scenarios/midnight_rest_area.json").readText())
         val suspects = scenario.suspects
@@ -94,5 +184,14 @@ class DrivingQuestionInputTest {
         }
 
         override fun cancel() = Unit
+    }
+
+    /** 듣기를 부를 때마다 [reads]를 차례로 쓰는 입력. 다 쓰고 나면 말이 없다. */
+    private fun pieces(vararg reads: suspend (() -> Unit) -> String?, readyAfter: Long = 0): SpeechInput {
+        val left = ArrayDeque(reads.toList())
+        return input(readyAfter) { started ->
+            val read = left.removeFirstOrNull()
+            if (read == null) awaitCancellation() else read(started)
+        }
     }
 }

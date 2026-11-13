@@ -5,11 +5,11 @@ import ai.pleos.playground.stt.constant.ErrorType
 import ai.pleos.playground.stt.constant.Mode
 import ai.pleos.playground.stt.listener.OnInitializeListener
 import ai.pleos.playground.stt.listener.OnServerConnectionListener
-import ai.pleos.playground.stt.listener.ResultListener
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import java.util.Locale
-import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.resume
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
@@ -42,6 +42,9 @@ class PleosSpeechInput(
 
     @Volatile private var ready = false
     private val listenMutex = Mutex()
+    private val mainHandler = Handler(Looper.getMainLooper())
+
+    @Volatile private var current: UtteranceListener? = null
 
     init {
         stt.initialize(
@@ -78,44 +81,20 @@ class PleosSpeechInput(
 
     override suspend fun listen(onListening: () -> Unit, onSpeechDetected: () -> Unit): String? = listenMutex.withLock {
         if (!ready) return@withLock null
-        var registered: ResultListener? = null
+        var registered: UtteranceListener? = null
         try {
             suspendCancellableCoroutine { continuation ->
-                val completed = AtomicBoolean()
-                val listener = object : ResultListener {
-                    @Volatile private var partial: String? = null
-
-                    override fun onUpdated(text: String, isFinal: Boolean) {
-                        if (completed.get()) return
-                        partial = text
-                        if (text.isNotBlank()) onSpeechDetected()
-                        if (isFinal) finish(text)
-                    }
-
-                    override fun onUpdatedEpdData(start: Long, end: Long) {
-                        if (!completed.get() && (start > 0 || end > 0)) onSpeechDetected()
-                    }
-
-                    override fun onStartedRecognition() = onListening()
-                    override fun onEndedRecognition() = finish(partial)
-
-                    override fun onError(errorType: ErrorType) {
-                        Log.w(TAG, "STT 오류: $errorType")
-                        finish(null)
-                    }
-
-                    override fun onReady() = onListening()
-                    override fun onUpdatedRms(rms: Double) = Unit
-
-                    private fun finish(result: String?) {
-                        if (completed.compareAndSet(false, true)) {
-                            continuation.resume(result?.takeIf { it.isNotBlank() })
-                        }
-                    }
-                }
-                continuation.invokeOnCancellation { completed.set(true) }
+                val listener = UtteranceListener(
+                    onListening = onListening,
+                    onSpeechDetected = onSpeechDetected,
+                    later = { delayMs, block -> mainHandler.postDelayed({ block() }, delayMs) },
+                    warn = { Log.w(TAG, it) },
+                    done = { continuation.resume(it) },
+                )
+                continuation.invokeOnCancellation { listener.close() }
                 stt.addListener(listener)
                 registered = listener
+                current = listener
                 stt.request()
             }
         } catch (cancelled: CancellationException) {
@@ -126,12 +105,19 @@ class PleosSpeechInput(
         } finally {
             registered?.let { listener ->
                 runCatching { stt.removeListener(listener) }
-                cancel()
+                current = null
+                stop()
             }
         }
     }
 
+    /** 듣던 말을 버리고 듣기를 끝낸다. 이어지는 말을 들으려고 마이크를 다시 열지 않는다. */
     override fun cancel() {
+        current?.abort()
+        stop()
+    }
+
+    private fun stop() {
         runCatching { stt.stop() }
     }
 
@@ -145,10 +131,32 @@ class PleosSpeechInput(
 }
 
 /**
+ * 묻는 말 하나를 듣는다. 말이 없으면 null.
+ *
+ * 인식기는 0.6초쯤만 쉬어도 말이 끝났다고 보고 듣기를 끝낸다. 이름을 부른 뒤 잠깐 쉬었다가 물으면 부른 이름만
+ * 돌아온다. 그래서 끝맺지 않은 말이면 다시 들어서 이어지는 말을 붙인다.
+ */
+internal suspend fun SpeechInput.listenWithin(startMs: Long, finishMs: Long): String? {
+    val first = listenOnce(startMs, finishMs) ?: return null
+    return withFollowUps(first, MAX_FOLLOW_UPS, finishMs)
+}
+
+/** [heard] 뒤에 이어지는 말을 [left]번까지 더 듣고 붙인다. 끝맺은 말이거나 이어지는 말이 없으면 그대로 돌려준다. */
+private suspend fun SpeechInput.withFollowUps(heard: String, left: Int, finishMs: Long): String {
+    if (left == 0 || isCompleteUtterance(heard)) return heard
+    val more = listenOnce(FOLLOW_UP_MS, finishMs) ?: return heard
+    return withFollowUps("${heard.trim()} ${more.trim()}", left - 1, finishMs)
+}
+
+/** 더 기다리지 않아도 되는 말인가. 인식기는 끝맺은 물음에 물음표를 붙인다. 질문이 없다는 대답도 끝난 말이다. */
+internal fun isCompleteUtterance(text: String): Boolean =
+    text.trimEnd().lastOrNull() in SENTENCE_END || isNoQuestion(text)
+
+/**
  * 인식기가 준비된 뒤 [startMs] 동안 말 시작을 기다리고, 시작한 말에는 [finishMs]까지 끝낼 시간을 따로 준다.
  * 준비되지 않거나 말이 없으면 null. 준비에 걸리는 시간은 기기마다 달라서 듣는 시간에 넣지 않는다.
  */
-internal suspend fun SpeechInput.listenWithin(startMs: Long, finishMs: Long): String? = coroutineScope {
+private suspend fun SpeechInput.listenOnce(startMs: Long, finishMs: Long): String? = coroutineScope {
     val listening = CompletableDeferred<Unit>()
     val speechDetected = CompletableDeferred<Unit>()
     val result = async {
@@ -182,3 +190,11 @@ internal suspend fun SpeechInput.listenForQuestion(): String? = listenWithin(sta
 
 /** 인식기가 이 시간 안에 준비되지 않으면 듣기를 끝낸다. */
 private const val READY_LIMIT_MS = 5_000L
+
+/** 끝맺지 않은 말 뒤에, 다시 준비된 인식기가 이어지는 말의 시작을 기다리는 시간. */
+private const val FOLLOW_UP_MS = 1_500L
+
+/** 묻는 말 하나에 이어 붙이는 횟수의 한도. */
+private const val MAX_FOLLOW_UPS = 2
+
+private val SENTENCE_END = setOf('?', '.', '!', '？', '。', '！')

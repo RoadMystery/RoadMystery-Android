@@ -9,9 +9,17 @@ private val noQuestionWords = setOf(
 )
 private val wordBreak = Regex("[^\\p{L}\\p{N}]+")
 
+/** "아니요, 괜찮아요"처럼 질문이 없다는 대답인가. */
+internal fun isNoQuestion(text: String): Boolean {
+    val words = wordsOf(text)
+    return words.isNotEmpty() && words.all { it in noQuestionWords }
+}
+
+private fun wordsOf(text: String): List<String> = text.split(wordBreak).filter(String::isNotBlank)
+
 /** 팀 VoiceAgent 모듈이 붙기 전에도 시연 시 이름을 부른 질문을 받을 수 있다. */
 internal fun resolveDrivingQuestionSuspect(question: String, suspects: List<Suspect>, previousSuspectId: String?): String? {
-    val words = question.split(wordBreak).filter(String::isNotBlank)
+    val words = wordsOf(question)
     if (words.all { it in noQuestionWords }) return null
 
     val named = suspects.filter { suspect ->
