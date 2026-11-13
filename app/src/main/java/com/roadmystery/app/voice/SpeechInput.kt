@@ -148,8 +148,10 @@ internal suspend fun SpeechInput.listenWithin(startMs: Long, finishMs: Long): St
 /** [heard] 뒤에 이어지는 말을 [left]번까지 더 듣고 붙인다. 끝맺은 말이거나 이어지는 말이 없으면 그대로 돌려준다. */
 private suspend fun SpeechInput.withFollowUps(heard: String, left: Int, finishMs: Long): String {
     if (left == 0 || isCompleteUtterance(heard)) return heard
-    val more = listenOnce(FOLLOW_UP_MS, finishMs) ?: return heard
-    return withFollowUps("${heard.trim()} ${more.trim()}", left - 1, finishMs)
+    val more = listenOnce(FOLLOW_UP_MS, finishMs)?.trim() ?: return heard
+    // 정지 명령은 앞말에 붙이면 명령이 아니게 된다. 붙이지 않고 그 명령만 돌려준다.
+    if (isStopCommand(more)) return more
+    return withFollowUps("${heard.trim()} $more", left - 1, finishMs)
 }
 
 /**

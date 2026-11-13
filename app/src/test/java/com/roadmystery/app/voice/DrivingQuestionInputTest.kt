@@ -201,6 +201,29 @@ class DrivingQuestionInputTest {
     }
 
     @Test
+    fun `a stop command said after other words is followed, not joined to them`() = runTest {
+        val input = pieces(
+            { started -> started(); delay(1_000); "잠깐만" },
+            { started -> delay(500); started(); delay(700); "멈춰" },
+        )
+        assertEquals("멈춰", input.listenForDrivingQuestion())
+        assertEquals(2_200L, testScheduler.currentTime)
+    }
+
+    @Test
+    fun `a stop command in the second follow-up is followed and nothing more is heard`() = runTest {
+        var listens = 0
+        val input = pieces(
+            { started -> listens++; started(); delay(500); "윤재희 씨" },
+            { started -> listens++; started(); delay(500); "수면제를" },
+            { started -> listens++; started(); delay(500); "멈춰" },
+            { listens++; awaitCancellation() },
+        )
+        assertEquals("멈춰", input.listenForQuestion())
+        assertEquals(3, listens)
+    }
+
+    @Test
     fun `the follow-up wait is counted from when the recognizer is ready again`() = runTest {
         val input = pieces(
             { started -> started(); delay(1_000); "윤재희 씨" },
