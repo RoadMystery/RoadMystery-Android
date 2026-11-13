@@ -35,6 +35,7 @@
 6. **대답은 원고 대사만(2026-11-09).** 모델은 대사 id만 고르고, 앱은 그 대사를 원고 그대로 돌려줍니다([원고 대사만 읽는 대답](line-answers.md)).
    - `LlmVoiceAgent`는 처음 읽은 대사 id를 `SuspectReply.answerId`에 넣습니다.
    - 팀 대본처럼 원고 밖의 말이 나오지 않으면서, 질문은 모델이 뜻으로 알아듣고 대사를 고릅니다.
+   - 연결이 끊겨 대체 대사로 답한 것은 증언으로 남기지 않습니다(`SuspectReply.isTestimony = false`). 이 칸은 팀 앱의 `feat/f10-hazard-resume`에 더했고, `LlmVoiceAgent`는 그 칸이 있는 팀 앱에서 컴파일됩니다.
 
 ## 팀 인터페이스에 맞추며 달라지는 것
 

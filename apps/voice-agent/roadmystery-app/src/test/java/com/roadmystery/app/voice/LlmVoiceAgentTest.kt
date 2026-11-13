@@ -112,6 +112,30 @@ class LlmVoiceAgentTest {
             assertTrue(llm.requests.isEmpty())
             assertEquals(listOf("not_ported_yet"), loadErrors.map { it.substringBefore(':') })
         }
+
+    @Test
+    fun `연결이 끊겨 준비된 말로 대신한 답은 화면에 보이되 증언으로 남기지 않는다`() =
+        runTest(UnconfinedTestDispatcher()) {
+            assumeTrue("-Dvoiceagent.repo가 없어 건너뜀", repo?.isDirectory == true)
+            val offline =
+                object : LlmClient {
+                    override fun stream(request: LlmRequest): Flow<LlmEvent> = flow { emit(LlmEvent.Failure("network", "IOException")) }
+                }
+            engine = DefaultStoryEngine(ScenarioRepository { scenario }, audio, voice = LlmVoiceAgent(voices(offline)), scope = backgroundScope)
+
+            engine.start(scenario.id)
+            finish("briefing")
+            engine.onVehicleEvent(VehicleEvent.Driving)
+            finish("s01_scene")
+            engine.onVehicleEvent(VehicleEvent.Stopped)
+            engine.ask("s_seojin", "자정 무렵 어디 있었나요?")
+            testScheduler.runCurrent()
+
+            assertEquals(emptyList<String>(), loadErrors)
+            assertTrue("대체 대사를 읽는다", audio.playing!!.startsWith("reply_"))
+            assertTrue(engine.interrogation.value?.answer.orEmpty().isNotBlank())
+            assertTrue(engine.testimonies.value.isEmpty())
+        }
 }
 
 /** 요청마다 다음 답을 한 번에 흘려 보내는 가짜 LLM 프록시. */
