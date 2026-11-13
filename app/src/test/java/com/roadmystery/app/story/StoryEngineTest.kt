@@ -489,6 +489,8 @@ class StoryEngineTest {
             assertEquals(AppMode.STOPPED, engine.mode.value)
             assertTrue(engine.canInteract.value)
             assertNull(audio.playing)
+            // 이미 멈춘 낭독을 다시 멈추려 들면 이 값이 멈춘 자리로 잘못 기억된다.
+            audio.pauseIndex = 0
 
             engine.ask("a", "커피는 왜 샀나요?")
             val reply = audio.playing!!
@@ -508,6 +510,43 @@ class StoryEngineTest {
             engine.onAudioEvent(AudioEvent.SceneFinished(notice))
             assertEquals("m1" to 1, audio.history.last())
         }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun `지속 경고가 풀린 직후 서서 한 질문의 대답은 재개 타이머가 끊지 않고, 출발하면 멈춘 문장부터 잇는다`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val engine = hazardEngine(backgroundScope) { testScheduler.currentTime }
+            engine.onVehicleEvent(VehicleEvent.HazardState(HazardReason.ADAS_WARNING, true))
+            engine.onVehicleEvent(VehicleEvent.HazardState(HazardReason.ADAS_WARNING, false))
+            engine.onVehicleEvent(VehicleEvent.Stopped)
+            assertEquals(AppMode.STOPPED, engine.mode.value)
+
+            engine.ask("a", "커피는 왜 샀나요?")
+            val reply = audio.playing!!
+            testScheduler.advanceTimeBy(3_100)
+            assertEquals("재개 타이머가 대답을 끊지 않는다", reply, audio.playing)
+            audio.playing = null
+            engine.onAudioEvent(AudioEvent.SceneFinished(reply))
+            assertNull(audio.playing)
+
+            engine.onVehicleEvent(VehicleEvent.Driving)
+            val notice = audio.playing!!
+            assertTrue(notice.startsWith("reply_") && notice != reply)
+            engine.onAudioEvent(AudioEvent.SceneFinished(notice))
+            assertEquals("멈춰 있던 장면의 남은 문장을 잃지 않는다", "m1" to 1, audio.history.last())
+        }
+
+    @Test
+    fun `도착한 뒤 서 있는 차에 위험이 와도 범인을 지목할 수 있다`() {
+        startDriving()
+        send(VehicleEvent.Arrived)
+        send(VehicleEvent.Hazard(HazardReason.USER_STOP))
+        assertEquals(AppMode.ENDING, engine.mode.value)
+        assertTrue(engine.canInteract.value)
+
+        engine.choose(StoryEngine.DECISION_ACCUSE, "a")
+        assertNotNull(engine.outcome.value)
+    }
 
     @Test
     fun `서 있는 차에 지속 경고가 오면 화면을 막고 질문을 받지 않는다`() {

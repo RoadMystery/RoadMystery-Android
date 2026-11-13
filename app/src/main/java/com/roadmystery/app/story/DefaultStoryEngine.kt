@@ -262,7 +262,8 @@ class DefaultStoryEngine(
         decisionId: String,
         optionId: String,
     ) {
-        if (moving || held || activeHazards.isNotEmpty()) return
+        // 낭독이 위험으로 멈춰 있는지는 보지 않는다. 서 있고 지속 경고가 없으면 화면이 지목을 받는다(canInteract와 같다).
+        if (moving || activeHazards.isNotEmpty()) return
         if (decisionId != StoryEngine.DECISION_ACCUSE) {
             choices[decisionId] = optionId
             publishSnapshot()
@@ -532,9 +533,13 @@ class DefaultStoryEngine(
         resumeJob?.cancel()
         resumeJob = scope?.launch {
             delay(resumeDelayMs)
-            if (held && activeHazards.isEmpty() && !deferred) resumeAfterHazard()
+            // 그사이 서서 질문을 시작했으면 끊지 않는다. 멈춘 낭독은 대답 뒤에도 멈춰 있다가 다음 출발 때 잇는다.
+            if (held && activeHazards.isEmpty() && !deferred && !interrogating()) resumeAfterHazard()
         }
     }
+
+    /** 질문의 대답을 기다리거나 읽는 중이다. */
+    private fun interrogating() = askJob?.isActive == true || current?.trigger == SceneTrigger.REPLY
 
     /** 위험 시각을 기록하고, 반복이면 정차 때까지 보류하며, 아니면 재개 타이머를 다시 건다. */
     private fun registerHazard() {
