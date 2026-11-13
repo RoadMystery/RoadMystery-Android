@@ -221,6 +221,19 @@ class StoryEngineTest {
         }
 
     @Test
+    fun `지속 경고 중에 도착하면 경고가 풀린 뒤에 범인을 지목할 수 있다`() {
+        startDriving()
+        send(VehicleEvent.HazardState(HazardReason.ADAS_WARNING, true))
+        send(VehicleEvent.Parked, VehicleEvent.Arrived)
+        assertEquals(AppMode.PAUSED, engine.mode.value)
+
+        send(VehicleEvent.HazardState(HazardReason.ADAS_WARNING, false))
+        assertEquals(AppMode.ENDING, engine.mode.value)
+        assertTrue(engine.canInteract.value)
+        assertNull(audio.playing)
+    }
+
+    @Test
     fun `위험으로 멈춘 채 주차하고 도착해도 범인을 지목할 수 있다`() {
         startDriving()
         send(VehicleEvent.Hazard(HazardReason.HARD_BRAKE))
