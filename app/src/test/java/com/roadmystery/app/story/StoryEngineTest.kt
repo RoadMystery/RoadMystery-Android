@@ -273,7 +273,7 @@ class StoryEngineTest {
         send(VehicleEvent.Stopped)
         audio.pauseIndex = 1
 
-        engine.beginListening()
+        assertTrue(engine.beginListening())
         assertNull(audio.playing)
         assertNull(engine.nowPlaying.value)
 
@@ -299,9 +299,99 @@ class StoryEngineTest {
         engine.endListening()
         assertEquals(plays, audio.history.size)
 
-        engine.beginListening()
+        assertFalse(engine.beginListening())
         assertEquals("m1", audio.playing)
     }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun `주행 중 질문의 대답을 듣기로 끊고 말이 없으면 다음 장면으로 간다`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val engine = questionWindowEngine()
+            engine.onAudioEvent(AudioEvent.SentenceStarted("m1", 2))
+            engine.askBetweenScenes("a", "커피")
+            val reply = audio.playing!!
+            engine.onVehicleEvent(VehicleEvent.Stopped)
+            assertEquals(reply, audio.playing)
+
+            // 그 장면은 이미 끝난 것으로 쳤으므로 이을 낭독이 없다. 대답을 끊은 채로 멈춰 있으면 안 된다.
+            assertTrue(engine.beginListening())
+            assertNull(audio.playing)
+            engine.endListening()
+            assertEquals("opt1" to 0, audio.history.last())
+        }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun `주행 중 질문의 대답을 듣기로 끊은 뒤 출발하면 다음 장면으로 간다`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val engine = questionWindowEngine()
+            engine.onAudioEvent(AudioEvent.SentenceStarted("m1", 2))
+            engine.askBetweenScenes("a", "커피")
+            engine.onVehicleEvent(VehicleEvent.Stopped)
+            assertTrue(engine.beginListening())
+
+            engine.onVehicleEvent(VehicleEvent.Driving)
+            assertEquals(AppMode.DRIVING, engine.mode.value)
+            assertEquals("opt1" to 0, audio.history.last())
+            val plays = audio.history.size
+            engine.endListening()
+            assertEquals(plays, audio.history.size)
+        }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun `듣는 중에 위험이 오면 듣기를 끝내고, 조용해진 뒤 출발하면 멈춘 문장부터 잇는다`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val engine = hazardEngine(backgroundScope) { testScheduler.currentTime }
+            engine.onVehicleEvent(VehicleEvent.Stopped)
+            assertTrue(engine.beginListening())
+
+            engine.onVehicleEvent(VehicleEvent.Hazard(HazardReason.HARD_BRAKE))
+            assertEquals(AppMode.PAUSED, engine.mode.value)
+            engine.endListening()
+            assertNull("위험으로 멈춘 낭독은 듣기가 끝나도 잇지 않는다", audio.playing)
+            assertFalse("위험으로 멈춘 중에는 듣기를 시작하지 않는다", engine.beginListening())
+
+            testScheduler.advanceTimeBy(3_100)
+            engine.onVehicleEvent(VehicleEvent.Driving)
+            val notice = audio.playing!!
+            assertTrue(notice.startsWith("reply_"))
+            engine.onAudioEvent(AudioEvent.SceneFinished(notice))
+            assertEquals("m1" to 1, audio.history.last())
+        }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun `듣고 나서 한 질문의 대답을 기다리는 동안에는 듣기가 끝나도 낭독을 잇지 않는다`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val answer = kotlinx.coroutines.CompletableDeferred<com.roadmystery.app.voice.SuspectReply>()
+            val slow =
+                object : com.roadmystery.app.voice.VoiceAgent {
+                    override suspend fun ask(utterance: String, context: com.roadmystery.app.voice.CaseContext) = answer.await()
+
+                    override suspend fun summarize(scenario: Scenario, progress: Progress) = ""
+                }
+            val engine = DefaultStoryEngine(ScenarioRepository { testScenario }, audio, voice = slow, scope = backgroundScope)
+            engine.start("test")
+            engine.onAudioEvent(AudioEvent.SceneFinished("briefing"))
+            engine.onVehicleEvent(VehicleEvent.Driving)
+            engine.onAudioEvent(AudioEvent.SentenceStarted("m1", 2))
+            audio.pauseIndex = 2
+            engine.onVehicleEvent(VehicleEvent.Stopped)
+
+            assertTrue(engine.beginListening())
+            engine.ask("a", "커피는 왜 샀나요?")
+            engine.endListening()
+            assertNull("대답을 기다리는 중이다", audio.playing)
+
+            answer.complete(com.roadmystery.app.voice.SuspectReply(text = "대표님이 드실 커피였어요."))
+            val reply = audio.playing!!
+            assertTrue(reply.startsWith("reply_"))
+            audio.playing = null
+            engine.onAudioEvent(AudioEvent.SceneFinished(reply))
+            assertEquals("m1" to 2, audio.history.last())
+        }
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
@@ -315,7 +405,7 @@ class StoryEngineTest {
             audio.pauseIndex = 2
             engine.onVehicleEvent(VehicleEvent.Stopped)
 
-            engine.beginListening()
+            assertTrue(engine.beginListening())
             assertNull(audio.playing)
             engine.ask("a", "커피는 왜 샀나요?")
             engine.endListening()

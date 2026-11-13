@@ -208,11 +208,13 @@ class MainActivity : ComponentActivity() {
                     listenJob?.cancel()
                     listenJob =
                         lifecycleScope.launch {
-                            listening = true
+                            val input = speech ?: return@launch
                             // 마이크가 낭독을 듣지 않게 듣는 동안 낭독을 멈춘다. 말이 없으면 정해 둔 시간 뒤에 끝난다.
-                            engine.beginListening()
+                            // 위험으로 멈춘 중처럼 질문을 받을 수 없을 때는 마이크를 열지 않는다.
+                            if (!engine.beginListening()) return@launch
+                            listening = true
                             try {
-                                val text = speech?.listenForQuestion()
+                                val text = input.listenForQuestion()
                                 if (text != null) engine.ask(suspectId, text)
                             } finally {
                                 listening = false

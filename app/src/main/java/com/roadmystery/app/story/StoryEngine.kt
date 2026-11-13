@@ -55,8 +55,11 @@ interface StoryEngine {
         utterance: String,
     )
 
-    /** 정차 중 "음성으로 묻기"로 듣기 시작한다. 마이크가 낭독을 듣지 않게, 듣는 동안 낭독을 멈춘다. */
-    fun beginListening() {}
+    /**
+     * 정차 중 "음성으로 묻기"로 듣기 시작한다. 마이크가 낭독을 듣지 않게, 듣는 동안 낭독을 멈춘다.
+     * 지금은 질문을 받을 수 없으면(주행 중, 위험으로 멈춘 중, 대답을 기다리는 중) false를 돌려주고 아무것도 하지 않는다.
+     */
+    fun beginListening(): Boolean = true
 
     /** 듣기가 끝났다. 질문이 이어지지 않았으면 멈춘 문장부터 낭독을 잇는다. */
     fun endListening() {}
