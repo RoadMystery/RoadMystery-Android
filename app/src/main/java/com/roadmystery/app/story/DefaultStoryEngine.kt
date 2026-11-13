@@ -538,8 +538,8 @@ class DefaultStoryEngine(
         }
     }
 
-    /** 질문의 대답을 기다리거나 읽는 중이다. */
-    private fun interrogating() = askJob?.isActive == true || current?.trigger == SceneTrigger.REPLY
+    /** 음성으로 묻는 말을 듣거나, 질문의 대답을 기다리거나 읽는 중이다. */
+    private fun interrogating() = listening || askJob?.isActive == true || current?.trigger == SceneTrigger.REPLY
 
     /** 위험 시각을 기록하고, 반복이면 정차 때까지 보류하며, 아니면 재개 타이머를 다시 건다. */
     private fun registerHazard() {

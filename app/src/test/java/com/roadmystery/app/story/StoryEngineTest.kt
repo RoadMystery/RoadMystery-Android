@@ -536,6 +536,27 @@ class StoryEngineTest {
             assertEquals("멈춰 있던 장면의 남은 문장을 잃지 않는다", "m1" to 1, audio.history.last())
         }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun `지속 경고가 풀린 직후 음성으로 묻는 말을 듣는 동안에는 재개 타이머가 낭독을 잇지 않는다`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val engine = hazardEngine(backgroundScope) { testScheduler.currentTime }
+            engine.onVehicleEvent(VehicleEvent.HazardState(HazardReason.ADAS_WARNING, true))
+            engine.onVehicleEvent(VehicleEvent.HazardState(HazardReason.ADAS_WARNING, false))
+            engine.onVehicleEvent(VehicleEvent.Stopped)
+
+            assertTrue(engine.beginListening())
+            testScheduler.advanceTimeBy(3_100)
+            assertNull("듣는 중에는 낭독을 잇지 않는다", audio.playing)
+            engine.endListening()
+            assertNull("말이 없이 끝나도 멈춘 낭독은 출발할 때까지 멈춰 있다", audio.playing)
+
+            engine.onVehicleEvent(VehicleEvent.Driving)
+            val notice = audio.playing!!
+            engine.onAudioEvent(AudioEvent.SceneFinished(notice))
+            assertEquals("m1" to 1, audio.history.last())
+        }
+
     @Test
     fun `도착한 뒤 서 있는 차에 위험이 와도 범인을 지목할 수 있다`() {
         startDriving()
