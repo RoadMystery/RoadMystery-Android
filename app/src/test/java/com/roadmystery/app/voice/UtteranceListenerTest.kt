@@ -58,16 +58,20 @@ class UtteranceListenerTest {
 
     @Test
     fun `what arrives after the result is ignored`() {
+        listener.onEndedRecognition()
         listener.onUpdated("멈춰", true)
         val heard = speech
 
         listener.onUpdated("다음 말", true)
         listener.onUpdatedEpdData(0, 32_000)
         listener.onEndedRecognition()
+        listener.onError(ErrorType.TIMEOUT)
         waits.forEach { it.second() }
 
         assertEquals(listOf<String?>("멈춰"), results)
         assertEquals(heard, speech)
+        // 결과가 난 뒤의 끝났다는 알림은 기다림을 새로 걸지 않는다.
+        assertEquals(1, waits.size)
     }
 
     @Test
