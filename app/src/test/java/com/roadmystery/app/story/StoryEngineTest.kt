@@ -549,9 +549,18 @@ class StoryEngineTest {
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
-    fun `질문 구간 대답 중 위험이 오면 심문을 끊고, 출발하면 다음 장면으로 간다`() =
+    fun `질문 구간 대답 중 위험이 오면 심문을 끊고, 조용해지면 안내 후 다음 장면으로 간다`() =
         runTest(UnconfinedTestDispatcher()) {
-            val engine = questionWindowEngine()
+            val engine =
+                DefaultStoryEngine(
+                    ScenarioRepository { testScenario },
+                    audio,
+                    scope = backgroundScope,
+                    clock = { testScheduler.currentTime },
+                )
+            engine.start("test")
+            engine.onAudioEvent(AudioEvent.SceneFinished("briefing"))
+            engine.onVehicleEvent(VehicleEvent.Driving)
             engine.onAudioEvent(AudioEvent.SentenceStarted("m1", 2))
             engine.askBetweenScenes("a", "커피")
             val reply = audio.playing!!
@@ -560,10 +569,15 @@ class StoryEngineTest {
             assertEquals(AppMode.PAUSED, engine.mode.value)
             assertNull(engine.interrogation.value)
 
+            // 위험 직후의 출발로는 재개하지 않는다. 조용한 시간이 지나면 안내 후 다음 장면으로 간다.
             engine.onVehicleEvent(VehicleEvent.Driving)
+            assertEquals(AppMode.PAUSED, engine.mode.value)
+            testScheduler.advanceTimeBy(3_100)
+            val notice = audio.playing!!
+            assertTrue(notice.startsWith("reply_") && notice != reply)
             assertEquals(AppMode.DRIVING, engine.mode.value)
+            engine.onAudioEvent(AudioEvent.SceneFinished(notice))
             assertEquals("opt1" to 0, audio.history.last())
-            assertTrue(reply != audio.playing)
         }
 
     @OptIn(ExperimentalCoroutinesApi::class)
