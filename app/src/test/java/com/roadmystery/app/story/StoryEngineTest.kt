@@ -375,6 +375,8 @@ class StoryEngineTest {
 
             engine.onVehicleEvent(VehicleEvent.Hazard(HazardReason.HARD_BRAKE))
             assertEquals("서 있는 차에서는 정차 화면을 그대로 둔다", AppMode.STOPPED, engine.mode.value)
+            // 이미 멈춘 낭독을 다시 멈추려 들면 이 값이 멈춘 자리로 잘못 기억된다.
+            audio.pauseIndex = 0
             engine.endListening()
             assertNull("위험으로 멈춘 낭독은 듣기가 끝나도 잇지 않는다", audio.playing)
 
