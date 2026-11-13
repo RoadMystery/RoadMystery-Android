@@ -304,6 +304,30 @@ class StoryEngineTest {
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
+    fun `증언으로 남기지 않을 답은 읽어 주되 증언 목록과 저장에는 남기지 않는다`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val offline =
+                object : com.roadmystery.app.voice.VoiceAgent {
+                    override suspend fun ask(utterance: String, context: com.roadmystery.app.voice.CaseContext) =
+                        com.roadmystery.app.voice.SuspectReply(text = "지금은 생각이 잘 정리되지 않습니다.", isTestimony = false)
+
+                    override suspend fun summarize(scenario: Scenario, progress: Progress) = ""
+                }
+            val engine = DefaultStoryEngine(ScenarioRepository { testScenario }, audio, voice = offline, scope = backgroundScope)
+            engine.start("test")
+            engine.onAudioEvent(AudioEvent.SceneFinished("briefing"))
+            engine.onVehicleEvent(VehicleEvent.Driving)
+            engine.onVehicleEvent(VehicleEvent.Stopped)
+
+            engine.ask("a", "커피는 왜 샀나요?")
+            assertTrue(audio.playing!!.startsWith("reply_"))
+            assertEquals("지금은 생각이 잘 정리되지 않습니다.", engine.interrogation.value?.answer)
+            assertTrue(engine.testimonies.value.isEmpty())
+            assertTrue(engine.snapshot.value?.testimonies.orEmpty().isEmpty())
+        }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
     fun `대답 중 급제동이면 즉시 멈추고, 다시 출발하면 낭독을 재개한다`() =
         runTest(UnconfinedTestDispatcher()) {
             val engine = DefaultStoryEngine(ScenarioRepository { testScenario }, audio, scope = backgroundScope, clock = { testScheduler.currentTime })

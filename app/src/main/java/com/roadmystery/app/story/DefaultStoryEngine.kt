@@ -342,7 +342,7 @@ class DefaultStoryEngine(
                 }
                 if (suspectId != null) {
                     reply.answerId?.let { heardAnswers.getOrPut(suspectId) { mutableSetOf() } += it }
-                    _testimonies.value = _testimonies.value + Testimony(suspectId, question, reply.text)
+                    if (reply.isTestimony) _testimonies.value = _testimonies.value + Testimony(suspectId, question, reply.text)
                     unlock(reply.reveals)
                 }
                 _interrogation.value = Interrogation(suspectId, question, reply.text)
