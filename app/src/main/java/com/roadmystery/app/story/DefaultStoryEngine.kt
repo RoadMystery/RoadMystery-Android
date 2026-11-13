@@ -189,7 +189,8 @@ class DefaultStoryEngine(
             VehicleEvent.Stopped, VehicleEvent.Parked, VehicleEvent.Arrived -> moving = false
             else -> Unit
         }
-        _canInteract.value = !moving && !held && activeHazards.isEmpty()
+        // 서 있으면 위험으로 낭독이 멈춰 있어도 조작을 받는다. 지속 경고가 켜져 있는 동안만 막는다.
+        _canInteract.value = !moving && activeHazards.isEmpty()
 
         if (_mode.value == AppMode.IDLE) return
         when (event) {
@@ -208,7 +209,8 @@ class DefaultStoryEngine(
     }
 
     fun onAudioEvent(event: AudioEvent) {
-        if (held) return
+        // 위험으로 멈춘 낭독의 이벤트는 받지 않는다. 그동안 서서 들은 대답은 끝까지 따라간다.
+        if (held && current?.trigger != SceneTrigger.REPLY) return
         val scene = current ?: return
         when (event) {
             is AudioEvent.SentenceStarted ->
@@ -308,7 +310,8 @@ class DefaultStoryEngine(
         produce: suspend () -> SuspectReply,
     ) {
         val asyncScope = scope ?: return
-        if (held || activeHazards.isNotEmpty() || question.isBlank() || askJob?.isActive == true) return
+        // 위험으로 낭독이 멈춰 있어도 서 있으면 질문은 받는다(주행 중이면 모드가 PAUSED라 아래에서 걸린다).
+        if (activeHazards.isNotEmpty() || question.isBlank() || askJob?.isActive == true) return
         if (whileDriving) {
             if (_mode.value != AppMode.DRIVING || !moving) return
         } else if (_mode.value != AppMode.STOPPED || moving) {
@@ -425,8 +428,10 @@ class DefaultStoryEngine(
             current?.let { publishNowPlaying(it) }
         }
         held = true
-        _canInteract.value = false
-        if (_mode.value != AppMode.ENDING) _mode.value = AppMode.PAUSED
+        // 서 있는 차에서는 낭독만 멈추고 정차 화면을 그대로 둔다("멈춰"라고 했을 때). 지속 경고는 서 있어도 화면을 막는다.
+        val blocked = moving || activeHazards.isNotEmpty()
+        _canInteract.value = !blocked
+        if (_mode.value != AppMode.ENDING) _mode.value = if (blocked) AppMode.PAUSED else AppMode.STOPPED
         registerHazard()
         publishSnapshot()
     }
