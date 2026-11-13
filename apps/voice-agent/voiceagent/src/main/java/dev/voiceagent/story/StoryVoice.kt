@@ -54,7 +54,9 @@ class StoryVoice(
         follow(foundClueIds)
         val reply = agent.ask(utterance, suspectId)
         val text = reply.suspectText.ifBlank { scenario.suspect(suspectId).fallbackOffline }
-        StoryReply(text, reply.narratorLine, reply.kind, reply.failure, reply.lineIds)
+        // A turn that left nothing to say gets the line for a dropped connection too, whatever its kind.
+        val said = reply.suspectText.isNotBlank() && reply.kind != ReplyKind.FALLBACK && reply.kind != ReplyKind.NOT_UNDERSTOOD
+        StoryReply(text, reply.narratorLine, reply.kind, reply.failure, reply.lineIds, isTestimony = said)
     }
 
     /**
@@ -117,11 +119,10 @@ data class StoryReply(
      * SuspectReply.answerId takes the first. Empty for a deflection or fallback the agent chose itself.
      */
     val lineIds: List<String> = emptyList(),
-) {
     /**
      * Whether [text] is something the suspect said about the case. The line for a dropped connection and the
      * one for a question not caught say nothing, so the team app keeps them out of its testimony list
      * (SuspectReply.isTestimony).
      */
-    val isTestimony: Boolean get() = kind != ReplyKind.FALLBACK && kind != ReplyKind.NOT_UNDERSTOOD
-}
+    val isTestimony: Boolean = true,
+)
