@@ -48,10 +48,8 @@ import com.roadmystery.app.voice.PleosSpeechInput
 import com.roadmystery.app.voice.ScriptedVoiceAgent
 import com.roadmystery.app.voice.isStopCommand
 import com.roadmystery.app.voice.SpeechInput
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.merge
@@ -106,15 +104,17 @@ class MainActivity : ComponentActivity() {
 
         lifecycleScope.launch { savedProgress.value = store.load(DEMO_SCENARIO_ID) }
         lifecycleScope.launch {
-            engine.snapshot.filterNotNull().collectLatest { progress ->
-                delay(500)
-                if (engine.outcome.value != null) {
-                    store.clear(progress.scenarioId)
-                    savedProgress.value = null
-                } else {
-                    store.save(progress)
-                    savedProgress.value = progress
-                }
+            // 문장이 바뀔 때마다 바로 저장한다. 저장이 느리면 StateFlow가 중간 값을 건너뛰고 최신 값만 저장한다.
+            engine.snapshot.filterNotNull().collect { progress ->
+                runCatching {
+                    if (engine.outcome.value != null) {
+                        store.clear(progress.scenarioId)
+                        savedProgress.value = null
+                    } else {
+                        store.save(progress)
+                        savedProgress.value = progress
+                    }
+                }.onFailure { Log.w(TAG, "진행 상태 저장 실패: ${it.message}") }
             }
         }
 
