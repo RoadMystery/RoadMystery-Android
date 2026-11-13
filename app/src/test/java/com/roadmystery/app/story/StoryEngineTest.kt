@@ -221,6 +221,19 @@ class StoryEngineTest {
         }
 
     @Test
+    fun `위험으로 멈춘 채 주차하고 도착해도 범인을 지목할 수 있다`() {
+        startDriving()
+        send(VehicleEvent.Hazard(HazardReason.HARD_BRAKE))
+        now = 1_500
+        send(VehicleEvent.Stopped)
+        now = 10_000
+        // F-01은 도착을 주차할 때까지 붙잡았다가 주차, 도착 순서로 보낸다.
+        send(VehicleEvent.Parked, VehicleEvent.Arrived)
+        assertEquals(AppMode.ENDING, engine.mode.value)
+        assertTrue(engine.canInteract.value)
+    }
+
+    @Test
     fun `도착 후 다시 움직이면 지목을 받지 않는다`() {
         startDriving()
         send(VehicleEvent.Arrived)

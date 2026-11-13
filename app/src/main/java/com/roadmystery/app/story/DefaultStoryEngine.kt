@@ -512,6 +512,8 @@ class DefaultStoryEngine(
         queue.clear()
         current = null
         held = false
+        // 위험으로 멈춘 채 도착했으면 이벤트 앞에서 계산한 값이 막힌 채로 남는다. 멈춤을 풀었으니 다시 계산한다.
+        _canInteract.value = !moving && activeHazards.isEmpty()
         _nowPlaying.value = null
         _mode.value = AppMode.ENDING
         _progress.value = 1f
