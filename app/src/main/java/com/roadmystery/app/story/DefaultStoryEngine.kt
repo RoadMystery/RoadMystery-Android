@@ -327,7 +327,8 @@ class DefaultStoryEngine(
     }
 
     override fun beginListening(): Boolean {
-        if (listening || held || moving || _mode.value != AppMode.STOPPED || askJob?.isActive == true) return false
+        // 위험으로 낭독이 멈춰 있어도 서 있으면 듣는다(respond와 같다). 지속 경고가 켜져 있으면 듣지 않는다.
+        if (listening || moving || activeHazards.isNotEmpty() || _mode.value != AppMode.STOPPED || askJob?.isActive == true) return false
         listening = true
         // 읽던 대답은 끊고, 낭독 중이었다면 멈춘 자리를 기억해 둔다(respond와 같다).
         val playing = current ?: return true
@@ -337,7 +338,7 @@ class DefaultStoryEngine(
             askedWhileDriving = false
             cutReply = true
         } else {
-            interrupted = playing to audio.pause()
+            interrupted = playing to (if (held) sentenceIndex else audio.pause())
         }
         current = null
         _nowPlaying.value = null
@@ -354,9 +355,14 @@ class DefaultStoryEngine(
         val back = interrupted
         interrupted = null
         when {
+            // 위험으로 멈춘 낭독은 듣기가 끝나도 잇지 않는다. 다음 출발 때 재개하도록 제자리에 돌려놓는다(finishScene과 같다).
+            back != null && held -> {
+                current = back.first
+                sentenceIndex = back.second
+            }
             back != null -> play(back.first, back.second)
             // 끊은 대답 뒤에 이을 낭독이 없으면(주행 중 질문의 대답, 재개 안내) 대답이 끝났을 때처럼 다음 장면으로 간다.
-            cut -> playNext()
+            cut && !held -> playNext()
         }
     }
 
@@ -405,7 +411,7 @@ class DefaultStoryEngine(
                 val canAnswer =
                     (_mode.value == AppMode.DRIVING && moving && whileDriving) ||
                         (_mode.value == AppMode.STOPPED && !moving)
-                if (!canAnswer || held) {
+                if (!canAnswer) {
                     askedWhileDriving = false
                     _interrogation.value = null
                     return@launch

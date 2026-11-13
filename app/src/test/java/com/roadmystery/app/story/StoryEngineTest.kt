@@ -374,10 +374,21 @@ class StoryEngineTest {
             assertTrue(engine.beginListening())
 
             engine.onVehicleEvent(VehicleEvent.Hazard(HazardReason.HARD_BRAKE))
-            assertEquals(AppMode.PAUSED, engine.mode.value)
+            assertEquals("서 있는 차에서는 정차 화면을 그대로 둔다", AppMode.STOPPED, engine.mode.value)
             engine.endListening()
             assertNull("위험으로 멈춘 낭독은 듣기가 끝나도 잇지 않는다", audio.playing)
-            assertFalse("위험으로 멈춘 중에는 듣기를 시작하지 않는다", engine.beginListening())
+
+            // 낭독이 멈춘 채 서 있을 때도 음성으로 물을 수 있고, 말이 없이 끝나도 낭독은 멈춘 채로 있다.
+            assertTrue(engine.beginListening())
+            engine.endListening()
+            assertNull(audio.playing)
+            assertTrue(engine.beginListening())
+            engine.ask("a", "커피는 왜 샀나요?")
+            engine.endListening()
+            val reply = audio.playing!!
+            audio.playing = null
+            engine.onAudioEvent(AudioEvent.SceneFinished(reply))
+            assertNull("대답이 끝나도 멈춘 낭독은 잇지 않는다", audio.playing)
 
             testScheduler.advanceTimeBy(3_100)
             engine.onVehicleEvent(VehicleEvent.Driving)
