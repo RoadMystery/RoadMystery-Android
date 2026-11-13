@@ -148,9 +148,12 @@ private suspend fun SpeechInput.withFollowUps(heard: String, left: Int, finishMs
     return withFollowUps("${heard.trim()} ${more.trim()}", left - 1, finishMs)
 }
 
-/** 더 기다리지 않아도 되는 말인가. 인식기는 끝맺은 물음에 물음표를 붙인다. 질문이 없다는 대답도 끝난 말이다. */
+/**
+ * 더 기다리지 않아도 되는 말인가. 인식기는 끝맺은 물음에 물음표를 붙인다. 질문이 없다는 대답도 끝난 말이고,
+ * 정지 명령은 기다리지 않고 곧바로 따른다.
+ */
 internal fun isCompleteUtterance(text: String): Boolean =
-    text.trimEnd().lastOrNull() in SENTENCE_END || isNoQuestion(text)
+    text.trimEnd().lastOrNull() in SENTENCE_END || isNoQuestion(text) || isStopCommand(text)
 
 /**
  * 인식기가 준비된 뒤 [startMs] 동안 말 시작을 기다리고, 시작한 말에는 [finishMs]까지 끝낼 시간을 따로 준다.

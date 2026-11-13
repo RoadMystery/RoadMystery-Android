@@ -132,6 +132,18 @@ class DrivingQuestionInputTest {
     }
 
     @Test
+    fun `a stop command is not kept waiting for more`() = runTest {
+        var listens = 0
+        val input = pieces(
+            { started -> listens++; started(); delay(700); "멈춰" },
+            { listens++; awaitCancellation() },
+        )
+        assertEquals("멈춰", input.listenForDrivingQuestion())
+        assertEquals(700L, testScheduler.currentTime)
+        assertEquals(1, listens)
+    }
+
+    @Test
     fun `the follow-up wait is counted from when the recognizer is ready again`() = runTest {
         val input = pieces(
             { started -> started(); delay(1_000); "윤재희 씨" },
@@ -163,6 +175,7 @@ class DrivingQuestionInputTest {
         assertTrue(isCompleteUtterance("수면제를 본 적 있나요? "))
         assertTrue(isCompleteUtterance("그건 말씀드릴 수 없어요."))
         assertTrue(isCompleteUtterance("아니요, 괜찮아요"))
+        assertTrue(isCompleteUtterance("멈춰"))
         assertFalse(isCompleteUtterance("윤재희 씨"))
         assertFalse(isCompleteUtterance(""))
     }
