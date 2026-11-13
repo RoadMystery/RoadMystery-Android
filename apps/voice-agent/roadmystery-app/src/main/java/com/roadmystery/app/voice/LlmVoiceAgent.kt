@@ -16,6 +16,8 @@ import dev.voiceagent.story.StoryVoices
  *   (docs/voice-agent/line-answers.md). answerId에는 처음 읽은 대사 id를 넣는다.
  * - 대답으로 단서를 열지 않으므로 reveals는 비어 있다. 단서는 장면이 끝날 때 열린다(모든 단서가 필수 본편
  *   장면에서 열린다는 ScenarioParser.validate 규칙).
+ * - 연결이 끊겨 준비된 말로 대신한 답은 사건에 대해 말한 것이 없으므로 증언으로 남기지 않는다
+ *   (SuspectReply.isTestimony = false). 화면에는 보이고 읽어 준다.
  * - 정차 화면의 질문 버튼과 "음성으로 묻기"는 그대로 쓴다. 질문에 다른 사람 이름이 있어도 고른 용의자가 답한다.
  */
 class LlmVoiceAgent(
@@ -28,7 +30,7 @@ class LlmVoiceAgent(
     ): SuspectReply {
         val voice = voices.forScenario(context.scenario.id) ?: return fallback.ask(utterance, context)
         val reply = voice.ask(context.suspect.id, utterance, context.foundClueIds)
-        return SuspectReply(text = reply.text, answerId = reply.lineIds.firstOrNull())
+        return SuspectReply(text = reply.text, answerId = reply.lineIds.firstOrNull(), isTestimony = reply.isTestimony)
     }
 
     override suspend fun summarize(

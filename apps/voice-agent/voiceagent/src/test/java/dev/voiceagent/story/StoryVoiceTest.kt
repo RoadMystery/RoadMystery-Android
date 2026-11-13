@@ -56,6 +56,7 @@ class StoryVoiceTest {
 
         assertEquals(line(seojin, "k-seojin-culprit"), reply.text)
         assertEquals(listOf("k-seojin-culprit"), reply.lineIds)
+        assertTrue(reply.isTestimony)
         assertEquals(ReplyKind.ANSWER, reply.kind)
         assertTrue(llm.requests.single().system.contains("${seojin.name}(${seojin.role})"))
         assertEquals("s_seojin", voice.state.value.currentSuspect)
@@ -128,6 +129,8 @@ class StoryVoiceTest {
         assertEquals(ReplyKind.FALLBACK, reply.kind)
         assertEquals(minhyuk.fallbackOffline, reply.text)
         assertEquals("network", reply.failure)
+        // It says nothing about the case, so the team app does not keep it as testimony.
+        assertFalse(reply.isTestimony)
     }
 
     @Test

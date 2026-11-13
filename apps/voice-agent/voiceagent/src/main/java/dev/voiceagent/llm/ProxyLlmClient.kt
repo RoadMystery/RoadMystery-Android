@@ -108,10 +108,10 @@ class ProxyLlmClient(
         const val CLIENT_ERROR = "client_error"
 
         /** A broken or hostile server cannot make the app buffer more than this. */
-        private const val MAX_ERROR_BYTES = 4_096
-        private const val MAX_LINE_CHARS = 64_000
+        internal const val MAX_ERROR_BYTES = 4_096
+        internal const val MAX_LINE_CHARS = 64_000
 
-        private fun readCapped(stream: InputStream, limit: Int): String {
+        internal fun readCapped(stream: InputStream, limit: Int): String {
             val buffer = ByteArray(limit)
             var total = 0
             while (total < limit) {
@@ -123,7 +123,7 @@ class ProxyLlmClient(
         }
 
         /** BufferedReader.readLine (\n, \r or \r\n) that gives up on lines longer than [max]. */
-        private fun BufferedReader.readLineCapped(max: Int): String? {
+        internal fun BufferedReader.readLineCapped(max: Int): String? {
             val line = StringBuilder()
             while (true) {
                 val char = read()
@@ -193,7 +193,7 @@ class ProxyLlmClient(
     }
 }
 
-private class OversizedLineException(max: Int) : IOException("event line longer than $max characters")
+internal class OversizedLineException(max: Int) : IOException("event line longer than $max characters")
 
 internal data class SseEvent(val name: String, val data: String)
 
