@@ -28,6 +28,7 @@ interface SpeechInput {
      */
     suspend fun listen(onListening: () -> Unit = {}, onSpeechDetected: () -> Unit = {}): String?
 
+    /** 진행 중인 듣기를 그만둔다. 그 듣기는 들은 말이 있어도 null로 끝난다. */
     fun cancel()
 }
 
@@ -111,7 +112,7 @@ class PleosSpeechInput(
         }
     }
 
-    /** 듣던 말을 버리고 듣기를 끝낸다. 이어지는 말을 들으려고 마이크를 다시 열지 않는다. */
+    /** 진행 중인 듣기를 null로 끝낸다. null을 받은 [listenWithin]은 이어지는 말을 들으려고 마이크를 다시 열지 않는다. */
     override fun cancel() {
         current?.abort()
         stop()
@@ -135,6 +136,9 @@ class PleosSpeechInput(
  *
  * 인식기는 0.6초쯤만 쉬어도 말이 끝났다고 보고 듣기를 끝낸다. 이름을 부른 뒤 잠깐 쉬었다가 물으면 부른 이름만
  * 돌아온다. 그래서 끝맺지 않은 말이면 다시 들어서 이어지는 말을 붙인다.
+ *
+ * 인식기가 다시 준비되기까지(에뮬레이터에서 0.1~0.7초)의 말은 듣지 못한다. 0.6초만 쉬고 이으면 뒷말의 첫 낱말이
+ * 빠질 수 있고, 1초쯤 쉬면 다 들린다.
  */
 internal suspend fun SpeechInput.listenWithin(startMs: Long, finishMs: Long): String? {
     val first = listenOnce(startMs, finishMs) ?: return null

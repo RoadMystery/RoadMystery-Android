@@ -4,7 +4,10 @@ import com.roadmystery.app.story.ScenarioParser
 import java.io.File
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -129,6 +132,60 @@ class DrivingQuestionInputTest {
         assertEquals("아니요 괜찮아요", input.listenForDrivingQuestion())
         assertEquals(1_000L, testScheduler.currentTime)
         assertEquals(1, listens)
+    }
+
+    @Test
+    fun `an ending said after a pause is joined, not taken as an answer that there is no question`() = runTest {
+        val input = pieces(
+            { started -> started(); delay(1_000); "윤재희 씨 그날 밤 일을 말씀해" },
+            { started -> delay(300); started(); delay(500); "주세요" },
+        )
+        assertEquals("윤재희 씨 그날 밤 일을 말씀해 주세요", input.listenForDrivingQuestion())
+    }
+
+    @Test
+    fun `speech that begins after the follow-up wait is not joined`() = runTest {
+        var listens = 0
+        val input = pieces(
+            { started -> listens++; started(); delay(1_000); "윤재희 씨" },
+            { started -> listens++; delay(1_600); started(); delay(1_000); "수면제를 본 적 있나요?" },
+        )
+        assertEquals("윤재희 씨", input.listenForQuestion())
+        assertEquals(2_500L, testScheduler.currentTime)
+        assertEquals(2, listens)
+    }
+
+    @Test
+    fun `listening cancelled during a follow-up closes the microphone and does not listen again`() = runTest {
+        var listens = 0
+        var closed = false
+        val input = pieces(
+            { started -> listens++; started(); delay(1_000); "윤재희 씨" },
+            { started ->
+                listens++
+                try {
+                    delay(500)
+                    started()
+                    awaitCancellation()
+                } finally {
+                    closed = true
+                }
+            },
+            { listens++; awaitCancellation() },
+        )
+        val job = launch { input.listenForQuestion() }
+        advanceTimeBy(2_000)
+        job.cancelAndJoin()
+        assertTrue(closed)
+        assertEquals(2, listens)
+    }
+
+    @Test
+    fun `only words that all say there is no question count as no question`() {
+        assertTrue(isNoQuestion("아니요, 괜찮아요."))
+        assertFalse(isNoQuestion("아니요, 윤재희 씨는요?"))
+        assertFalse(isNoQuestion(""))
+        assertFalse(isNoQuestion("?!"))
     }
 
     @Test
