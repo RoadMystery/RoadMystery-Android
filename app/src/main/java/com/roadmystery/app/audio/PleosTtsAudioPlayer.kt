@@ -67,32 +67,34 @@ class PleosTtsAudioPlayer(
     private var speaking = false
     private var focusPaused = false
 
+    private val ttsListener =
+        object : EventListener {
+            override fun onStart() = Unit
+
+            override fun onReady() = Unit
+
+            override fun onDone() {
+                scope.launch { onSentenceDone() }
+            }
+
+            override fun onError(errorType: ErrorType) {
+                Log.w(TAG, "TTS 오류: $errorType")
+                scope.launch { onSentenceDone() }
+            }
+
+            override fun onStop() = Unit
+
+            override fun onUpdatedRms(rms: Double) = Unit
+        }
+
     init {
-        tts.setAudioAttributes(attributes)
-        tts.setLocale(Locale.KOREAN)
-        tts.addEventListener(
-            object : EventListener {
-                override fun onStart() = Unit
-
-                override fun onReady() = Unit
-
-                override fun onDone() {
-                    scope.launch { onSentenceDone() }
-                }
-
-                override fun onError(errorType: ErrorType) {
-                    Log.w(TAG, "TTS 오류: $errorType")
-                    scope.launch { onSentenceDone() }
-                }
-
-                override fun onStop() = Unit
-
-                override fun onUpdatedRms(rms: Double) = Unit
-            },
-        )
         tts.initialize(
             object : OnInitializeListener {
                 override fun onSuccess() {
+                    // SDK 내부 서비스는 initialize 이후에 생기므로 설정은 여기서 한다.
+                    tts.addEventListener(ttsListener)
+                    tts.setAudioAttributes(attributes)
+                    tts.setLocale(Locale.KOREAN)
                     if (!useServer) {
                         _ttsReady.value = true
                         return

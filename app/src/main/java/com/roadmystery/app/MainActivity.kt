@@ -224,6 +224,6 @@ class MainActivity : ComponentActivity() {
         block: () -> T,
     ): T? =
         runCatching(block)
-            .onFailure { Log.w(TAG, "$name 사용 불가, 대체 구현으로 진행: ${it.message}") }
+            .onFailure { Log.w(TAG, "$name 사용 불가, 대체 구현으로 진행", it) }
             .getOrNull()
 }

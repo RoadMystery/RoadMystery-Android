@@ -31,10 +31,11 @@ class PleosSpeechInput(
     @Volatile private var ready = false
 
     init {
-        stt.setLocale(Locale.KOREAN)
         stt.initialize(
             object : OnInitializeListener {
                 override fun onSuccess() {
+                    // SDK 내부 서비스는 initialize 이후에 생기므로 설정은 여기서 한다.
+                    stt.setLocale(Locale.KOREAN)
                     if (!useServer) {
                         ready = true
                         return
