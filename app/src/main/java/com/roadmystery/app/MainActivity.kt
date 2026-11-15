@@ -46,6 +46,7 @@ import com.roadmystery.app.vehicle.VehicleEvent
 import com.roadmystery.app.vehicle.VehicleState
 import com.roadmystery.app.voice.PleosSpeechInput
 import com.roadmystery.app.voice.ScriptedVoiceAgent
+import com.roadmystery.app.voice.isStopCommand
 import com.roadmystery.app.voice.SpeechInput
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -157,13 +158,13 @@ class MainActivity : ComponentActivity() {
         val gameActions =
             GameActions(
                 onAccuse = { engine.choose(StoryEngine.DECISION_ACCUSE, it) },
-                onAsk = { suspectId, question -> engine.ask(suspectId, question) },
+                onAsk = { suspectId, question -> handleUtterance(suspectId, question) },
                 onListen = { suspectId ->
                     lifecycleScope.launch {
                         listening = true
                         val text = speech?.listen()
                         listening = false
-                        if (text != null) engine.ask(suspectId, text)
+                        if (text != null) handleUtterance(suspectId, text)
                     }
                 },
                 onSummary = { engine.requestSummary() },
@@ -209,6 +210,14 @@ class MainActivity : ComponentActivity() {
                 VerticalDivider()
                 GameScreen(state = gameState, actions = gameActions, modifier = Modifier.weight(1f))
             }
+        }
+    }
+
+    private fun handleUtterance(suspectId: String, text: String) {
+        if (isStopCommand(text)) {
+            engine.onVehicleEvent(com.roadmystery.app.vehicle.VehicleEvent.Hazard(com.roadmystery.app.vehicle.HazardReason.USER_STOP))
+        } else {
+            engine.ask(suspectId, text)
         }
     }
 

@@ -5,6 +5,7 @@ import com.roadmystery.app.audio.AudioPlayer
 import com.roadmystery.app.director.Director
 import com.roadmystery.app.director.Effect
 import com.roadmystery.app.director.FakeDirector
+import com.roadmystery.app.vehicle.HazardReason
 import com.roadmystery.app.vehicle.VehicleEvent
 import com.roadmystery.app.vehicle.VehicleState
 import com.roadmystery.app.voice.CaseContext
@@ -13,6 +14,7 @@ import com.roadmystery.app.voice.SuspectReply
 import com.roadmystery.app.voice.VoiceAgent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -23,7 +25,8 @@ import kotlinx.coroutines.launch
  *
  * - 본편(trigger 없는 장면)은 주행·정차 중 순서대로 재생된다. 첫 출발 전에는 브리핑만 재생한다.
  * - 장면이 끝나면 그 장면의 단서가 열리고, 다음 정차 때까지 pendingClues에 쌓인다.
- * - 위험 이벤트(급제동·ADAS·"멈춰")는 즉시 낭독과 심문을 멈추고, 다음 출발 때 멈춘 문장부터 재개한다.
+ * - 위험 이벤트(급제동·ADAS·"멈춰")는 즉시 낭독과 심문을 멈춘다. 일정 시간 조용하면 "이어서 들려드릴게요" 안내 후
+ *   멈춘 문장부터 재개한다. 짧은 시간 안에 반복되면 다음 정차 때까지 재개를 보류한다.
  * - 남은 도착 시간이 부족하면 required=false 장면을 뺀다. 목적지가 없으면 10분 챕터로 본다.
  * - 정차 중에는 심문·수첩 요약을 받는다. 출발하면 심문은 즉시 끝나고 낭독으로 돌아간다.
  * - 도착하면 낭독을 멈추고, 아직 못 들은 필수 장면의 단서를 지급한 뒤 범인 지목을 기다린다.
@@ -36,6 +39,11 @@ class DefaultStoryEngine(
     private val voice: VoiceAgent = ScriptedVoiceAgent(),
     private val director: Director = FakeDirector(),
     private var scope: CoroutineScope? = null,
+    /** 위험 이벤트 후 이만큼 조용해야 낭독을 재개한다. */
+    private val resumeDelayMs: Long = 3_000,
+    /** 이 시간 안에 위험 이벤트가 [REPEAT_THRESHOLD]번 이상이면 정차 때까지 보류한다. */
+    private val repeatWindowMs: Long = 60_000,
+    private val clock: () -> Long = { System.nanoTime() / 1_000_000 },
 ) : StoryEngine {
     private val _mode = MutableStateFlow(AppMode.IDLE)
     override val mode: StateFlow<AppMode> = _mode.asStateFlow()
@@ -84,6 +92,17 @@ class DefaultStoryEngine(
 
     /** 위험 이벤트로 낭독을 멈춘 상태. */
     private var held = false
+    private val activeHazards = mutableSetOf<HazardReason>()
+    private var waitsForClearDelay = false
+
+    /** 지속 경고 중에 도착이 왔다. 경고가 모두 풀리면 그때 도착을 처리한다. */
+    private var arrivedDuringHazard = false
+
+    /** 위험이 반복돼 다음 정차 때까지 재개하지 않는 상태. */
+    private var deferred = false
+    private var lastHazardAt = 0L
+    private val hazardTimes = ArrayDeque<Long>()
+    private var resumeJob: Job? = null
     private var etaSec: Int? = null
     private val choices = mutableMapOf<String, String>()
 
@@ -120,6 +139,7 @@ class DefaultStoryEngine(
         audio.stop()
         askJob?.cancel()
         askedWhileDriving = false
+        cancelHazardState()
         val loaded = repository.load(scenarioId)
         val errors = ScenarioParser.validate(loaded)
         check(errors.isEmpty()) { "시나리오 오류: ${errors.joinToString()}" }
@@ -169,13 +189,15 @@ class DefaultStoryEngine(
             VehicleEvent.Stopped, VehicleEvent.Parked, VehicleEvent.Arrived -> moving = false
             else -> Unit
         }
-        _canInteract.value = !moving
+        // 서 있으면 위험으로 낭독이 멈춰 있어도 조작을 받는다. 지속 경고가 켜져 있는 동안만 막는다.
+        _canInteract.value = !moving && activeHazards.isEmpty()
 
         if (_mode.value == AppMode.IDLE) return
         when (event) {
             VehicleEvent.Driving -> onDriving()
             VehicleEvent.Stopped, VehicleEvent.Parked -> onStopped()
             is VehicleEvent.Hazard -> onHazard()
+            is VehicleEvent.HazardState -> onHazardState(event)
             VehicleEvent.Arrived -> onArrived()
             is VehicleEvent.Place -> onPlace(event.tag)
             is VehicleEvent.EtaChanged -> {
@@ -187,6 +209,8 @@ class DefaultStoryEngine(
     }
 
     fun onAudioEvent(event: AudioEvent) {
+        // 위험으로 멈춘 낭독의 이벤트는 받지 않는다. 그동안 서서 들은 대답은 끝까지 따라간다.
+        if (held && current?.trigger != SceneTrigger.REPLY) return
         val scene = current ?: return
         when (event) {
             is AudioEvent.SentenceStarted ->
@@ -197,8 +221,7 @@ class DefaultStoryEngine(
                     if (scene.trigger == null) publishSnapshot()
                 }
             is AudioEvent.SceneFinished ->
-                // 위험 정지로 멈춘 낭독의 종료는 무시한다. 정지 중 정차 화면에서 들은 대답은 끝까지 처리한다.
-                if (event.sceneId == scene.id && (!held || scene.trigger == SceneTrigger.REPLY)) finishScene(scene)
+                if (event.sceneId == scene.id) finishScene(scene)
         }
     }
 
@@ -206,7 +229,8 @@ class DefaultStoryEngine(
         decisionId: String,
         optionId: String,
     ) {
-        if (moving) return
+        // 낭독이 위험으로 멈춰 있는지는 보지 않는다. 서 있고 지속 경고가 없으면 화면이 지목을 받는다(canInteract와 같다).
+        if (moving || activeHazards.isNotEmpty()) return
         if (decisionId != StoryEngine.DECISION_ACCUSE) {
             choices[decisionId] = optionId
             publishSnapshot()
@@ -287,7 +311,8 @@ class DefaultStoryEngine(
         produce: suspend () -> SuspectReply,
     ) {
         val asyncScope = scope ?: return
-        if (question.isBlank() || askJob?.isActive == true) return
+        // 위험으로 낭독이 멈춰 있어도 서 있으면 질문은 받는다(주행 중이면 모드가 PAUSED라 아래에서 걸린다).
+        if (activeHazards.isNotEmpty() || question.isBlank() || askJob?.isActive == true) return
         if (whileDriving) {
             if (_mode.value != AppMode.DRIVING || !moving) return
         } else if (_mode.value != AppMode.STOPPED || moving) {
@@ -324,7 +349,7 @@ class DefaultStoryEngine(
                 }
                 if (suspectId != null) {
                     reply.answerId?.let { heardAnswers.getOrPut(suspectId) { mutableSetOf() } += it }
-                    _testimonies.value = _testimonies.value + Testimony(suspectId, question, reply.text)
+                    if (reply.isTestimony) _testimonies.value = _testimonies.value + Testimony(suspectId, question, reply.text)
                     unlock(reply.reveals)
                 }
                 _interrogation.value = Interrogation(suspectId, question, reply.text)
@@ -361,23 +386,38 @@ class DefaultStoryEngine(
             AppMode.STOPPED -> _pendingClues.value = emptyList()
             else -> Unit
         }
-        _mode.value = AppMode.DRIVING
         val aborted = abortInterrogation()
         val scene = current
         when {
-            held -> resume()
-            aborted && scene != null -> play(scene, sentenceIndex)
-            scene == null -> playNext()
+            held && canResumeAfterHazard() -> resumeAfterHazard()
+            // 위험 직후이거나 반복 위험이면 멈춘 채로 둔다. 화면은 주행 중이므로 최소 상태(PAUSED)로 둔다.
+            held -> _mode.value = AppMode.PAUSED
+            else -> {
+                _mode.value = AppMode.DRIVING
+                when {
+                    aborted && scene != null -> play(scene, sentenceIndex)
+                    scene == null -> playNext()
+                }
+            }
         }
     }
 
     private fun onStopped() {
-        if (_mode.value == AppMode.ENDING) {
-            if (held) resume()
+        if (activeHazards.isNotEmpty()) {
+            deferred = false // 정차 조건은 충족했지만 경고 해제까지 기다린다.
             return
         }
-        // 정차 중에도 낭독은 이어진다. 위험 이벤트로 멈춘 낭독은 다음 출발 때 재개한다.
+        if (_mode.value == AppMode.ENDING) {
+            if (held) resumeAfterHazard()
+            return
+        }
+        // 정차 중에도 낭독은 이어진다. 위험 이벤트로 멈춘 낭독은 다음 출발 때 재개하지만,
+        // 반복 위험으로 보류된 낭독은 정차한 지금 재개한다.
         _mode.value = AppMode.STOPPED
+        if (held && deferred) {
+            deferred = false
+            resumeAfterHazard()
+        }
     }
 
     private fun onHazard() {
@@ -388,13 +428,105 @@ class DefaultStoryEngine(
             held = true
             current?.let { publishNowPlaying(it) }
         }
-        if (_mode.value != AppMode.ENDING) _mode.value = AppMode.PAUSED
+        held = true
+        // 서 있는 차에서는 낭독만 멈추고 정차 화면을 그대로 둔다("멈춰"라고 했을 때). 지속 경고는 서 있어도 화면을 막는다.
+        val blocked = moving || activeHazards.isNotEmpty()
+        _canInteract.value = !blocked
+        if (_mode.value != AppMode.ENDING) _mode.value = if (blocked) AppMode.PAUSED else AppMode.STOPPED
+        registerHazard()
         publishSnapshot()
     }
 
+    private fun onHazardState(event: VehicleEvent.HazardState) {
+        if (event.active) {
+            if (activeHazards.add(event.reason)) onHazard()
+            return
+        }
+        if (!activeHazards.remove(event.reason) || activeHazards.isNotEmpty() || !held) return
+        if (arrivedDuringHazard) {
+            // 경고 중에 미뤄 둔 도착: 낭독을 재개하지 않고 바로 지목 화면으로 간다.
+            onArrived()
+            return
+        }
+        lastHazardAt = clock()
+        waitsForClearDelay = true
+        resumeJob?.cancel()
+        resumeJob = scope?.launch {
+            delay(resumeDelayMs)
+            // 그사이 서서 질문을 시작했으면 끊지 않는다. 멈춘 낭독은 대답 뒤에도 멈춰 있다가 다음 출발 때 잇는다.
+            if (held && activeHazards.isEmpty() && !deferred && !interrogating()) resumeAfterHazard()
+        }
+    }
+
+    /** 질문의 대답을 기다리거나 읽는 중이다. */
+    private fun interrogating() = askJob?.isActive == true || current?.trigger == SceneTrigger.REPLY
+
+    /** 위험 시각을 기록하고, 반복이면 정차 때까지 보류하며, 아니면 재개 타이머를 다시 건다. */
+    private fun registerHazard() {
+        val now = clock()
+        lastHazardAt = now
+        hazardTimes.addLast(now)
+        while (hazardTimes.isNotEmpty() && now - hazardTimes.first() > repeatWindowMs) hazardTimes.removeFirst()
+        // 이미 서 있으면 보류할 이유가 없다. 다음 출발 때 재개한다.
+        deferred = moving && hazardTimes.size >= REPEAT_THRESHOLD
+
+        resumeJob?.cancel()
+        resumeJob = null
+        if (deferred || activeHazards.isNotEmpty()) return
+        resumeJob =
+            scope?.launch {
+                delay(resumeDelayMs)
+                if (held && moving && !deferred && activeHazards.isEmpty()) resumeAfterHazard()
+            }
+    }
+
+    private fun canResumeAfterHazard() = activeHazards.isEmpty() && !deferred && clock() - lastHazardAt >= resumeDelayMs
+
+    /** 위험으로 멈춘 낭독을 "이어서 들려드릴게요" 안내 후 멈춘 문장부터 다시 시작한다. */
+    private fun resumeAfterHazard() {
+        if (!held || activeHazards.isNotEmpty()) return
+        if (waitsForClearDelay && clock() - lastHazardAt < resumeDelayMs) return
+        waitsForClearDelay = false
+        resumeJob?.cancel()
+        resumeJob = null
+        deferred = false
+        _canInteract.value = !moving
+        if (_mode.value == AppMode.PAUSED || _mode.value == AppMode.STOPPED) {
+            _mode.value = if (moving) AppMode.DRIVING else AppMode.STOPPED
+        }
+
+        val scene = current
+        val hasNext = scene != null || queue.isNotEmpty()
+        // 결말 낭독은 안내 없이 바로 잇는다(안내 뒤 이어 재생은 DRIVING·STOPPED에서만 이뤄진다).
+        if (!hasNext || _mode.value == AppMode.ENDING) {
+            resume()
+            return
+        }
+        held = false
+        interrupted = scene?.let { it to sentenceIndex }
+        current = null
+        play(replyScene("이어서 듣기", RESUME_NOTICE))
+    }
+
+    private fun cancelHazardState() {
+        resumeJob?.cancel()
+        resumeJob = null
+        deferred = false
+        lastHazardAt = 0L
+        hazardTimes.clear()
+        activeHazards.clear()
+        waitsForClearDelay = false
+        arrivedDuringHazard = false
+    }
+
     private fun onArrived() {
+        if (held && activeHazards.isNotEmpty()) {
+            arrivedDuringHazard = true
+            return
+        }
         if (_mode.value == AppMode.ENDING) return
         abortInterrogation()
+        cancelHazardState()
         audio.stop()
         val unheard = listOfNotNull(current?.takeIf { it.trigger == null }) + queue.filter { it.trigger == null }
         unlock(unheard.filter { it.required }.flatMap { it.unlocks })
@@ -402,6 +534,8 @@ class DefaultStoryEngine(
         queue.clear()
         current = null
         held = false
+        // 위험으로 멈춘 채 도착했으면 이벤트 앞에서 계산한 값이 막힌 채로 남는다. 멈춤을 풀었으니 다시 계산한다.
+        _canInteract.value = !moving && activeHazards.isEmpty()
         _nowPlaying.value = null
         _mode.value = AppMode.ENDING
         _progress.value = 1f
@@ -580,6 +714,8 @@ class DefaultStoryEngine(
     }
 
     private companion object {
+        const val REPEAT_THRESHOLD = 2
+        const val RESUME_NOTICE = "이어서 들려드릴게요."
         /** 목적지가 없을 때 챕터 길이로 보는 시간. */
         const val DEFAULT_CHAPTER_SEC = 600
     }

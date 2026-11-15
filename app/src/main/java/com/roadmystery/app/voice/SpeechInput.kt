@@ -31,10 +31,10 @@ class PleosSpeechInput(
     @Volatile private var ready = false
 
     init {
-        stt.setLocale(Locale.KOREAN)
         stt.initialize(
             object : OnInitializeListener {
                 override fun onSuccess() {
+                    stt.setLocale(Locale.KOREA)
                     if (!useServer) {
                         ready = true
                         return

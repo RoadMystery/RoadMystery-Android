@@ -74,6 +74,8 @@ fun SimulationPanel(
             PanelButton("도착") { onEvent(VehicleEvent.Arrived) }
             PanelButton("급제동", danger = true) { onEvent(VehicleEvent.Hazard(HazardReason.HARD_BRAKE)) }
             PanelButton("ADAS 경고", danger = true) { onEvent(VehicleEvent.Hazard(HazardReason.ADAS_WARNING)) }
+            PanelButton("ADAS 지속 경고", danger = true) { onEvent(VehicleEvent.HazardState(HazardReason.ADAS_WARNING, true)) }
+            PanelButton("ADAS 경고 해제") { onEvent(VehicleEvent.HazardState(HazardReason.ADAS_WARNING, false)) }
             PanelButton("\"멈춰\"", danger = true) { onEvent(VehicleEvent.Hazard(HazardReason.USER_STOP)) }
             HorizontalDivider()
             OutlinedButton(onClick = actions.onToggleSpeed, modifier = Modifier.fillMaxWidth()) {
