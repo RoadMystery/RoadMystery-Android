@@ -7,6 +7,11 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
 }
 
+// local.properties: Pleos 키(선택)와 release 서명 정보. 커밋하지 않는다.
+val localProps = Properties().apply {
+    rootProject.file("local.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
+}
+
 android {
     namespace = "com.roadmystery.app"
     compileSdk = 36
@@ -23,15 +28,28 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         // Pleos Playground > My Project의 클라이언트 ID/시크릿. 비어 있으면 TTS·STT를 ON_DEVICE 모드로 쓴다.
-        val local = Properties().apply {
-            rootProject.file("local.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
+        buildConfigField("String", "PLEOS_CLIENT_ID", "\"${localProps.getProperty("pleos.clientId", "")}\"")
+        buildConfigField("String", "PLEOS_CLIENT_SECRET", "\"${localProps.getProperty("pleos.clientSecret", "")}\"")
+    }
+
+    signingConfigs {
+        create("release") {
+            val storePath = localProps.getProperty("release.storeFile")
+            if (storePath != null) {
+                storeFile = file(storePath)
+                storePassword = localProps.getProperty("release.storePassword")
+                keyAlias = localProps.getProperty("release.keyAlias")
+                keyPassword = localProps.getProperty("release.keyPassword")
+            }
         }
-        buildConfigField("String", "PLEOS_CLIENT_ID", "\"${local.getProperty("pleos.clientId", "")}\"")
-        buildConfigField("String", "PLEOS_CLIENT_SECRET", "\"${local.getProperty("pleos.clientSecret", "")}\"")
     }
 
     buildTypes {
         release {
+            // 서명 정보가 없으면(다른 PC에서 소스 빌드) 서명하지 않은 APK를 만든다.
+            if (localProps.getProperty("release.storeFile") != null) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
