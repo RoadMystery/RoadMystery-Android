@@ -14,3 +14,7 @@
 .cxx
 local.properties
 .kotlin
+
+# release 서명 키
+*.jks
+*.keystore
